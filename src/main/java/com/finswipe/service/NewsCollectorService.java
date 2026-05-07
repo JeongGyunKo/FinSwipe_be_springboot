@@ -398,7 +398,7 @@ public class NewsCollectorService {
         List<NewsArticle> unanalyzed = newsRepo.findUnanalyzed(PageRequest.of(0, limit));
         if (unanalyzed.isEmpty()) return 0;
         log.info("[재분석] 미분석 기사 {}개 발견 → 분석 시작", unanalyzed.size());
-        analyzeAndUpdate(unanalyzed, true);
+        analyzeAndUpdate(unanalyzed, false);
         return unanalyzed.size();
     }
 
