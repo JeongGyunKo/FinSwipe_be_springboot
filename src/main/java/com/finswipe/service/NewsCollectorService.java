@@ -382,10 +382,10 @@ public class NewsCollectorService {
                         ps.setString(1, r.getSentimentLabel());
                         if (r.getSentimentScore() != null) ps.setDouble(2, r.getSentimentScore());
                         else ps.setNull(2, java.sql.Types.DOUBLE);
-                        ps.setArray(3, con.createArrayOf("text", toStringArray(r.getSummary3lines())));
+                        setPgArray(ps, 3, r.getSummary3lines());
                         setJsonb(ps, 4, safeJson(r.getXai()));
                         ps.setString(5, r.getHeadlineKo());
-                        ps.setArray(6, con.createArrayOf("text", toStringArray(r.getSummary3linesKo())));
+                        setPgArray(ps, 6, r.getSummary3linesKo());
                         setJsonb(ps, 7, safeJson(r.getXaiKo()));
                         ps.setObject(8, articleId);
                         return ps;
@@ -431,7 +431,7 @@ public class NewsCollectorService {
         }
     }
 
-    /** jsonb 컬럼에 PGobject로 직접 바인딩 — 특수문자 이스케이프 문제 방지 */
+    /** jsonb 컬럼에 PGobject로 직접 바인딩 */
     private void setJsonb(java.sql.PreparedStatement ps, int index, String json) throws java.sql.SQLException {
         if (json == null) {
             ps.setNull(index, java.sql.Types.OTHER);
@@ -443,10 +443,16 @@ public class NewsCollectorService {
         }
     }
 
-    /** List<String> → String[] (createArrayOf 용) */
-    private String[] toStringArray(List<String> list) {
-        if (list == null || list.isEmpty()) return new String[0];
-        return list.toArray(new String[0]);
+    /** text[] 컬럼에 PGobject로 직접 바인딩 — createArrayOf 없이 처리 */
+    private void setPgArray(java.sql.PreparedStatement ps, int index, List<String> list) throws java.sql.SQLException {
+        if (list == null || list.isEmpty()) {
+            ps.setNull(index, java.sql.Types.OTHER);
+        } else {
+            var pgObj = new org.postgresql.util.PGobject();
+            pgObj.setType("text[]");
+            pgObj.setValue(toArrayLiteral(list));
+            ps.setObject(index, pgObj);
+        }
     }
 
     /** List<String> → PostgreSQL 배열 리터럴 ({item1,item2}) */
