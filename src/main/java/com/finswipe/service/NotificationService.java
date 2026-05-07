@@ -43,7 +43,10 @@ public class NotificationService {
         String trimmed = value.trim().replace("\"", "").replace("'", "");
         if (trimmed.startsWith("{")) return trimmed;
         try {
-            // getMimeDecoder: 개행·공백 등 비Base64 문자 무시
+            // 잘린 패딩 자동 보정
+            int rem = trimmed.length() % 4;
+            if (rem == 2) trimmed += "==";
+            else if (rem == 3) trimmed += "=";
             String decoded = new String(java.util.Base64.getMimeDecoder().decode(trimmed),
                     java.nio.charset.StandardCharsets.UTF_8);
             if (decoded.trim().startsWith("{")) return decoded;
