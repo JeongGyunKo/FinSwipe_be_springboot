@@ -9,7 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
@@ -58,9 +57,7 @@ public class NewsCollectorService {
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
     private final AppProperties props;
-    private final JdbcTemplate jdbc;
 
-    // Python: _analysis_lock — 분석 중 중복 실행 방지
     private volatile boolean analysisRunning = false;
 
     public NewsCollectorService(@Qualifier("finlightRestClient") RestClient finlightClient,
@@ -68,15 +65,13 @@ public class NewsCollectorService {
                                 AnalyzerService analyzerService,
                                 NotificationService notificationService,
                                 ObjectMapper objectMapper,
-                                AppProperties props,
-                                JdbcTemplate jdbc) {
+                                AppProperties props) {
         this.finlightClient = finlightClient;
         this.newsRepo = newsRepo;
         this.analyzerService = analyzerService;
         this.notificationService = notificationService;
         this.objectMapper = objectMapper;
         this.props = props;
-        this.jdbc = jdbc;
     }
 
     /** Python: collect_market_news() */
@@ -370,28 +365,16 @@ public class NewsCollectorService {
                 if (found.isEmpty()) {
                     log.warn("[DB] 업데이트 0행 — 기사를 찾을 수 없음: {}", truncate(link));
                 } else {
-                    UUID articleId = found.get().getId();
-                    final AnalyzerService.EnrichmentResult r = result;
-                    int rows = jdbc.update(con -> {
-                        var ps = con.prepareStatement(
-                            "UPDATE news_articles SET " +
-                            "sentiment_label=?, sentiment_score=?, summary_3lines=?, " +
-                            "xai=?, headline_ko=?, summary_3lines_ko=?, xai_ko=? " +
-                            "WHERE id=?"
-                        );
-                        ps.setString(1, r.getSentimentLabel());
-                        if (r.getSentimentScore() != null) ps.setDouble(2, r.getSentimentScore());
-                        else ps.setNull(2, java.sql.Types.DOUBLE);
-                        setPgArray(ps, 3, r.getSummary3lines());
-                        setJsonb(ps, 4, safeJson(r.getXai()));
-                        ps.setString(5, r.getHeadlineKo());
-                        setPgArray(ps, 6, r.getSummary3linesKo());
-                        setJsonb(ps, 7, safeJson(r.getXaiKo()));
-                        ps.setObject(8, articleId);
-                        return ps;
-                    });
-                    if (rows > 0) log.info("[DB] 저장 완료: {}", truncate(link));
-                    else log.warn("[DB] 업데이트 0행: {}", truncate(link));
+                    NewsArticle article = found.get();
+                    article.setSentimentLabel(result.getSentimentLabel());
+                    article.setSentimentScore(result.getSentimentScore());
+                    article.setSummary3lines(result.getSummary3lines());
+                    article.setXai(safeJson(result.getXai()));
+                    article.setHeadlineKo(result.getHeadlineKo());
+                    article.setSummary3linesKo(result.getSummary3linesKo());
+                    article.setXaiKo(safeJson(result.getXaiKo()));
+                    newsRepo.save(article);
+                    log.info("[DB] 저장 완료: {}", truncate(link));
                 }
 
                 // 관심 종목 알림 발송
@@ -429,47 +412,6 @@ public class NewsCollectorService {
         } catch (Exception e) {
             log.error("[정리] 삭제 실패: {}", e.getMessage());
         }
-    }
-
-    /** jsonb 컬럼에 PGobject로 직접 바인딩 */
-    private void setJsonb(java.sql.PreparedStatement ps, int index, String json) throws java.sql.SQLException {
-        if (json == null) {
-            ps.setNull(index, java.sql.Types.OTHER);
-        } else {
-            var pgObj = new org.postgresql.util.PGobject();
-            pgObj.setType("jsonb");
-            pgObj.setValue(json);
-            ps.setObject(index, pgObj);
-        }
-    }
-
-    /** text[] 컬럼에 PGobject로 직접 바인딩 — createArrayOf 없이 처리 */
-    private void setPgArray(java.sql.PreparedStatement ps, int index, List<String> list) throws java.sql.SQLException {
-        if (list == null || list.isEmpty()) {
-            ps.setNull(index, java.sql.Types.OTHER);
-        } else {
-            var pgObj = new org.postgresql.util.PGobject();
-            pgObj.setType("text[]");
-            pgObj.setValue(toArrayLiteral(list));
-            ps.setObject(index, pgObj);
-        }
-    }
-
-    /** List<String> → PostgreSQL 배열 리터럴 ({item1,item2}) */
-    private String toArrayLiteral(List<String> list) {
-        if (list == null || list.isEmpty()) return null;
-        StringBuilder sb = new StringBuilder("{");
-        for (int i = 0; i < list.size(); i++) {
-            if (i > 0) sb.append(',');
-            String s = list.get(i);
-            if (s == null) { sb.append("NULL"); continue; }
-            if (s.contains(",") || s.contains("\"") || s.contains("{") || s.contains("\\")) {
-                sb.append('"').append(s.replace("\\", "\\\\").replace("\"", "\\\"")).append('"');
-            } else {
-                sb.append(s);
-            }
-        }
-        return sb.append('}').toString();
     }
 
     /** xai/xai_ko 저장 전 JSON 유효성 검증 — 잘못된 JSON이면 null 반환 */
