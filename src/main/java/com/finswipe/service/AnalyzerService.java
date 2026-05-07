@@ -26,8 +26,8 @@ public class AnalyzerService {
     private final RestClient genaiClient;
     private final ExecutorService enrichmentExecutor;
     private final ObjectMapper objectMapper;
-    // Python: asyncio.Semaphore(1) — 한 번에 1개씩 순차 제출, 3초 간격
-    private final Semaphore submitSemaphore = new Semaphore(1);
+    // 동시 3개 처리, 1초 간격 — Semaphore(1)+3초보다 ~3배 빠름
+    private final Semaphore submitSemaphore = new Semaphore(3);
 
     public AnalyzerService(@Qualifier("genaiRestClient") RestClient genaiClient,
                            @Qualifier("enrichmentExecutor") ExecutorService enrichmentExecutor,
@@ -69,7 +69,7 @@ public class AnalyzerService {
                     try {
                         submitSemaphore.acquire();
                         try {
-                            Thread.sleep(3000);
+                            Thread.sleep(1000);
                             return enrichSingle(article);
                         } finally {
                             submitSemaphore.release();
