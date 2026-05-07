@@ -40,12 +40,18 @@ public class NotificationService {
     /** Base64로 인코딩된 경우 디코딩 */
     private String decodeIfBase64(String value) {
         if (value == null || value.isBlank()) return value;
-        if (value.trim().startsWith("{")) return value; // 이미 JSON
+        String trimmed = value.trim().replace("\"", "").replace("'", "");
+        if (trimmed.startsWith("{")) return trimmed;
         try {
-            return new String(java.util.Base64.getDecoder().decode(value.trim()), java.nio.charset.StandardCharsets.UTF_8);
+            // getMimeDecoder: 개행·공백 등 비Base64 문자 무시
+            String decoded = new String(java.util.Base64.getMimeDecoder().decode(trimmed),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            if (decoded.trim().startsWith("{")) return decoded;
+            log.warn("[알림] Base64 디코딩 결과가 JSON이 아님 → 원본 사용");
         } catch (Exception e) {
-            return value;
+            log.warn("[알림] Base64 디코딩 실패: {} → 원본 사용", e.getMessage());
         }
+        return trimmed;
     }
 
     /** Python: notify_ticker_article() */
