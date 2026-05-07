@@ -1,0 +1,66 @@
+spring:
+  application:
+    name: FinSwipe_be_springboot
+
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+    show-sql: false
+    open-in-view: false
+
+  cache:
+    type: caffeine
+
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: 8080
+  compression:
+    enabled: true
+
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
+    com.finswipe: ${LOG_LEVEL:INFO}
+    org.hibernate.SQL: WARN
+
+app:
+  finlight:
+    api-key: ${FINLIGHT_API_KEY}
+    base-url: https://api.finlight.me
+  genai:
+    url: ${GENAI_URL}
+    user: ${GENAI_USER}
+    password: ${GENAI_PASSWORD}
+    connect-timeout-seconds: 10
+    read-timeout-seconds: 300
+  admin:
+    api-key: ${ADMIN_API_KEY}
+  cors:
+    origins: ${CORS_ORIGINS:*}
+  cache:
+    news-ttl-seconds: 30
+    tickers-ttl-seconds: 3600
+  rate-limit:
+    public-rpm: 30
+    admin-rpm: 30
+  fcm:
+    service-account-json: ${FCM_SERVICE_ACCOUNT_JSON:}
+    server-key: ${FCM_SERVER_KEY:}

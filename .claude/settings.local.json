@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew build *)",
+      "Bash(java -version)",
+      "Bash(where java *)",
+      "Bash(winget install *)",
+      "Bash(./gradlew bootRun --args=\"--spring.profiles.active=local\")",
+      "Bash(curl -s http://localhost:8080/health)",
+      "Bash(echo \"PID=$!\")",
+      "Bash(pkill -f \"bootRun\")",
+      "Bash(netstat -ano)",
+      "Bash(taskkill /PID 4252 /F)",
+      "Bash(curl -s --connect-timeout 5 \"https://dbkbdshdgxjqldbavbco.supabase.co/rest/v1/\")",
+      "PowerShell(taskkill *)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "Bash(curl -s --connect-timeout 5 telnet://db.dbkbdshdgxjqldbavbco.supabase.co:5432)",
+      "Bash(python3 -c ' *)",
+      "Bash(nslookup dbkbdshdgxjqldbavbco.supabase.co)",
+      "Bash(nslookup db.dbkbdshdgxjqldbavbco.supabase.co)",
+      "PowerShell(Get-WmiObject *)",
+      "PowerShell(Get-Process | Where-Object { $_.Id -eq 4252 })",
+      "Bash(curl -s http://localhost:8081/health)",
+      "Bash(curl -s \"http://localhost:8081/news/latest?limit=3\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s \"http://localhost:8081/news/genai/health\")",
+      "Bash(./gradlew compileJava)",
+      "Bash(curl -s \"http://localhost:8081/news/latest?limit=2\")",
+      "Bash(curl -s \"http://localhost:8081/news/search?q=애플\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'count={d[\\\\\"count\\\\\"]}, articles={len\\(d[\\\\\"data\\\\\"]\\)}'\\)\")",
+      "Bash(curl -s \"http://localhost:8081/news/tickers\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'tickers={len\\(d\\)}'\\)\")",
+      "Bash(curl -s \"http://localhost:8081/health\")",
+      "Bash(curl -s \"http://localhost:8081/news/search?q=%EC%95%A0%ED%94%8C\")",
+      "Bash(curl -s \"http://localhost:8081/news/search?q=AAPL\")"
+    ]
+  }
+}

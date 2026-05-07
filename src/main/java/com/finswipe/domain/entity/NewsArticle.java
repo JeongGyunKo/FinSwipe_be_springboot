@@ -1,0 +1,98 @@
+package com.finswipe.domain.entity;
+
+import com.finswipe.util.StringListType;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.Type;
+import org.hibernate.type.SqlTypes;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.UUID;
+
+@Entity
+@Table(name = "news_articles")
+@Getter
+@Setter
+@NoArgsConstructor
+public class NewsArticle {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(nullable = false)
+    private String headline;
+
+    @Column(columnDefinition = "text")
+    private String summary;
+
+    @Column(name = "summary_3lines", columnDefinition = "text[]")
+    @Type(StringListType.class)
+    private List<String> summary3lines;
+
+    @Column(name = "source_url", unique = true, nullable = false)
+    private String sourceUrl;
+
+    @Column(columnDefinition = "text")
+    private String content;
+
+    @Column(name = "image_url")
+    private String imageUrl;
+
+    @Column(name = "published_at")
+    private OffsetDateTime publishedAt;
+
+    @Column(columnDefinition = "text[]")
+    @Type(StringListType.class)
+    private List<String> categories;
+
+    @Column(columnDefinition = "text[]")
+    @Type(StringListType.class)
+    private List<String> countries;
+
+    @Column(columnDefinition = "text[]")
+    @Type(StringListType.class)
+    private List<String> tickers;
+
+    @Column(name = "is_paywalled", nullable = false)
+    private boolean isPaywalled = false;
+
+    @Column(name = "sentiment_label")
+    private String sentimentLabel;
+
+    @Column(name = "sentiment_score")
+    private Double sentimentScore;
+
+    @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String xai;
+
+    @Transient
+    private Boolean isMixed;
+
+    @Column(name = "headline_ko")
+    private String headlineKo;
+
+    @Column(name = "summary_3lines_ko", columnDefinition = "text[]")
+    @Type(StringListType.class)
+    private List<String> summary3linesKo;
+
+    @Column(name = "xai_ko", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String xaiKo;
+
+    @Column(name = "created_at", updatable = false)
+    private OffsetDateTime createdAt;
+
+    @Transient
+    private OffsetDateTime updatedAt;
+
+    @PrePersist
+    void prePersist() {
+        createdAt = OffsetDateTime.now();
+    }
+}
