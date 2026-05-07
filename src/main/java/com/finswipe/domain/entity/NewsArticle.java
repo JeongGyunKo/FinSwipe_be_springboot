@@ -77,8 +77,8 @@ public class NewsArticle {
     @Column(name = "headline_ko")
     private String headlineKo;
 
-    @Column(name = "summary_3lines_ko", columnDefinition = "jsonb")
-    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "summary_3lines_ko", columnDefinition = "text[]")
+    @Type(StringListType.class)
     private List<String> summary3linesKo;
 
     @Column(name = "xai_ko", columnDefinition = "jsonb")
