@@ -392,7 +392,6 @@ public class NewsCollectorService {
     }
 
     /** Python: reanalyze_unanalyzed() */
-    @Transactional
     public int reanalyzeUnanalyzed(int limit) {
         List<NewsArticle> unanalyzed = newsRepo.findUnanalyzed(PageRequest.of(0, limit));
         if (unanalyzed.isEmpty()) return 0;
