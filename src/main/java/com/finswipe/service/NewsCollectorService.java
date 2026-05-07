@@ -371,26 +371,25 @@ public class NewsCollectorService {
                     log.warn("[DB] 업데이트 0행 — 기사를 찾을 수 없음: {}", truncate(link));
                 } else {
                     UUID articleId = found.get().getId();
-                    int rows = jdbc.update("""
-                        UPDATE news_articles SET
-                            sentiment_label    = ?,
-                            sentiment_score    = ?,
-                            summary_3lines     = CAST(? AS text[]),
-                            xai                = CAST(? AS jsonb),
-                            headline_ko        = ?,
-                            summary_3lines_ko  = CAST(? AS text[]),
-                            xai_ko             = CAST(? AS jsonb)
-                        WHERE id = ?
-                        """,
-                        result.getSentimentLabel(),
-                        result.getSentimentScore(),
-                        toArrayLiteral(result.getSummary3lines()),
-                        safeJson(result.getXai()),
-                        result.getHeadlineKo(),
-                        toArrayLiteral(result.getSummary3linesKo()),
-                        safeJson(result.getXaiKo()),
-                        articleId
-                    );
+                    final AnalyzerService.EnrichmentResult r = result;
+                    int rows = jdbc.update(con -> {
+                        var ps = con.prepareStatement(
+                            "UPDATE news_articles SET " +
+                            "sentiment_label=?, sentiment_score=?, summary_3lines=?, " +
+                            "xai=?, headline_ko=?, summary_3lines_ko=?, xai_ko=? " +
+                            "WHERE id=?"
+                        );
+                        ps.setString(1, r.getSentimentLabel());
+                        if (r.getSentimentScore() != null) ps.setDouble(2, r.getSentimentScore());
+                        else ps.setNull(2, java.sql.Types.DOUBLE);
+                        ps.setArray(3, con.createArrayOf("text", toStringArray(r.getSummary3lines())));
+                        setJsonb(ps, 4, safeJson(r.getXai()));
+                        ps.setString(5, r.getHeadlineKo());
+                        ps.setArray(6, con.createArrayOf("text", toStringArray(r.getSummary3linesKo())));
+                        setJsonb(ps, 7, safeJson(r.getXaiKo()));
+                        ps.setObject(8, articleId);
+                        return ps;
+                    });
                     if (rows > 0) log.info("[DB] 저장 완료: {}", truncate(link));
                     else log.warn("[DB] 업데이트 0행: {}", truncate(link));
                 }
@@ -430,6 +429,24 @@ public class NewsCollectorService {
         } catch (Exception e) {
             log.error("[정리] 삭제 실패: {}", e.getMessage());
         }
+    }
+
+    /** jsonb 컬럼에 PGobject로 직접 바인딩 — 특수문자 이스케이프 문제 방지 */
+    private void setJsonb(java.sql.PreparedStatement ps, int index, String json) throws java.sql.SQLException {
+        if (json == null) {
+            ps.setNull(index, java.sql.Types.OTHER);
+        } else {
+            var pgObj = new org.postgresql.util.PGobject();
+            pgObj.setType("jsonb");
+            pgObj.setValue(json);
+            ps.setObject(index, pgObj);
+        }
+    }
+
+    /** List<String> → String[] (createArrayOf 용) */
+    private String[] toStringArray(List<String> list) {
+        if (list == null || list.isEmpty()) return new String[0];
+        return list.toArray(new String[0]);
     }
 
     /** List<String> → PostgreSQL 배열 리터럴 ({item1,item2}) */

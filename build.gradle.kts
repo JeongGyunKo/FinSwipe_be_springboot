@@ -26,7 +26,7 @@ dependencies {
 
     // Data JPA + PostgreSQL
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-    runtimeOnly("org.postgresql:postgresql")
+    implementation("org.postgresql:postgresql")
 
     // Cache (Caffeine)
     implementation("org.springframework.boot:spring-boot-starter-cache")
