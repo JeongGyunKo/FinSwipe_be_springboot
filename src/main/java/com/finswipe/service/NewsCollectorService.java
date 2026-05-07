@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
@@ -57,6 +58,7 @@ public class NewsCollectorService {
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
     private final AppProperties props;
+    private final JdbcTemplate jdbc;
 
     // Python: _analysis_lock — 분석 중 중복 실행 방지
     private volatile boolean analysisRunning = false;
@@ -66,13 +68,15 @@ public class NewsCollectorService {
                                 AnalyzerService analyzerService,
                                 NotificationService notificationService,
                                 ObjectMapper objectMapper,
-                                AppProperties props) {
+                                AppProperties props,
+                                JdbcTemplate jdbc) {
         this.finlightClient = finlightClient;
         this.newsRepo = newsRepo;
         this.analyzerService = analyzerService;
         this.notificationService = notificationService;
         this.objectMapper = objectMapper;
         this.props = props;
+        this.jdbc = jdbc;
     }
 
     /** Python: collect_market_news() */
@@ -363,17 +367,33 @@ public class NewsCollectorService {
                         ? newsRepo.findById(original.getId())
                         : newsRepo.findBySourceUrl(link).or(() -> newsRepo.findBySourceUrl(link + "/"));
 
-                found.ifPresentOrElse(article -> {
-                            article.setSentimentLabel(result.getSentimentLabel());
-                            article.setSentimentScore(result.getSentimentScore());
-                            article.setSummary3lines(result.getSummary3lines());
-                            article.setXai(safeJson(result.getXai()));
-                            article.setHeadlineKo(result.getHeadlineKo());
-                            article.setSummary3linesKo(result.getSummary3linesKo());
-                            article.setXaiKo(safeJson(result.getXaiKo()));
-                            newsRepo.save(article);
-                            log.info("[DB] 저장 완료: {}", truncate(link));
-                        }, () -> log.warn("[DB] 업데이트 0행 — source_url 불일치: {}", truncate(link)));
+                if (found.isEmpty()) {
+                    log.warn("[DB] 업데이트 0행 — 기사를 찾을 수 없음: {}", truncate(link));
+                } else {
+                    UUID articleId = found.get().getId();
+                    int rows = jdbc.update("""
+                        UPDATE news_articles SET
+                            sentiment_label    = ?,
+                            sentiment_score    = ?,
+                            summary_3lines     = ?::text[],
+                            xai                = ?::jsonb,
+                            headline_ko        = ?,
+                            summary_3lines_ko  = ?::text[],
+                            xai_ko             = ?::jsonb
+                        WHERE id = ?
+                        """,
+                        result.getSentimentLabel(),
+                        result.getSentimentScore(),
+                        toArrayLiteral(result.getSummary3lines()),
+                        safeJson(result.getXai()),
+                        result.getHeadlineKo(),
+                        toArrayLiteral(result.getSummary3linesKo()),
+                        safeJson(result.getXaiKo()),
+                        articleId
+                    );
+                    if (rows > 0) log.info("[DB] 저장 완료: {}", truncate(link));
+                    else log.warn("[DB] 업데이트 0행: {}", truncate(link));
+                }
 
                 // 관심 종목 알림 발송
                 List<String> tickers = original.getTickers();
@@ -410,6 +430,23 @@ public class NewsCollectorService {
         } catch (Exception e) {
             log.error("[정리] 삭제 실패: {}", e.getMessage());
         }
+    }
+
+    /** List<String> → PostgreSQL 배열 리터럴 ({item1,item2}) */
+    private String toArrayLiteral(List<String> list) {
+        if (list == null || list.isEmpty()) return null;
+        StringBuilder sb = new StringBuilder("{");
+        for (int i = 0; i < list.size(); i++) {
+            if (i > 0) sb.append(',');
+            String s = list.get(i);
+            if (s == null) { sb.append("NULL"); continue; }
+            if (s.contains(",") || s.contains("\"") || s.contains("{") || s.contains("\\")) {
+                sb.append('"').append(s.replace("\\", "\\\\").replace("\"", "\\\"")).append('"');
+            } else {
+                sb.append(s);
+            }
+        }
+        return sb.append('}').toString();
     }
 
     /** xai/xai_ko 저장 전 JSON 유효성 검증 — 잘못된 JSON이면 null 반환 */
