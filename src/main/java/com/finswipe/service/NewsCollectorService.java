@@ -302,7 +302,11 @@ public class NewsCollectorService {
     Map<String, Integer> saveArticles(List<NewsArticle> articles) {
         if (articles.isEmpty()) return Map.of("saved", 0, "skipped", 0);
         try {
-            newsRepo.saveAll(articles);
+            // saveAll 반환값으로 ID를 원본 리스트에 반영 (이후 ID 기반 조회 가능)
+            List<NewsArticle> saved = newsRepo.saveAll(articles);
+            for (int i = 0; i < articles.size() && i < saved.size(); i++) {
+                articles.get(i).setId(saved.get(i).getId());
+            }
             return Map.of("saved", articles.size(), "skipped", 0);
         } catch (Exception e) {
             log.error("배치 저장 실패: {}", e.getMessage());
@@ -353,21 +357,25 @@ public class NewsCollectorService {
             }
 
             try {
-                newsRepo.findBySourceUrl(link).or(() -> newsRepo.findBySourceUrl(link + "/"))
-                        .ifPresentOrElse(article -> {
+                // ID 있으면 직접 사용, 없으면 URL로 조회 (source_url 불일치 방지)
+                NewsArticle original = articles.get(i);
+                Optional<NewsArticle> found = (original.getId() != null)
+                        ? newsRepo.findById(original.getId())
+                        : newsRepo.findBySourceUrl(link).or(() -> newsRepo.findBySourceUrl(link + "/"));
+
+                found.ifPresentOrElse(article -> {
                             article.setSentimentLabel(result.getSentimentLabel());
                             article.setSentimentScore(result.getSentimentScore());
                             article.setSummary3lines(result.getSummary3lines());
-                            article.setXai(result.getXai());
+                            article.setXai(safeJson(result.getXai()));
                             article.setHeadlineKo(result.getHeadlineKo());
                             article.setSummary3linesKo(result.getSummary3linesKo());
-                            article.setXaiKo(result.getXaiKo());
+                            article.setXaiKo(safeJson(result.getXaiKo()));
                             newsRepo.save(article);
                             log.info("[DB] 저장 완료: {}", truncate(link));
                         }, () -> log.warn("[DB] 업데이트 0행 — source_url 불일치: {}", truncate(link)));
 
                 // 관심 종목 알림 발송
-                NewsArticle original = articles.get(i);
                 List<String> tickers = original.getTickers();
                 String headline = original.getHeadline();
                 String fcmJson = props.getFcm().getServiceAccountJson();
@@ -402,6 +410,18 @@ public class NewsCollectorService {
             log.info("[정리] content/tickers 없는 기사 삭제 완료");
         } catch (Exception e) {
             log.error("[정리] 삭제 실패: {}", e.getMessage());
+        }
+    }
+
+    /** xai/xai_ko 저장 전 JSON 유효성 검증 — 잘못된 JSON이면 null 반환 */
+    private String safeJson(String json) {
+        if (json == null) return null;
+        try {
+            objectMapper.readTree(json);
+            return json;
+        } catch (Exception e) {
+            log.warn("[JSON] 유효하지 않은 JSON 무시: {}", json.length() > 50 ? json.substring(0, 50) : json);
+            return null;
         }
     }
 
