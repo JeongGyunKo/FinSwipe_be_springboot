@@ -104,8 +104,11 @@ public class AnalyzerService {
             return EnrichmentResult.unavailable(link);
         }
 
-        // Python: cache_buster = f"?d={date.today().isoformat()}"
-        String cacheBuster = "?d=" + LocalDate.now();
+        // 재분석(headline_ko 등 누락)은 캐시 우회, 신규는 하루 캐시
+        boolean isRetry = article.getSentimentLabel() != null;
+        String cacheBuster = isRetry
+                ? "?t=" + System.currentTimeMillis()
+                : "?d=" + LocalDate.now();
         Map<String, Object> body = new HashMap<>();
         body.put("news_id", link + cacheBuster);
         body.put("title", article.getHeadline() != null ? article.getHeadline() : "");
