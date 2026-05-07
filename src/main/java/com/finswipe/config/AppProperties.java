@@ -89,5 +89,8 @@ public class AppProperties {
     public static class Fcm {
         private String serviceAccountJson = "";
         private String serverKey = "";
+        private String projectId = "";
+        private String clientEmail = "";
+        private String privateKey = "";
     }
 }
