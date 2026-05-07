@@ -5,7 +5,9 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.Type;
+import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -65,7 +67,8 @@ public class NewsArticle {
     @Column(name = "sentiment_score")
     private Double sentimentScore;
 
-    @Column(name = "xai", columnDefinition = "text")
+    @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String xai;
 
     @Transient
@@ -78,7 +81,8 @@ public class NewsArticle {
     @Type(StringListType.class)
     private List<String> summary3linesKo;
 
-    @Column(name = "xai_ko", columnDefinition = "text")
+    @Column(name = "xai_ko", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String xaiKo;
 
     @Column(name = "created_at", updatable = false)
