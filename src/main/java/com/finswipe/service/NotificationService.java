@@ -37,8 +37,20 @@ public class NotificationService {
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
+    /** Base64로 인코딩된 경우 디코딩 */
+    private String decodeIfBase64(String value) {
+        if (value == null || value.isBlank()) return value;
+        if (value.trim().startsWith("{")) return value; // 이미 JSON
+        try {
+            return new String(java.util.Base64.getDecoder().decode(value.trim()), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return value;
+        }
+    }
+
     /** Python: notify_ticker_article() */
     public void notifyTickerArticle(String headline, List<String> tickers, String serviceAccountJson) {
+        serviceAccountJson = decodeIfBase64(serviceAccountJson);
         List<String> tokens = getTokensForTickers(tickers);
         if (tokens.isEmpty()) return;
 
