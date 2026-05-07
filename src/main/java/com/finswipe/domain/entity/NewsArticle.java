@@ -30,8 +30,8 @@ public class NewsArticle {
     @Column(columnDefinition = "text")
     private String summary;
 
-    @Column(name = "summary_3lines", columnDefinition = "text[]")
-    @Type(StringListType.class)
+    @Column(name = "summary_3lines", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private List<String> summary3lines;
 
     @Column(name = "source_url", unique = true, nullable = false)
@@ -77,8 +77,8 @@ public class NewsArticle {
     @Column(name = "headline_ko")
     private String headlineKo;
 
-    @Column(name = "summary_3lines_ko", columnDefinition = "text[]")
-    @Type(StringListType.class)
+    @Column(name = "summary_3lines_ko", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private List<String> summary3linesKo;
 
     @Column(name = "xai_ko", columnDefinition = "jsonb")
