@@ -310,10 +310,16 @@ public class NewsCollectorService {
         }
     }
 
-    /** Python: analyze_and_update() + _do_analyze_and_update() */
+    /** Python: analyze_and_update() + _do_analyze_and_update()
+     *  skipIfRunning=true: 재분석 스케줄러 (이미 실행 중이면 스킵)
+     *  skipIfRunning=false: 신규 수집 기사 (항상 실행) */
     public void analyzeAndUpdate(List<NewsArticle> articles) {
+        analyzeAndUpdate(articles, false);
+    }
+
+    public void analyzeAndUpdate(List<NewsArticle> articles, boolean skipIfRunning) {
         if (articles.isEmpty()) return;
-        if (analysisRunning) {
+        if (skipIfRunning && analysisRunning) {
             log.info("[백그라운드] 분석 진행 중 → 스킵 ({}개)", articles.size());
             return;
         }
@@ -383,7 +389,7 @@ public class NewsCollectorService {
         List<NewsArticle> unanalyzed = newsRepo.findUnanalyzed(PageRequest.of(0, limit));
         if (unanalyzed.isEmpty()) return 0;
         log.info("[재분석] 미분석 기사 {}개 발견 → 분석 시작", unanalyzed.size());
-        analyzeAndUpdate(unanalyzed);
+        analyzeAndUpdate(unanalyzed, true);
         return unanalyzed.size();
     }
 
