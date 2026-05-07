@@ -15,6 +15,13 @@ import java.io.IOException;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class SecurityHeadersFilter extends OncePerRequestFilter {
 
+    private static final String SWAGGER_CSP =
+            "default-src 'none'; " +
+            "script-src 'unsafe-inline' https://cdn.jsdelivr.net; " +
+            "style-src 'unsafe-inline' https://cdn.jsdelivr.net; " +
+            "img-src 'self' data:; " +
+            "connect-src 'self'";
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -22,9 +29,15 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         response.setHeader("X-Content-Type-Options", "nosniff");
         response.setHeader("X-Frame-Options", "DENY");
         response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-        response.setHeader("Content-Security-Policy", "default-src 'none'");
         response.setHeader("X-XSS-Protection", "1; mode=block");
         response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+
+        String path = request.getRequestURI();
+        if (path.startsWith("/swagger-ui") || path.startsWith("/v3/api-docs")) {
+            response.setHeader("Content-Security-Policy", SWAGGER_CSP);
+        } else {
+            response.setHeader("Content-Security-Policy", "default-src 'none'");
+        }
 
         filterChain.doFilter(request, response);
     }
