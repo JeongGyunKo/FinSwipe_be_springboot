@@ -2,10 +2,10 @@ package com.finswipe.controller;
 
 import com.finswipe.dto.response.HealthResponse;
 import com.finswipe.service.AnalyzerService;
-import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -17,7 +17,7 @@ import java.util.Map;
 public class HealthController {
 
     private final AnalyzerService analyzerService;
-    private final EntityManager entityManager;
+    private final JdbcTemplate jdbcTemplate;
 
     @GetMapping("/health")
     public ResponseEntity<HealthResponse> health() {
@@ -31,7 +31,7 @@ public class HealthController {
 
     private String checkDb() {
         try {
-            entityManager.createNativeQuery("SELECT 1").getSingleResult();
+            jdbcTemplate.queryForObject("SELECT 1", Integer.class);
             return "ok";
         } catch (Exception e) {
             log.warn("DB health check failed: {}", e.getMessage());
