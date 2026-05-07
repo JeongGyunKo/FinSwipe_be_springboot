@@ -375,11 +375,11 @@ public class NewsCollectorService {
                         UPDATE news_articles SET
                             sentiment_label    = ?,
                             sentiment_score    = ?,
-                            summary_3lines     = ?::text[],
-                            xai                = ?::jsonb,
+                            summary_3lines     = CAST(? AS text[]),
+                            xai                = CAST(? AS jsonb),
                             headline_ko        = ?,
-                            summary_3lines_ko  = ?::text[],
-                            xai_ko             = ?::jsonb
+                            summary_3lines_ko  = CAST(? AS text[]),
+                            xai_ko             = CAST(? AS jsonb)
                         WHERE id = ?
                         """,
                         result.getSentimentLabel(),
