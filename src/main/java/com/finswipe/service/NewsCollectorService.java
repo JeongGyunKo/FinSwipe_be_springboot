@@ -380,7 +380,7 @@ public class NewsCollectorService {
                 // 관심 종목 알림 발송
                 List<String> tickers = original.getTickers();
                 String headline = original.getHeadline();
-                String fcmJson = props.getFcm().getServiceAccountJson();
+                String fcmJson = resolveFcmJson();
                 if (tickers != null && !tickers.isEmpty() && headline != null && fcmJson != null && !fcmJson.isBlank()) {
                     Thread.ofVirtual().start(() -> notificationService.notifyTickerArticle(headline, tickers, fcmJson));
                 }
@@ -411,6 +411,35 @@ public class NewsCollectorService {
             log.info("[정리] content/tickers 없는 기사 삭제 완료");
         } catch (Exception e) {
             log.error("[정리] 삭제 실패: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * FCM_SERVICE_ACCOUNT_JSON이 비어있으면 FCM_PROJECT_ID + FCM_CLIENT_EMAIL + FCM_PRIVATE_KEY로 JSON 조립.
+     * 개행(\n)이 리터럴 문자열로 들어온 경우도 처리.
+     */
+    private String resolveFcmJson() {
+        String json = props.getFcm().getServiceAccountJson();
+        if (json != null && !json.isBlank()) return json;
+
+        String projectId   = props.getFcm().getProjectId();
+        String clientEmail = props.getFcm().getClientEmail();
+        String privateKey  = props.getFcm().getPrivateKey();
+        if (projectId.isBlank() || clientEmail.isBlank() || privateKey.isBlank()) return null;
+
+        // 환경변수에서 \n이 리터럴로 들어오는 경우 실제 개행으로 변환
+        privateKey = privateKey.replace("\\n", "\n");
+        try {
+            return objectMapper.writeValueAsString(java.util.Map.of(
+                    "type", "service_account",
+                    "project_id", projectId,
+                    "client_email", clientEmail,
+                    "private_key", privateKey,
+                    "token_uri", "https://oauth2.googleapis.com/token"
+            ));
+        } catch (Exception e) {
+            log.warn("[FCM] 서비스 계정 JSON 조립 실패: {}", e.getMessage());
+            return null;
         }
     }
 
