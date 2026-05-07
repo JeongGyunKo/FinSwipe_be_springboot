@@ -16,9 +16,9 @@ import java.io.IOException;
 public class SecurityHeadersFilter extends OncePerRequestFilter {
 
     private static final String SWAGGER_CSP =
-            "default-src 'none'; " +
-            "script-src 'unsafe-inline' https://cdn.jsdelivr.net; " +
-            "style-src 'unsafe-inline' https://cdn.jsdelivr.net; " +
+            "default-src 'self'; " +
+            "script-src 'self' 'unsafe-inline'; " +
+            "style-src 'self' 'unsafe-inline'; " +
             "img-src 'self' data:; " +
             "connect-src 'self'";
 
