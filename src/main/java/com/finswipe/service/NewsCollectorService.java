@@ -340,10 +340,21 @@ public class NewsCollectorService {
 
         int updated = 0, failed = 0, skipped = 0;
 
-        for (int i = 0; i < Math.min(articles.size(), results.size()); i++) {
-            AnalyzerService.EnrichmentResult result = results.get(i);
-            String link = result.getSourceUrl();
-            if (link == null) { skipped++; continue; }
+        // URL 기반 매핑 — 인덱스 기반은 analyzeBatch 필터링 시 articles[i] ≠ results[i] 불일치 발생
+        Map<String, AnalyzerService.EnrichmentResult> resultMap = results.stream()
+                .filter(r -> r.getSourceUrl() != null)
+                .collect(Collectors.toMap(
+                        r -> r.getSourceUrl().replaceAll("/$", ""),
+                        r -> r,
+                        (a, b) -> a));
+
+        for (NewsArticle original : articles) {
+            String rawLink = original.getSourceUrl();
+            if (rawLink == null) { skipped++; continue; }
+            String link = rawLink.replaceAll("/$", "");
+
+            AnalyzerService.EnrichmentResult result = resultMap.get(link);
+            if (result == null) { skipped++; continue; }
 
             if (!result.isAvailable()) {
                 if (result.isCleanFiltered()) {
@@ -356,8 +367,6 @@ public class NewsCollectorService {
             }
 
             try {
-                // ID 있으면 직접 사용, 없으면 URL로 조회 (source_url 불일치 방지)
-                NewsArticle original = articles.get(i);
                 Optional<NewsArticle> found = (original.getId() != null)
                         ? newsRepo.findById(original.getId())
                         : newsRepo.findBySourceUrl(link).or(() -> newsRepo.findBySourceUrl(link + "/"));
@@ -398,7 +407,7 @@ public class NewsCollectorService {
         List<NewsArticle> unanalyzed = newsRepo.findUnanalyzed(PageRequest.of(0, limit));
         if (unanalyzed.isEmpty()) return 0;
         log.info("[재분석] 미분석 기사 {}개 발견 → 분석 시작", unanalyzed.size());
-        analyzeAndUpdate(unanalyzed, false);
+        analyzeAndUpdate(unanalyzed, true);
         return unanalyzed.size();
     }
 
