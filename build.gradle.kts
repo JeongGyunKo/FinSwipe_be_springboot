@@ -27,8 +27,8 @@ dependencies {
     // Data JPA + PostgreSQL + Flyway
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.postgresql:postgresql")
-    implementation("org.flywaydb:flyway-core")
-    implementation("org.flywaydb:flyway-database-postgresql")
+    implementation("org.flywaydb:flyway-core:11.8.0")
+    implementation("org.flywaydb:flyway-database-postgresql:11.8.0")
 
     // Cache (Caffeine)
     implementation("org.springframework.boot:spring-boot-starter-cache")
