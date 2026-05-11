@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -459,7 +460,20 @@ public class NewsCollectorService {
      */
     private String resolveFcmJson() {
         String json = props.getFcm().getServiceAccountJson();
-        if (json != null && !json.isBlank()) return json;
+        if (json != null && !json.isBlank()) {
+            String trimmed = json.trim();
+            if (!trimmed.startsWith("{")) {
+                // Base64 인코딩된 경우 디코딩 (MIME → 표준 순서로 시도)
+                for (Base64.Decoder decoder : List.of(Base64.getMimeDecoder(), Base64.getDecoder())) {
+                    try {
+                        String decoded = new String(decoder.decode(trimmed), StandardCharsets.UTF_8).trim();
+                        if (decoded.startsWith("{")) return decoded;
+                    } catch (Exception ignored) {}
+                }
+                log.warn("[FCM] Base64 디코딩 실패 — 원본 값 그대로 사용");
+            }
+            return trimmed;
+        }
 
         String projectId   = props.getFcm().getProjectId();
         String clientEmail = props.getFcm().getClientEmail();
