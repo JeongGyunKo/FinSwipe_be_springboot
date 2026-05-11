@@ -464,7 +464,8 @@ public class NewsCollectorService {
             String trimmed = json.trim();
             if (!trimmed.startsWith("{")) {
                 // Base64 인코딩된 경우 디코딩 (MIME → 표준 순서로 시도)
-                for (Base64.Decoder decoder : List.of(Base64.getMimeDecoder(), Base64.getDecoder())) {
+                for (Base64.Decoder decoder : List.of(
+                        Base64.getMimeDecoder(), Base64.getDecoder(), Base64.getUrlDecoder())) {
                     try {
                         String decoded = new String(decoder.decode(trimmed), StandardCharsets.UTF_8).trim();
                         if (decoded.startsWith("{")) return decoded;
