@@ -37,23 +37,26 @@ public class NotificationService {
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
-    /** Base64로 인코딩된 경우 디코딩 */
+    /** Base64로 인코딩된 경우 디코딩 — MIME → 표준 순서로 시도 */
     private String decodeIfBase64(String value) {
         if (value == null || value.isBlank()) return value;
         String trimmed = value.trim().replace("\"", "").replace("'", "");
         if (trimmed.startsWith("{")) return trimmed;
-        try {
-            // 잘린 패딩 자동 보정
-            int rem = trimmed.length() % 4;
-            if (rem == 2) trimmed += "==";
-            else if (rem == 3) trimmed += "=";
-            String decoded = new String(java.util.Base64.getMimeDecoder().decode(trimmed),
-                    java.nio.charset.StandardCharsets.UTF_8);
-            if (decoded.trim().startsWith("{")) return decoded;
-            log.warn("[알림] Base64 디코딩 결과가 JSON이 아님 → 원본 사용");
-        } catch (Exception e) {
-            log.warn("[알림] Base64 디코딩 실패: {} → 원본 사용", e.getMessage());
+
+        // 잘린 패딩 자동 보정
+        int rem = trimmed.length() % 4;
+        String padded = trimmed;
+        if (rem == 2) padded += "==";
+        else if (rem == 3) padded += "=";
+
+        for (Base64.Decoder decoder : List.of(Base64.getMimeDecoder(), Base64.getDecoder())) {
+            try {
+                String decoded = new String(decoder.decode(padded),
+                        java.nio.charset.StandardCharsets.UTF_8).trim();
+                if (decoded.startsWith("{")) return decoded;
+            } catch (Exception ignored) {}
         }
+        log.warn("[알림] Base64 디코딩 실패 → 원본 값 사용");
         return trimmed;
     }
 
