@@ -271,6 +271,7 @@ public class NewsController {
     private void requireAdmin(String providedKey) {
         String expectedKey = props.getAdmin().getApiKey();
         if (!MessageDigest.isEqual(providedKey.getBytes(), expectedKey.getBytes())) {
+            log.warn("[보안] 유효하지 않은 admin key 시도");
             throw new AdminKeyException("Invalid admin key");
         }
     }
