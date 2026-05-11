@@ -52,16 +52,19 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
 
     // content NULL인 기사 삭제 (Python: cleanup_old_content)
     @Modifying
+    @Transactional
     @Query(value = "DELETE FROM news_articles WHERE content IS NULL", nativeQuery = true)
     int deleteArticlesWithoutContent();
 
     // tickers 없는 기사 삭제 (Python: cleanup_old_content)
     @Modifying
+    @Transactional
     @Query(value = "DELETE FROM news_articles WHERE tickers = '{}'", nativeQuery = true)
     int deleteArticlesWithoutTickers();
 
-    // sentiment_label을 _clean_filtered로 업데이트
+    // sentiment_label을 _clean_filtered로 업데이트 — 트랜잭션 없는 컨텍스트(가상 스레드)에서도 동작
     @Modifying
+    @Transactional
     @Query(value = "UPDATE news_articles SET sentiment_label = '_clean_filtered' WHERE source_url = :url", nativeQuery = true)
     int markCleanFiltered(@Param("url") String url);
 }
