@@ -114,10 +114,22 @@ public class NewsController {
     public ResponseEntity<Map<String, Boolean>> registerDeviceToken(
             @RequestParam String userId,
             @Valid @RequestBody DeviceTokenRequest body) {
+        if (!isValidUuid(userId)) {
+            log.warn("[알림] 유효하지 않은 userId: {}", userId);
+            return ResponseEntity.badRequest().body(Map.of("ok", false));
+        }
         try {
+            // 사용자당 최대 10개 토큰 제한 (기기 무제한 등록 방지)
+            Integer count = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM device_tokens WHERE user_id = ?::uuid",
+                    Integer.class, userId);
+            if (count != null && count >= 10) {
+                log.warn("[알림] 토큰 한도 초과: userId={}", userId);
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of("ok", false));
+            }
             jdbc.update("""
                     INSERT INTO device_tokens (user_id, token, platform)
-                    VALUES (?, ?, ?)
+                    VALUES (?::uuid, ?, ?)
                     ON CONFLICT (user_id, token) DO NOTHING
                     """, userId, body.token(), body.platform());
             return ResponseEntity.ok(Map.of("ok", true));
@@ -133,8 +145,11 @@ public class NewsController {
     public ResponseEntity<Map<String, Boolean>> deleteDeviceToken(
             @RequestParam String userId,
             @Valid @RequestBody DeviceTokenDeleteRequest body) {
+        if (!isValidUuid(userId)) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false));
+        }
         try {
-            jdbc.update("DELETE FROM device_tokens WHERE user_id = ? AND token = ?",
+            jdbc.update("DELETE FROM device_tokens WHERE user_id = ?::uuid AND token = ?",
                     userId, body.token());
             return ResponseEntity.ok(Map.of("ok", true));
         } catch (Exception e) {
@@ -267,6 +282,11 @@ public class NewsController {
     }
 
     // ===================== 내부 유틸 =====================
+
+    private static boolean isValidUuid(String value) {
+        try { java.util.UUID.fromString(value); return true; }
+        catch (IllegalArgumentException e) { return false; }
+    }
 
     private void requireAdmin(String providedKey) {
         String expectedKey = props.getAdmin().getApiKey();
