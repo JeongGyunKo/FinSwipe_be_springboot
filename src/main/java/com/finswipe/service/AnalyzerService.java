@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -122,12 +123,14 @@ public class AnalyzerService {
         }
 
         try {
-            String rawResponse = genaiClient.post()
+            // application/octet-stream으로 응답이 올 수 있어 byte[]로 수신 후 변환
+            byte[] rawBytes = genaiClient.post()
                     .uri("/api/v1/articles/enrich-text")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
-                    .body(String.class);
+                    .body(byte[].class);
+            String rawResponse = rawBytes != null ? new String(rawBytes, StandardCharsets.UTF_8) : null;
 
             EnrichmentResult result = parseResponse(link, rawResponse);
             if (result.isAvailable()) {
