@@ -17,6 +17,7 @@ import org.springframework.web.client.RestClientResponseException;
 import java.net.URI;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -58,7 +59,7 @@ public class NewsCollectorService {
     private final ObjectMapper objectMapper;
     private final AppProperties props;
 
-    private volatile boolean analysisRunning = false;
+    private final AtomicBoolean analysisRunning = new AtomicBoolean(false);
 
     public NewsCollectorService(@Qualifier("finlightRestClient") RestClient finlightClient,
                                 NewsArticleRepository newsRepo,
@@ -322,15 +323,18 @@ public class NewsCollectorService {
 
     public void analyzeAndUpdate(List<NewsArticle> articles, boolean skipIfRunning) {
         if (articles.isEmpty()) return;
-        if (skipIfRunning && analysisRunning) {
-            log.info("[백그라운드] 분석 진행 중 → 스킵 ({}개)", articles.size());
-            return;
+        if (skipIfRunning) {
+            if (!analysisRunning.compareAndSet(false, true)) {
+                log.info("[백그라운드] 분석 진행 중 → 스킵 ({}개)", articles.size());
+                return;
+            }
+        } else {
+            analysisRunning.set(true);
         }
-        analysisRunning = true;
         try {
             doAnalyzeAndUpdate(articles);
         } finally {
-            analysisRunning = false;
+            analysisRunning.set(false);
         }
     }
 
