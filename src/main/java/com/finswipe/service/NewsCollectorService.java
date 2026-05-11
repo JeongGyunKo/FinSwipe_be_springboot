@@ -298,21 +298,21 @@ public class NewsCollectorService {
                 .collect(Collectors.toList());
     }
 
-    /** Python: save_news_to_db() */
-    @Transactional
+    /** Python: save_news_to_db() — 기사 단위 저장으로 1개 실패가 전체 배치를 날리지 않도록 */
     Map<String, Integer> saveArticles(List<NewsArticle> articles) {
         if (articles.isEmpty()) return Map.of("saved", 0, "skipped", 0);
-        try {
-            // saveAll 반환값으로 ID를 원본 리스트에 반영 (이후 ID 기반 조회 가능)
-            List<NewsArticle> saved = newsRepo.saveAll(articles);
-            for (int i = 0; i < articles.size() && i < saved.size(); i++) {
-                articles.get(i).setId(saved.get(i).getId());
+        int saved = 0, skipped = 0;
+        for (NewsArticle article : articles) {
+            try {
+                NewsArticle persisted = newsRepo.save(article);
+                article.setId(persisted.getId());
+                saved++;
+            } catch (Exception e) {
+                log.warn("[DB] 기사 저장 실패 ({}): {}", truncate(article.getSourceUrl()), e.getMessage());
+                skipped++;
             }
-            return Map.of("saved", articles.size(), "skipped", 0);
-        } catch (Exception e) {
-            log.error("배치 저장 실패: {}", e.getMessage());
-            return Map.of("saved", 0, "skipped", articles.size());
         }
+        return Map.of("saved", saved, "skipped", skipped);
     }
 
     /** 신규 수집 기사 분석 — FCM 알림 발송 포함 */

@@ -61,7 +61,7 @@ app:
     tickers-ttl-seconds: 3600
   rate-limit:
     public-rpm: 30
-    admin-rpm: 30
+    admin-rpm: 300
   fcm:
     service-account-json: ${FCM_SERVICE_ACCOUNT_JSON:}
     server-key: ${FCM_SERVER_KEY:}
