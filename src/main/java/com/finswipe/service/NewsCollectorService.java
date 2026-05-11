@@ -294,6 +294,8 @@ public class NewsCollectorService {
                 .filter(t -> VALID_US_TICKER.matcher(t).matches())
                 .filter(t -> t.chars().allMatch(Character::isLetter))
                 .filter(t -> !CRYPTO_TICKERS.contains(t))
+                // 5자리 워런트(W)·유닛(U)·라이츠(R)·임시(Z) 접미사 제외 — 보통주 아님
+                .filter(t -> !(t.length() == 5 && "WURZ".indexOf(t.charAt(4)) >= 0))
                 .distinct()
                 .collect(Collectors.toList());
     }

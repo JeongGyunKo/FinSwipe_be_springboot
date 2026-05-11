@@ -1,6 +1,7 @@
 package com.finswipe.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.finswipe.config.AppProperties;
 import com.finswipe.domain.entity.NewsArticle;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,7 +14,8 @@ class AnalyzerServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AnalyzerService(null, null, new ObjectMapper());
+        // AppProperties 기본값(concurrentRequests=3)으로 Semaphore 초기화
+        service = new AnalyzerService(null, null, null, new ObjectMapper(), new AppProperties());
     }
 
     @Test
