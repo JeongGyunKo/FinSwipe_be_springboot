@@ -146,14 +146,17 @@ public class AnalyzerService {
                     });
 
             EnrichmentResult result = parseResponse(link, rawResponse);
-            if (result.isAvailable()) {
+            if (result.isAnalyzed()) {
                 log.info("[GenAI] 결과: {} outcome={} sentiment={} summary={}줄 xai={} headline_ko={}",
                         truncate(link), result.getOutcome(), result.getSentimentLabel(),
                         result.getSummary3lines() != null ? result.getSummary3lines().size() : 0,
                         result.getXai() != null ? "있음" : "없음",
                         result.getHeadlineKo() != null ? "있음" : "없음");
             } else {
-                log.warn("[GenAI] 분석 실패: {} outcome={}", truncate(link), result.getOutcome());
+                log.warn("[GenAI] 빈 응답 (분석 미완료): {} | raw={}", truncate(link),
+                        rawResponse != null && rawResponse.length() > 200
+                                ? rawResponse.substring(0, 200) + "…"
+                                : rawResponse);
             }
             return result;
         } catch (Exception e) {
@@ -261,8 +264,14 @@ public class AnalyzerService {
                     null, null, null, null, null, null, "fatal_failure");
         }
 
+        /** GenAI 서버와 통신 자체가 성공했는지 (빈 응답 포함) */
         public boolean isAvailable() {
             return !"unavailable".equals(sentimentLabel);
+        }
+
+        /** 실제 분석 결과가 있는지 — headline_ko 또는 summary가 존재해야 진짜 분석 완료 */
+        public boolean isAnalyzed() {
+            return isAvailable() && (headlineKo != null || (summary3lines != null && !summary3lines.isEmpty()));
         }
 
         public boolean isCleanFiltered() {
