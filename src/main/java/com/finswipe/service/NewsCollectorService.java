@@ -456,7 +456,7 @@ public class NewsCollectorService {
             }
         }
 
-        log.info("[백그라운드] 완료 → 성공 {}개 / 삭제 {}개 / 실패 {}개 / 분석불가 {}개", updated, deleted, failed, skipped);
+        log.info("[백그라운드] 완료 → 성공 {}개 / 필터처리 {}개 / 실패 {}개 / 분석불가 {}개", updated, deleted, failed, skipped);
     }
 
     /** Python: reanalyze_unanalyzed() */
