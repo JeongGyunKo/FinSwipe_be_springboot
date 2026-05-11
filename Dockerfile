@@ -1,6 +1,6 @@
 FROM gradle:8-jdk21 AS build
 WORKDIR /app
-# force rebuild: flyway dependency added
+# force rebuild: flyway 11.8.0 explicit version
 COPY build.gradle.kts settings.gradle.kts ./
 COPY gradle gradle
 RUN gradle dependencies --no-daemon -q || true
