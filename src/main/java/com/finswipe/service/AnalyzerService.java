@@ -196,11 +196,6 @@ public class AnalyzerService {
                     xaiKo = objectMapper.writeValueAsString(localized.get("xai"));
                 }
             }
-            // Python: resolved_summary_ko = summary_3lines_ko or summary_3lines or None
-            if (summary3linesKo == null || summary3linesKo.isEmpty()) {
-                summary3linesKo = summary3lines;
-            }
-
             return new EnrichmentResult(sourceUrl, sentimentLabel, sentimentScore,
                     summary3lines, xai, headlineKo, summary3linesKo, xaiKo, rawJson, outcome);
 

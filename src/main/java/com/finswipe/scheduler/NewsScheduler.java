@@ -27,15 +27,16 @@ public class NewsScheduler {
     // 15분마다 미분석 기사 재분석 (Python: APScheduler 15min interval)
     @Scheduled(fixedDelay = 900_000, initialDelay = 30_000)
     public void reanalyzeUnanalyzed() {
-        log.debug("[Scheduler] Starting re-analysis of unanalyzed articles");
-        try {
-            int count = collectorService.reanalyzeUnanalyzed(50);
-            if (count > 0) {
-                log.info("[Scheduler] Re-analyzed {} articles", count);
+        Thread.ofVirtual().start(() -> {
+            try {
+                int count = collectorService.reanalyzeUnanalyzed(50);
+                if (count > 0) {
+                    log.info("[Scheduler] Re-analyzed {} articles", count);
+                }
+            } catch (Exception e) {
+                log.error("[Scheduler] Re-analysis failed", e);
             }
-        } catch (Exception e) {
-            log.error("[Scheduler] Re-analysis failed", e);
-        }
+        });
     }
 
     // 6시간마다 오래된 기사 정리 (Python: APScheduler 6hr interval)
