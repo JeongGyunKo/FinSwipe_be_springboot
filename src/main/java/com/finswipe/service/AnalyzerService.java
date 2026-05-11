@@ -2,6 +2,7 @@ package com.finswipe.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.finswipe.config.AppProperties;
 import com.finswipe.domain.entity.NewsArticle;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -28,17 +29,18 @@ public class AnalyzerService {
     private final RestClient genaiHealthClient;
     private final ExecutorService enrichmentExecutor;
     private final ObjectMapper objectMapper;
-    // 동시 3개 처리, 1초 간격 — Semaphore(1)+3초보다 ~3배 빠름
-    private final Semaphore submitSemaphore = new Semaphore(3);
+    private final Semaphore submitSemaphore;
 
     public AnalyzerService(@Qualifier("genaiRestClient") RestClient genaiClient,
                            @Qualifier("genaiHealthRestClient") RestClient genaiHealthClient,
                            @Qualifier("enrichmentExecutor") ExecutorService enrichmentExecutor,
-                           ObjectMapper objectMapper) {
+                           ObjectMapper objectMapper,
+                           AppProperties props) {
         this.genaiClient = genaiClient;
         this.genaiHealthClient = genaiHealthClient;
         this.enrichmentExecutor = enrichmentExecutor;
         this.objectMapper = objectMapper;
+        this.submitSemaphore = new Semaphore(props.getGenai().getConcurrentRequests());
     }
 
     /** Python: check_genai_health() — 30초 전용 클라이언트로 빠른 상태 확인 */
