@@ -60,7 +60,7 @@ public class NewsCollectorService {
     private final ObjectMapper objectMapper;
     private final AppProperties props;
 
-    private final AtomicBoolean analysisRunning = new AtomicBoolean(false);
+    private final AtomicBoolean reanalysisRunning = new AtomicBoolean(false);
 
     public NewsCollectorService(@Qualifier("finlightRestClient") RestClient finlightClient,
                                 NewsArticleRepository newsRepo,
@@ -315,27 +315,28 @@ public class NewsCollectorService {
         }
     }
 
-    /** Python: analyze_and_update() + _do_analyze_and_update()
-     *  skipIfRunning=true: 재분석 스케줄러 (이미 실행 중이면 스킵)
-     *  skipIfRunning=false: 신규 수집 기사 (항상 실행) */
+    /** 신규 수집 기사 분석 — 재분석과 독립적으로 실행 */
     public void analyzeAndUpdate(List<NewsArticle> articles) {
-        analyzeAndUpdate(articles, false);
+        if (articles.isEmpty()) return;
+        doAnalyzeAndUpdate(articles);
     }
 
-    public void analyzeAndUpdate(List<NewsArticle> articles, boolean skipIfRunning) {
-        if (articles.isEmpty()) return;
-        if (skipIfRunning) {
-            if (!analysisRunning.compareAndSet(false, true)) {
-                log.info("[백그라운드] 분석 진행 중 → 스킵 ({}개)", articles.size());
-                return;
-            }
-        } else {
-            analysisRunning.set(true);
+    /** 재분석 전용 — 이미 실행 중이면 스킵, 반환값으로 실행 여부 표시 */
+    public boolean analyzeAndUpdate(List<NewsArticle> articles, boolean skipIfRunning) {
+        if (articles.isEmpty()) return true;
+        if (!skipIfRunning) {
+            doAnalyzeAndUpdate(articles);
+            return true;
+        }
+        if (!reanalysisRunning.compareAndSet(false, true)) {
+            log.info("[재분석] 이미 실행 중 → 스킵 ({}개)", articles.size());
+            return false;
         }
         try {
             doAnalyzeAndUpdate(articles);
+            return true;
         } finally {
-            analysisRunning.set(false);
+            reanalysisRunning.set(false);
         }
     }
 
@@ -438,8 +439,8 @@ public class NewsCollectorService {
         List<NewsArticle> unanalyzed = newsRepo.findUnanalyzed(PageRequest.of(0, limit));
         if (unanalyzed.isEmpty()) return 0;
         log.info("[재분석] 미분석 기사 {}개 발견 → 분석 시작", unanalyzed.size());
-        analyzeAndUpdate(unanalyzed, true);
-        return unanalyzed.size();
+        boolean ran = analyzeAndUpdate(unanalyzed, true);
+        return ran ? unanalyzed.size() : 0;
     }
 
     /** Python: cleanup_old_content() */
