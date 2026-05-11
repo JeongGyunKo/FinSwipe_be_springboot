@@ -30,7 +30,8 @@ public class TickerService {
     }
 
     public List<TickerInfo> searchTickers(String query) {
-        return repo.searchByName(query).stream()
+        String escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+        return repo.searchByName(escaped).stream()
                 .map(TickerInfo::from)
                 .collect(Collectors.toList());
     }
@@ -41,18 +42,21 @@ public class TickerService {
 
     /**
      * 티커 목록에 회사명 정보를 붙여서 반환 [{ticker, corp, ko}, ...]
+     * findAllById 배치 조회로 N+1 방지
      */
     public List<Map<String, String>> enrichTickers(List<String> tickers) {
         if (tickers == null || tickers.isEmpty()) return List.of();
+        Map<String, TickerName> infoMap = repo.findAllById(tickers).stream()
+                .collect(Collectors.toMap(TickerName::getTicker, t -> t));
         return tickers.stream()
                 .map(t -> {
-                    Optional<TickerName> info = repo.findByTicker(t);
                     Map<String, String> m = new java.util.HashMap<>();
                     m.put("ticker", t);
-                    info.ifPresent(ti -> {
-                        m.put("corp", ti.getCorp());
-                        m.put("ko", ti.getKo());
-                    });
+                    TickerName info = infoMap.get(t);
+                    if (info != null) {
+                        m.put("corp", info.getCorp());
+                        m.put("ko", info.getKo());
+                    }
                     return m;
                 })
                 .collect(Collectors.toList());

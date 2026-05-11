@@ -24,7 +24,7 @@ public class NewsScheduler {
         }
     }
 
-    // 15분마다 미분석 기사 재분석 (Python: APScheduler 15min interval)
+    // 5분마다 미분석 기사 재분석
     @Scheduled(fixedDelay = 300_000, initialDelay = 30_000)
     public void reanalyzeUnanalyzed() {
         Thread.ofVirtual().start(() -> {

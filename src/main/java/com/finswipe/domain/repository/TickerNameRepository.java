@@ -10,8 +10,8 @@ import java.util.Optional;
 
 public interface TickerNameRepository extends JpaRepository<TickerName, String> {
 
-    // 영문/한글 이름으로 검색 (대소문자 무시)
-    @Query("SELECT t FROM TickerName t WHERE LOWER(t.corp) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(t.ko) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(t.ticker) LIKE LOWER(CONCAT('%', :query, '%'))")
+    // 영문/한글 이름으로 검색 (대소문자 무시) — LIKE 특수문자 이스케이프는 호출 전 처리
+    @Query("SELECT t FROM TickerName t WHERE LOWER(t.corp) LIKE LOWER(CONCAT('%', :query, '%')) ESCAPE '\\' OR LOWER(t.ko) LIKE LOWER(CONCAT('%', :query, '%')) ESCAPE '\\' OR LOWER(t.ticker) LIKE LOWER(CONCAT('%', :query, '%')) ESCAPE '\\'")
     List<TickerName> searchByName(@Param("query") String query);
 
     Optional<TickerName> findByTicker(String ticker);

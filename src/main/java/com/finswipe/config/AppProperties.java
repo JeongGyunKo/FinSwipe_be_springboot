@@ -30,6 +30,7 @@ public class AppProperties {
 
     private Cors cors = new Cors();
     private Cache cache = new Cache();
+    @Valid
     private RateLimit rateLimit = new RateLimit();
     private Fcm fcm = new Fcm();
 
@@ -90,7 +91,6 @@ public class AppProperties {
     @Setter
     public static class Fcm {
         private String serviceAccountJson = "";
-        private String serverKey = "";
         private String projectId = "";
         private String clientEmail = "";
         private String privateKey = "";

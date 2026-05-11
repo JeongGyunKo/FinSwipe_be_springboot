@@ -37,6 +37,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
+        // 헬스체크는 rate limit 제외 (k8s probe 등)
+        if ("/health".equals(request.getRequestURI())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String ip = IpExtractorUtil.extractRealIp(request);
         boolean isAdmin = request.getRequestURI().startsWith("/news/") && isAdminEndpoint(request);
 
