@@ -88,17 +88,11 @@ public class NewsArticle {
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @Transient
     private OffsetDateTime updatedAt;
 
     @PrePersist
     void prePersist() {
         createdAt = OffsetDateTime.now();
-        updatedAt = createdAt;
-    }
-
-    @PreUpdate
-    void preUpdate() {
-        updatedAt = OffsetDateTime.now();
     }
 }
