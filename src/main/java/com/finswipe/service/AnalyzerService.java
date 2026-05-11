@@ -25,23 +25,26 @@ import java.util.concurrent.Semaphore;
 public class AnalyzerService {
 
     private final RestClient genaiClient;
+    private final RestClient genaiHealthClient;
     private final ExecutorService enrichmentExecutor;
     private final ObjectMapper objectMapper;
     // 동시 3개 처리, 1초 간격 — Semaphore(1)+3초보다 ~3배 빠름
     private final Semaphore submitSemaphore = new Semaphore(3);
 
     public AnalyzerService(@Qualifier("genaiRestClient") RestClient genaiClient,
+                           @Qualifier("genaiHealthRestClient") RestClient genaiHealthClient,
                            @Qualifier("enrichmentExecutor") ExecutorService enrichmentExecutor,
                            ObjectMapper objectMapper) {
         this.genaiClient = genaiClient;
+        this.genaiHealthClient = genaiHealthClient;
         this.enrichmentExecutor = enrichmentExecutor;
         this.objectMapper = objectMapper;
     }
 
-    /** Python: check_genai_health() */
+    /** Python: check_genai_health() — 30초 전용 클라이언트로 빠른 상태 확인 */
     public Map<String, String> checkHealth() {
         try {
-            genaiClient.get().uri("/health").retrieve().toBodilessEntity();
+            genaiHealthClient.get().uri("/health").retrieve().toBodilessEntity();
             return Map.of("status", "ok");
         } catch (RestClientResponseException e) {
             int code = e.getStatusCode().value();
@@ -64,6 +67,13 @@ public class AnalyzerService {
                 .toList();
 
         log.info("[GenAI] enrichment 시작 → {}개", valid.size());
+
+        // 배치 시작 전 서버 상태 확인 (30초 타임아웃) — 다운 시 기사당 300초 대기 낭비 방지
+        Map<String, String> health = checkHealth();
+        if (!"ok".equals(health.get("status"))) {
+            log.warn("[GenAI] 서버 비정상 ({}) → 배치 전체 스킵 ({}개)", health, valid.size());
+            return valid.stream().map(a -> EnrichmentResult.unavailable(a.getSourceUrl())).toList();
+        }
 
         List<CompletableFuture<EnrichmentResult>> futures = valid.stream()
                 .map(article -> CompletableFuture.supplyAsync(() -> {

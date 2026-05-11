@@ -31,6 +31,22 @@ public class RestClientConfig {
                 .build();
     }
 
+    @Bean("genaiHealthRestClient")
+    public RestClient genaiHealthRestClient() {
+        String credentials = props.getGenai().getUser() + ":" + props.getGenai().getPassword();
+        String basicAuth = "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes());
+
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(10));
+        factory.setReadTimeout(Duration.ofSeconds(30));
+
+        return RestClient.builder()
+                .baseUrl(props.getGenai().getUrl())
+                .defaultHeader("Authorization", basicAuth)
+                .requestFactory(factory)
+                .build();
+    }
+
     @Bean("finlightRestClient")
     public RestClient finlightRestClient() {
         return RestClient.builder()
