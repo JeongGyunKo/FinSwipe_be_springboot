@@ -96,7 +96,7 @@ public class NewsCollectorService {
                     log.error("[백그라운드] 분석 파이프라인 예외: {}: {}", e.getClass().getSimpleName(), e.getMessage(), e);
                 }
             });
-            log.info("[백그라운드] GenAI 분석 예약 → {}개", result.get("saved"));
+            log.info("[백그라운드] GenAI 분析 예약 → {}개", result.get("saved"));
         }
 
         return Map.of("saved", result.get("saved"), "skipped", result.get("skipped"),
@@ -325,7 +325,7 @@ public class NewsCollectorService {
         if (articles.isEmpty()) return;
         if (skipIfRunning) {
             if (!analysisRunning.compareAndSet(false, true)) {
-                log.info("[백그라운드] 분석 진행 중 → 스킵 ({}개)", articles.size());
+                log.info("[백그라운드] 분析 진행 중 → 스킵 ({}개)", articles.size());
                 return;
             }
         } else {
@@ -339,18 +339,31 @@ public class NewsCollectorService {
     }
 
     private void doAnalyzeAndUpdate(List<NewsArticle> articles) {
-        log.info("[백그라운드] GenAI 분석 시작 → {}개", articles.size());
+        log.info("[백그라운드] GenAI 분析 시작 → {}개", articles.size());
         List<AnalyzerService.EnrichmentResult> results = analyzerService.analyzeBatch(articles);
 
         int updated = 0, failed = 0, skipped = 0;
 
-        // URL 기반 매핑 — 인덱스 기반은 analyzeBatch 필터링 시 articles[i] ≠ results[i] 불일치 발생
+        // URL 기반 매핑
         Map<String, AnalyzerService.EnrichmentResult> resultMap = results.stream()
                 .filter(r -> r.getSourceUrl() != null)
                 .collect(Collectors.toMap(
                         r -> r.getSourceUrl().replaceAll("/$", ""),
                         r -> r,
                         (a, b) -> a));
+
+        // ID 기반 일괄 조회 — N번 개별 findById → 1번 배치 조회
+        List<UUID> ids = articles.stream()
+                .filter(a -> a.getId() != null)
+                .map(NewsArticle::getId)
+                .toList();
+        Map<UUID, NewsArticle> dbArticles = ids.isEmpty() ? Map.of() :
+                newsRepo.findAllById(ids).stream()
+                        .collect(Collectors.toMap(NewsArticle::getId, a -> a));
+
+        // FCM JSON은 루프 밖에서 한 번만 생성
+        String fcmJson = resolveFcmJson();
+        List<NewsArticle> toSave = new ArrayList<>();
 
         for (NewsArticle original : articles) {
             String rawLink = original.getSourceUrl();
@@ -371,14 +384,17 @@ public class NewsCollectorService {
             }
 
             try {
-                Optional<NewsArticle> found = (original.getId() != null)
-                        ? newsRepo.findById(original.getId())
-                        : newsRepo.findBySourceUrl(link).or(() -> newsRepo.findBySourceUrl(link + "/"));
+                NewsArticle article = (original.getId() != null) ? dbArticles.get(original.getId()) : null;
+                if (article == null) {
+                    // 배치 조회 미히트 시 URL로 폴백
+                    article = newsRepo.findBySourceUrl(link)
+                            .or(() -> newsRepo.findBySourceUrl(link + "/"))
+                            .orElse(null);
+                }
 
-                if (found.isEmpty()) {
+                if (article == null) {
                     log.warn("[DB] 업데이트 0행 — 기사를 찾을 수 없음: {}", truncate(link));
                 } else {
-                    NewsArticle article = found.get();
                     article.setSentimentLabel(result.getSentimentLabel());
                     article.setSentimentScore(result.getSentimentScore());
                     article.setSummary3lines(result.getSummary3lines());
@@ -386,15 +402,14 @@ public class NewsCollectorService {
                     article.setHeadlineKo(result.getHeadlineKo());
                     article.setSummary3linesKo(result.getSummary3linesKo());
                     article.setXaiKo(safeJson(result.getXaiKo()));
-                    newsRepo.save(article);
-                    log.info("[DB] 저장 완료: {}", truncate(link));
+                    toSave.add(article);
                 }
 
                 // 관심 종목 알림 발송
                 List<String> tickers = original.getTickers();
                 String headline = original.getHeadline();
-                String fcmJson = resolveFcmJson();
-                if (tickers != null && !tickers.isEmpty() && headline != null && fcmJson != null && !fcmJson.isBlank()) {
+                if (tickers != null && !tickers.isEmpty() && headline != null
+                        && fcmJson != null && !fcmJson.isBlank()) {
                     Thread.ofVirtual().start(() -> notificationService.notifyTickerArticle(headline, tickers, fcmJson));
                 }
                 updated++;
@@ -403,14 +418,25 @@ public class NewsCollectorService {
                 log.error("[백그라운드] 업데이트 실패 ({}): {}", truncate(link), e.getMessage());
             }
         }
-        log.info("[백그라운드] 완료 → 성공 {}개 / 실패 {}개 / 분석불가 {}개", updated, failed, skipped);
+
+        // 일괄 저장
+        if (!toSave.isEmpty()) {
+            try {
+                newsRepo.saveAll(toSave);
+                log.info("[DB] 일괄 저장 완료: {}개", toSave.size());
+            } catch (Exception e) {
+                log.error("[DB] 일괄 저장 실패: {}", e.getMessage());
+            }
+        }
+
+        log.info("[백그라운드] 완료 → 성공 {}개 / 실패 {}개 / 분析불가 {}개", updated, failed, skipped);
     }
 
     /** Python: reanalyze_unanalyzed() */
     public int reanalyzeUnanalyzed(int limit) {
         List<NewsArticle> unanalyzed = newsRepo.findUnanalyzed(PageRequest.of(0, limit));
         if (unanalyzed.isEmpty()) return 0;
-        log.info("[재분석] 미분석 기사 {}개 발견 → 분석 시작", unanalyzed.size());
+        log.info("[재분析] 미분析 기사 {}개 발견 → 分析 시작", unanalyzed.size());
         analyzeAndUpdate(unanalyzed, true);
         return unanalyzed.size();
     }
