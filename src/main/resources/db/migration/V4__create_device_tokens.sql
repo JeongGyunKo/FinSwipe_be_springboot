@@ -1,10 +1,12 @@
 CREATE TABLE IF NOT EXISTS device_tokens (
-    id          BIGSERIAL   PRIMARY KEY,
-    user_id     UUID        NOT NULL,
-    token       TEXT        NOT NULL,
-    platform    TEXT        NOT NULL DEFAULT 'web',
-    notify_all_news BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    id                      UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id                 UUID,
+    token                   TEXT        NOT NULL,
+    platform                TEXT        NOT NULL DEFAULT 'web',
+    notify_all_news         BOOLEAN     NOT NULL DEFAULT TRUE,
+    notify_sentiment_news   BOOLEAN     NOT NULL DEFAULT TRUE,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_device_tokens_user_token UNIQUE (user_id, token)
 );
 
