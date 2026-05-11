@@ -25,11 +25,11 @@ public class NewsScheduler {
     }
 
     // 15분마다 미분석 기사 재분석 (Python: APScheduler 15min interval)
-    @Scheduled(fixedDelay = 900_000, initialDelay = 30_000)
+    @Scheduled(fixedDelay = 300_000, initialDelay = 30_000)
     public void reanalyzeUnanalyzed() {
         Thread.ofVirtual().start(() -> {
             try {
-                int count = collectorService.reanalyzeUnanalyzed(50);
+                int count = collectorService.reanalyzeUnanalyzed(200);
                 if (count > 0) {
                     log.info("[Scheduler] Re-analyzed {} articles", count);
                 }
