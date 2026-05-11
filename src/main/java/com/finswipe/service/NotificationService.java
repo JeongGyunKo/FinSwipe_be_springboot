@@ -114,6 +114,9 @@ public class NotificationService {
         }
 
         try {
+            String preview = serviceAccountJson.length() > 30
+                    ? serviceAccountJson.substring(0, 30) + "..." : serviceAccountJson;
+            log.info("[알림] FCM JSON 형태: 길이={}, 시작={}", serviceAccountJson.length(), preview);
             Map<?, ?> info = objectMapper.readValue(serviceAccountJson, Map.class);
             String projectId = (String) info.get("project_id");
             String accessToken = getAccessToken(serviceAccountJson, info);
