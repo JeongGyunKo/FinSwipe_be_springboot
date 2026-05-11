@@ -20,8 +20,8 @@ public class CorsConfig {
                 String[] origins = props.getCors().getOrigins().toArray(new String[0]);
                 registry.addMapping("/**")
                         .allowedOriginPatterns(origins)
-                        .allowedMethods("GET", "POST", "OPTIONS")
-                        .allowedHeaders("*")
+                        .allowedMethods("GET", "POST", "DELETE", "OPTIONS")
+                        .allowedHeaders("Content-Type", "Accept", "X-Admin-Key")
                         .maxAge(86400);
             }
         };
