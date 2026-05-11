@@ -414,6 +414,7 @@ public class NewsCollectorService {
                 } else {
                     article.setSentimentLabel(result.getSentimentLabel());
                     article.setSentimentScore(result.getSentimentScore());
+                    article.setIsMixed("mixed".equals(result.getSentimentLabel()));
                     article.setSummary3lines(result.getSummary3lines());
                     article.setXai(safeJson(result.getXai()));
                     article.setHeadlineKo(result.getHeadlineKo());
