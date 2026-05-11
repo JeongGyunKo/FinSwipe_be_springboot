@@ -21,6 +21,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 @RequiredArgsConstructor
@@ -36,6 +37,10 @@ public class NotificationService {
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
+
+    // OAuth 토큰 캐시 — 만료 5분 전에 재발급 (Google 토큰 유효시간 1시간)
+    private final AtomicReference<String> cachedToken = new AtomicReference<>();
+    private volatile long tokenExpiresAt = 0;
 
     /** Base64로 인코딩된 경우 디코딩 — MIME → 표준 순서로 시도 */
     private String decodeIfBase64(String value) {
@@ -122,7 +127,7 @@ public class NotificationService {
             log.debug("[알림] FCM JSON 길이={}", serviceAccountJson.length());
             Map<?, ?> info = objectMapper.readValue(serviceAccountJson, Map.class);
             String projectId = (String) info.get("project_id");
-            String accessToken = getAccessToken(serviceAccountJson, info);
+            String accessToken = getOrRefreshAccessToken(serviceAccountJson, info);
             if (accessToken == null) return;
 
             String url = String.format(FCM_SEND_URL, projectId);
@@ -162,6 +167,21 @@ public class NotificationService {
         } catch (Exception e) {
             log.error("[알림] 발송 오류: {}", e.getMessage());
         }
+    }
+
+    /** 토큰 캐싱 래퍼 — 만료 5분 전까지 기존 토큰 재사용 */
+    private String getOrRefreshAccessToken(String serviceAccountJson, Map<?, ?> info) {
+        long now = System.currentTimeMillis();
+        String token = cachedToken.get();
+        if (token != null && now < tokenExpiresAt) {
+            return token;
+        }
+        String newToken = getAccessToken(serviceAccountJson, info);
+        if (newToken != null) {
+            cachedToken.set(newToken);
+            tokenExpiresAt = now + Duration.ofMinutes(55).toMillis(); // 1시간 유효, 5분 여유
+        }
+        return newToken;
     }
 
     /**

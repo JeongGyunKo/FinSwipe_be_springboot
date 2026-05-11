@@ -64,7 +64,6 @@ app:
     admin-rpm: 300
   fcm:
     service-account-json: ${FCM_SERVICE_ACCOUNT_JSON:}
-    server-key: ${FCM_SERVER_KEY:}
     project-id: ${FCM_PROJECT_ID:}
     client-email: ${FCM_CLIENT_EMAIL:}
     private-key: ${FCM_PRIVATE_KEY:}

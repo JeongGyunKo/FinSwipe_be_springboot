@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
 
@@ -17,34 +18,33 @@ public class RestClientConfig {
 
     @Bean("genaiRestClient")
     public RestClient genaiRestClient() {
-        String credentials = props.getGenai().getUser() + ":" + props.getGenai().getPassword();
-        String basicAuth = "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes());
-
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(props.getGenai().getConnectTimeoutSeconds()));
-        factory.setReadTimeout(Duration.ofSeconds(props.getGenai().getReadTimeoutSeconds()));
-
         return RestClient.builder()
                 .baseUrl(props.getGenai().getUrl())
-                .defaultHeader("Authorization", basicAuth)
-                .requestFactory(factory)
+                .defaultHeader("Authorization", buildBasicAuth())
+                .requestFactory(factory(props.getGenai().getConnectTimeoutSeconds(),
+                        props.getGenai().getReadTimeoutSeconds()))
                 .build();
     }
 
     @Bean("genaiHealthRestClient")
     public RestClient genaiHealthRestClient() {
-        String credentials = props.getGenai().getUser() + ":" + props.getGenai().getPassword();
-        String basicAuth = "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes());
-
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(10));
-        factory.setReadTimeout(Duration.ofSeconds(30));
-
         return RestClient.builder()
                 .baseUrl(props.getGenai().getUrl())
-                .defaultHeader("Authorization", basicAuth)
-                .requestFactory(factory)
+                .defaultHeader("Authorization", buildBasicAuth())
+                .requestFactory(factory(10, 30))
                 .build();
+    }
+
+    private String buildBasicAuth() {
+        String credentials = props.getGenai().getUser() + ":" + props.getGenai().getPassword();
+        return "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private SimpleClientHttpRequestFactory factory(int connectSec, int readSec) {
+        SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
+        f.setConnectTimeout(Duration.ofSeconds(connectSec));
+        f.setReadTimeout(Duration.ofSeconds(readSec));
+        return f;
     }
 
     @Bean("finlightRestClient")
