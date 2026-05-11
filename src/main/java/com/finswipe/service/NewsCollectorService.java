@@ -389,11 +389,13 @@ public class NewsCollectorService {
                 continue;
             }
 
-            // xai_ko 없으면 FinSwipe 표시 불가 → 삭제 (partial_success 포함)
+            // xai_ko 없으면 FinSwipe 표시 불가 → _clean_filtered 마킹 (삭제 아님)
+            // 삭제하면 Finlight가 같은 기사를 반복 재수집하는 무한 루프 발생
             boolean emptyResult = result.getXaiKo() == null;
             if (emptyResult) {
-                NewsArticle article = (original.getId() != null) ? dbArticles.get(original.getId()) : null;
-                if (article != null) toDelete.add(article);
+                try { newsRepo.markCleanFiltered(link); } catch (Exception e) {
+                    log.warn("[백그라운드] clean_filtered 마킹 실패 ({}): {}", truncate(link), e.getMessage());
+                }
                 deleted++;
                 continue;
             }
