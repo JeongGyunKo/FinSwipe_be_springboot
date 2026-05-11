@@ -34,12 +34,12 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
     @Query("SELECT a FROM NewsArticle a WHERE a.id IN :ids ORDER BY a.publishedAt DESC")
     List<NewsArticle> findByIdIn(@Param("ids") List<java.util.UUID> ids);
 
-    // 미분석 기사 조회 (Python: sentiment_label IS NULL OR summary_3lines_ko IS NULL OR headline_ko IS NULL OR xai_ko IS NULL)
+    // 미분석 기사 조회 — xai_ko는 partial_success 기사에서 항상 없을 수 있으므로 조건 제외
     @Query(value = """
             SELECT * FROM news_articles
             WHERE content IS NOT NULL
               AND (sentiment_label IS NULL OR sentiment_label != '_clean_filtered')
-              AND (sentiment_label IS NULL OR summary_3lines_ko IS NULL OR headline_ko IS NULL OR xai_ko IS NULL)
+              AND (sentiment_label IS NULL OR summary_3lines_ko IS NULL OR headline_ko IS NULL)
             ORDER BY published_at DESC
             LIMIT :#{#pageable.pageSize}
             """, nativeQuery = true)
