@@ -387,10 +387,8 @@ public class NewsCollectorService {
                 continue;
             }
 
-            // Gemini가 분석 시도했지만 유효한 결과 없음 → 삭제
-            boolean emptyResult = result.getHeadlineKo() == null
-                    && result.getSummary3linesKo() == null
-                    && result.getXaiKo() == null;
+            // xai_ko 없으면 FinSwipe 표시 불가 → 삭제 (partial_success 포함)
+            boolean emptyResult = result.getXaiKo() == null;
             if (emptyResult) {
                 NewsArticle article = (original.getId() != null) ? dbArticles.get(original.getId()) : null;
                 if (article != null) toDelete.add(article);
