@@ -40,7 +40,12 @@ public class NotificationService {
     /** Base64로 인코딩된 경우 디코딩 — MIME → 표준 순서로 시도 */
     private String decodeIfBase64(String value) {
         if (value == null || value.isBlank()) return value;
-        String trimmed = value.trim().replace("\"", "").replace("'", "");
+        String trimmed = value.trim();
+        // 값 전체가 따옴표로 감싸인 경우만 외부 따옴표 제거 (JSON 내부 따옴표는 유지)
+        if ((trimmed.startsWith("\"") && trimmed.endsWith("\""))
+                || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+            trimmed = trimmed.substring(1, trimmed.length() - 1).trim();
+        }
         if (trimmed.startsWith("{")) return trimmed;
 
         // 잘린 패딩 자동 보정
