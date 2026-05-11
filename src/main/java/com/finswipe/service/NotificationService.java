@@ -49,7 +49,8 @@ public class NotificationService {
         if (rem == 2) padded += "==";
         else if (rem == 3) padded += "=";
 
-        for (Base64.Decoder decoder : List.of(Base64.getMimeDecoder(), Base64.getDecoder())) {
+        for (Base64.Decoder decoder : List.of(
+                Base64.getMimeDecoder(), Base64.getDecoder(), Base64.getUrlDecoder())) {
             try {
                 String decoded = new String(decoder.decode(padded),
                         java.nio.charset.StandardCharsets.UTF_8).trim();
