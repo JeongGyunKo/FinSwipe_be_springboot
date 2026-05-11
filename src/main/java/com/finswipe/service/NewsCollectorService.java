@@ -366,6 +366,8 @@ public class NewsCollectorService {
         // FCM JSON은 루프 밖에서 한 번만 생성
         String fcmJson = resolveFcmJson();
         List<NewsArticle> toSave = new ArrayList<>();
+        List<NewsArticle> toDelete = new ArrayList<>();
+        int deleted = 0;
 
         for (NewsArticle original : articles) {
             String rawLink = original.getSourceUrl();
@@ -382,6 +384,17 @@ public class NewsCollectorService {
                     }
                 }
                 skipped++;
+                continue;
+            }
+
+            // Gemini가 분석 시도했지만 유효한 결과 없음 → 삭제
+            boolean emptyResult = result.getHeadlineKo() == null
+                    && result.getSummary3linesKo() == null
+                    && result.getXaiKo() == null;
+            if (emptyResult) {
+                NewsArticle article = (original.getId() != null) ? dbArticles.get(original.getId()) : null;
+                if (article != null) toDelete.add(article);
+                deleted++;
                 continue;
             }
 
@@ -431,7 +444,17 @@ public class NewsCollectorService {
             }
         }
 
-        log.info("[백그라운드] 완료 → 성공 {}개 / 실패 {}개 / 분석불가 {}개", updated, failed, skipped);
+        // 분석 결과 없는 기사 일괄 삭제
+        if (!toDelete.isEmpty()) {
+            try {
+                newsRepo.deleteAll(toDelete);
+                log.info("[DB] 분석불가 기사 삭제: {}개", toDelete.size());
+            } catch (Exception e) {
+                log.error("[DB] 삭제 실패: {}", e.getMessage());
+            }
+        }
+
+        log.info("[백그라운드] 완료 → 성공 {}개 / 삭제 {}개 / 실패 {}개 / 분석불가 {}개", updated, deleted, failed, skipped);
     }
 
     /** Python: reanalyze_unanalyzed() */
