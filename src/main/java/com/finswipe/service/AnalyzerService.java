@@ -170,6 +170,14 @@ public class AnalyzerService {
         if (rawJson == null || rawJson.isBlank()) return EnrichmentResult.unavailable(sourceUrl);
         try {
             JsonNode root = objectMapper.readTree(rawJson);
+
+            // 서버 오류 응답 {"detail": "..."} — 타임아웃/큐 대기 등 → 재시도 대상
+            if (root.has("detail") && !root.has("outcome") && !root.has("sentiment")) {
+                log.warn("[GenAI] 서버 오류 → 재시도 대기: {} | {}", truncate(sourceUrl),
+                        root.path("detail").asText());
+                return EnrichmentResult.unavailable(sourceUrl);
+            }
+
             String outcome = root.path("outcome").asText(null);
 
             // sentiment
