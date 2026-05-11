@@ -83,7 +83,7 @@ public class AppProperties {
         @Min(1)
         private int publicRpm = 30;
         @Min(1)
-        private int adminRpm = 30;
+        private int adminRpm = 300;
     }
 
     @Getter

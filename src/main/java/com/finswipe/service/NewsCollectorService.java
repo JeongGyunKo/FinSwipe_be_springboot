@@ -315,17 +315,17 @@ public class NewsCollectorService {
         }
     }
 
-    /** 신규 수집 기사 분석 — 재분석과 독립적으로 실행 */
+    /** 신규 수집 기사 분석 — FCM 알림 발송 포함 */
     public void analyzeAndUpdate(List<NewsArticle> articles) {
         if (articles.isEmpty()) return;
-        doAnalyzeAndUpdate(articles);
+        doAnalyzeAndUpdate(articles, true);
     }
 
-    /** 재분석 전용 — 이미 실행 중이면 스킵, 반환값으로 실행 여부 표시 */
+    /** 재분석 전용 — FCM 알림 발송 안 함, 이미 실행 중이면 스킵 */
     public boolean analyzeAndUpdate(List<NewsArticle> articles, boolean skipIfRunning) {
         if (articles.isEmpty()) return true;
         if (!skipIfRunning) {
-            doAnalyzeAndUpdate(articles);
+            doAnalyzeAndUpdate(articles, false);
             return true;
         }
         if (!reanalysisRunning.compareAndSet(false, true)) {
@@ -333,14 +333,14 @@ public class NewsCollectorService {
             return false;
         }
         try {
-            doAnalyzeAndUpdate(articles);
+            doAnalyzeAndUpdate(articles, false);
             return true;
         } finally {
             reanalysisRunning.set(false);
         }
     }
 
-    private void doAnalyzeAndUpdate(List<NewsArticle> articles) {
+    private void doAnalyzeAndUpdate(List<NewsArticle> articles, boolean sendFcm) {
         log.info("[백그라운드] GenAI 분석 시작 → {}개", articles.size());
         List<AnalyzerService.EnrichmentResult> results = analyzerService.analyzeBatch(articles);
 
@@ -418,10 +418,10 @@ public class NewsCollectorService {
                     toSave.add(article);
                 }
 
-                // 관심 종목 알림 발송
+                // 신규 기사일 때만 관심 종목 알림 발송 (재분석은 중복 알림 방지)
                 List<String> tickers = original.getTickers();
                 String headline = original.getHeadline();
-                if (tickers != null && !tickers.isEmpty() && headline != null
+                if (sendFcm && tickers != null && !tickers.isEmpty() && headline != null
                         && fcmJson != null && !fcmJson.isBlank()) {
                     Thread.ofVirtual().start(() -> notificationService.notifyTickerArticle(headline, tickers, fcmJson));
                 }
