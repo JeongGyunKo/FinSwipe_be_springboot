@@ -12,7 +12,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class JobTrackingService {
 
-    private static final long RETENTION_SECONDS = 7200; // 2시간
+    private static final long RETENTION_SECONDS = 7200;  // 완료 작업 보관 2시간
+    private static final long STUCK_SECONDS     = 3600;  // PENDING/RUNNING 1시간 이상 → stuck으로 간주
 
     private final ConcurrentHashMap<String, JobInfo> store = new ConcurrentHashMap<>();
 
@@ -52,14 +53,18 @@ public class JobTrackingService {
         return Optional.ofNullable(store.get(jobId));
     }
 
-    // 완료된 오래된 작업 정리 (2시간 후)
+    // 10분마다 오래된 작업 정리
     @Scheduled(fixedDelay = 600_000)
     public void cleanupOldJobs() {
-        Instant cutoff = Instant.now().minusSeconds(RETENTION_SECONDS);
+        Instant completedCutoff = Instant.now().minusSeconds(RETENTION_SECONDS);
+        Instant stuckCutoff     = Instant.now().minusSeconds(STUCK_SECONDS);
         store.entrySet().removeIf(entry -> {
             JobInfo job = entry.getValue();
-            boolean finished = job.getStatus() == JobStatus.DONE || job.getStatus() == JobStatus.FAILED;
-            return finished && job.getFinishedAt() != null && job.getFinishedAt().isBefore(cutoff);
+            if (job.getStatus() == JobStatus.DONE || job.getStatus() == JobStatus.FAILED) {
+                return job.getFinishedAt() != null && job.getFinishedAt().isBefore(completedCutoff);
+            }
+            // PENDING/RUNNING이 1시간 이상 → 스레드 소멸 등 stuck 상태로 판단
+            return job.getCreatedAt().isBefore(stuckCutoff);
         });
     }
 }
