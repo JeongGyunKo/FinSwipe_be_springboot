@@ -97,7 +97,7 @@ public class NewsCollectorService {
                     log.error("[백그라운드] 분석 파이프라인 예외: {}: {}", e.getClass().getSimpleName(), e.getMessage(), e);
                 }
             });
-            log.info("[백그라운드] GenAI 분析 예약 → {}개", result.get("saved"));
+            log.info("[백그라운드] GenAI 분석 예약 → {}개", result.get("saved"));
         }
 
         return Map.of("saved", result.get("saved"), "skipped", result.get("skipped"),
@@ -326,7 +326,7 @@ public class NewsCollectorService {
         if (articles.isEmpty()) return;
         if (skipIfRunning) {
             if (!analysisRunning.compareAndSet(false, true)) {
-                log.info("[백그라운드] 분析 진행 중 → 스킵 ({}개)", articles.size());
+                log.info("[백그라운드] 분석 진행 중 → 스킵 ({}개)", articles.size());
                 return;
             }
         } else {
@@ -340,7 +340,7 @@ public class NewsCollectorService {
     }
 
     private void doAnalyzeAndUpdate(List<NewsArticle> articles) {
-        log.info("[백그라운드] GenAI 분析 시작 → {}개", articles.size());
+        log.info("[백그라운드] GenAI 분석 시작 → {}개", articles.size());
         List<AnalyzerService.EnrichmentResult> results = analyzerService.analyzeBatch(articles);
 
         int updated = 0, failed = 0, skipped = 0;
@@ -430,14 +430,14 @@ public class NewsCollectorService {
             }
         }
 
-        log.info("[백그라운드] 완료 → 성공 {}개 / 실패 {}개 / 분析불가 {}개", updated, failed, skipped);
+        log.info("[백그라운드] 완료 → 성공 {}개 / 실패 {}개 / 분석불가 {}개", updated, failed, skipped);
     }
 
     /** Python: reanalyze_unanalyzed() */
     public int reanalyzeUnanalyzed(int limit) {
         List<NewsArticle> unanalyzed = newsRepo.findUnanalyzed(PageRequest.of(0, limit));
         if (unanalyzed.isEmpty()) return 0;
-        log.info("[재분析] 미분析 기사 {}개 발견 → 分析 시작", unanalyzed.size());
+        log.info("[재분석] 미분석 기사 {}개 발견 → 분석 시작", unanalyzed.size());
         analyzeAndUpdate(unanalyzed, true);
         return unanalyzed.size();
     }
