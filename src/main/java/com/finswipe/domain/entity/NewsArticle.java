@@ -71,7 +71,7 @@ public class NewsArticle {
     @JdbcTypeCode(SqlTypes.JSON)
     private String xai;
 
-    @Transient
+    @Column(name = "is_mixed")
     private Boolean isMixed;
 
     @Column(name = "headline_ko")
