@@ -24,9 +24,11 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
 
-    // Data JPA + PostgreSQL
+    // Data JPA + PostgreSQL + Flyway
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.postgresql:postgresql")
+    implementation("org.flywaydb:flyway-core")
+    implementation("org.flywaydb:flyway-database-postgresql")
 
     // Cache (Caffeine)
     implementation("org.springframework.boot:spring-boot-starter-cache")
