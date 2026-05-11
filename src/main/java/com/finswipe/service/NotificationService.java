@@ -152,6 +152,11 @@ public class NotificationService {
                     String respBody = resp.body();
                     log.warn("[알림] FCM 발송 실패: {} {}", resp.statusCode(),
                             respBody.length() > 100 ? respBody.substring(0, 100) : respBody);
+                    // 만료/유효하지 않은 토큰 → DB에서 삭제
+                    if (resp.statusCode() == 404 || resp.statusCode() == 400) {
+                        jdbc.update("DELETE FROM device_tokens WHERE token = ?", token);
+                        log.info("[알림] 만료 토큰 삭제: {}…", token.length() > 20 ? token.substring(0, 20) : token);
+                    }
                 }
             }
             log.info("[알림] 발송 완료 → 성공 {}개 / 실패 {}개", success, failed);
