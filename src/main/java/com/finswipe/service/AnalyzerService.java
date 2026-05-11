@@ -123,14 +123,15 @@ public class AnalyzerService {
         }
 
         try {
-            // application/octet-stream으로 응답이 올 수 있어 byte[]로 수신 후 변환
-            byte[] rawBytes = genaiClient.post()
+            // .exchange()로 메시지 컨버터를 우회해 Content-Type 무관하게 바디를 직접 읽음
+            String rawResponse = genaiClient.post()
                     .uri("/api/v1/articles/enrich-text")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
-                    .retrieve()
-                    .body(byte[].class);
-            String rawResponse = rawBytes != null ? new String(rawBytes, StandardCharsets.UTF_8) : null;
+                    .exchange((req, res) -> {
+                        byte[] bytes = res.getBody().readAllBytes();
+                        return bytes.length > 0 ? new String(bytes, StandardCharsets.UTF_8) : null;
+                    });
 
             EnrichmentResult result = parseResponse(link, rawResponse);
             if (result.isAvailable()) {
