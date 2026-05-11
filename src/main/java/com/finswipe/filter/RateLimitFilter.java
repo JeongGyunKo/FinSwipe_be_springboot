@@ -2,6 +2,8 @@ package com.finswipe.filter;
 
 import com.finswipe.config.AppProperties;
 import com.finswipe.util.IpExtractorUtil;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import jakarta.servlet.FilterChain;
@@ -16,8 +18,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.security.MessageDigest;
 import java.time.Duration;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 @Order(10)
@@ -25,7 +27,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private final AppProperties props;
-    private final ConcurrentHashMap<String, Bucket> buckets = new ConcurrentHashMap<>();
+    // Caffeine으로 교체 — 1시간 미접속 IP 자동 만료, 최대 50,000 IP 보관
+    private final Cache<String, Bucket> buckets = Caffeine.newBuilder()
+            .expireAfterAccess(Duration.ofHours(1))
+            .maximumSize(50_000)
+            .build();
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -37,7 +43,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         int rpm = isAdmin ? props.getRateLimit().getAdminRpm() : props.getRateLimit().getPublicRpm();
         String key = ip + ":" + (isAdmin ? "admin" : "public");
 
-        Bucket bucket = buckets.computeIfAbsent(key, k -> buildBucket(rpm));
+        Bucket bucket = buckets.get(key, k -> buildBucket(rpm));
 
         if (bucket.tryConsume(1)) {
             filterChain.doFilter(request, response);
@@ -49,7 +55,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private boolean isAdminEndpoint(HttpServletRequest request) {
-        return request.getHeader("X-Admin-Key") != null;
+        String provided = request.getHeader("X-Admin-Key");
+        if (provided == null) return false;
+        String expected = props.getAdmin().getApiKey();
+        return expected != null && MessageDigest.isEqual(provided.getBytes(), expected.getBytes());
     }
 
     private Bucket buildBucket(int rpm) {

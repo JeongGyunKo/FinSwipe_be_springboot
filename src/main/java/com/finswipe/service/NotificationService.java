@@ -95,11 +95,11 @@ public class NotificationService {
                     String.class, tickerArray);
             if (userIds.isEmpty()) return List.of();
 
-            // device_tokens에서 알림 활성화된 토큰 조회
-            String inClause = String.join(",", userIds.stream().map(id -> "'" + id + "'").toList());
+            // device_tokens에서 알림 활성화된 토큰 조회 — 파라미터화 쿼리로 SQL Injection 방지
+            String placeholders = String.join(",", java.util.Collections.nCopies(userIds.size(), "?"));
             return jdbc.queryForList(
-                    "SELECT token FROM device_tokens WHERE user_id IN (" + inClause + ") AND notify_all_news = true",
-                    String.class);
+                    "SELECT token FROM device_tokens WHERE user_id::text IN (" + placeholders + ") AND notify_all_news = true",
+                    String.class, userIds.toArray());
         } catch (Exception e) {
             log.error("[알림] 티커 기반 토큰 조회 실패: {}", e.getMessage());
             return List.of();
@@ -119,9 +119,7 @@ public class NotificationService {
         }
 
         try {
-            String preview = serviceAccountJson.length() > 30
-                    ? serviceAccountJson.substring(0, 30) + "..." : serviceAccountJson;
-            log.info("[알림] FCM JSON 형태: 길이={}, 시작={}", serviceAccountJson.length(), preview);
+            log.debug("[알림] FCM JSON 길이={}", serviceAccountJson.length());
             Map<?, ?> info = objectMapper.readValue(serviceAccountJson, Map.class);
             String projectId = (String) info.get("project_id");
             String accessToken = getAccessToken(serviceAccountJson, info);
