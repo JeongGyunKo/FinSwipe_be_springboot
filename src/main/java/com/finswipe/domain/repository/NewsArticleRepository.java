@@ -87,10 +87,11 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
     @Query("SELECT a FROM NewsArticle a WHERE a.id IN :ids ORDER BY a.publishedAt DESC")
     List<NewsArticle> findByIdIn(@Param("ids") List<java.util.UUID> ids);
 
-    // 미분석 기사 조회 — NULL이거나 한글 없는 필드(영어 폴백) 포함
+    // 미분석 기사 조회 — 생성 후 3시간 이내만 재시도 (번역 실패 무한 루프 방지)
     @Query(value = """
             SELECT * FROM news_articles
             WHERE content IS NOT NULL
+              AND created_at > NOW() - INTERVAL '3 hours'
               AND (sentiment_label IS NULL OR sentiment_label != '_clean_filtered')
               AND (
                 sentiment_label IS NULL
