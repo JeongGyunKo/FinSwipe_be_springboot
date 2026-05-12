@@ -24,8 +24,8 @@ public class NewsScheduler {
         }
     }
 
-    // 2분마다 미분석 기사 재분석
-    @Scheduled(fixedDelay = 120_000, initialDelay = 30_000)
+    // 1분마다 미분석 기사 재분석
+    @Scheduled(fixedDelay = 60_000, initialDelay = 30_000)
     public void reanalyzeUnanalyzed() {
         Thread.ofVirtual().start(() -> {
             try {
