@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -349,41 +350,26 @@ public class NewsCollectorService {
     }
 
     private void doAnalyzeAndUpdate(List<NewsArticle> articles, boolean sendFcm) {
-        log.info("[백그라운드] GenAI 분석 시작 → {}개", articles.size());
-        List<AnalyzerService.EnrichmentResult> results = analyzerService.analyzeBatch(articles);
+        log.info("[백그라운드] GenAI 분석 시작 → {}개 (분석 완료 즉시 저장)", articles.size());
 
-        int updated = 0, failed = 0, skipped = 0;
+        String fcmJson = resolveFcmJson();
+        AtomicInteger updated = new AtomicInteger();
+        AtomicInteger failed  = new AtomicInteger();
+        AtomicInteger skipped = new AtomicInteger();
+        AtomicInteger deleted = new AtomicInteger();
 
-        // URL 기반 매핑
-        Map<String, AnalyzerService.EnrichmentResult> resultMap = results.stream()
-                .filter(r -> r.getSourceUrl() != null)
-                .collect(Collectors.toMap(
-                        r -> r.getSourceUrl().replaceAll("/$", ""),
-                        r -> r,
-                        (a, b) -> a));
-
-        // ID 기반 일괄 조회 — N번 개별 findById → 1번 배치 조회
+        // ID → DB 엔티티 사전 로딩 (N+1 방지)
         List<UUID> ids = articles.stream()
-                .filter(a -> a.getId() != null)
-                .map(NewsArticle::getId)
-                .toList();
+                .filter(a -> a.getId() != null).map(NewsArticle::getId).toList();
         Map<UUID, NewsArticle> dbArticles = ids.isEmpty() ? Map.of() :
                 newsRepo.findAllById(ids).stream()
                         .collect(Collectors.toMap(NewsArticle::getId, a -> a));
 
-        // FCM JSON은 루프 밖에서 한 번만 생성
-        String fcmJson = resolveFcmJson();
-        List<NewsArticle> toSave = new ArrayList<>();
-        List<NewsArticle> toDelete = new ArrayList<>();
-        int deleted = 0;
-
-        for (NewsArticle original : articles) {
+        // 분석 완료 즉시 콜백으로 저장
+        analyzerService.analyzeBatchStreaming(articles, (original, result) -> {
             String rawLink = original.getSourceUrl();
-            if (rawLink == null) { skipped++; continue; }
+            if (rawLink == null) { skipped.incrementAndGet(); return; }
             String link = rawLink.replaceAll("/$", "");
-
-            AnalyzerService.EnrichmentResult result = resultMap.get(link);
-            if (result == null) { skipped++; continue; }
 
             if (!result.isAvailable()) {
                 if (result.isCleanFiltered()) {
@@ -391,36 +377,30 @@ public class NewsCollectorService {
                         log.error("[백그라운드] clean_filtered 표시 실패 ({}): {}", truncate(link), e.getMessage());
                     }
                 }
-                skipped++;
-                continue;
+                skipped.incrementAndGet();
+                return;
             }
 
-            // xai_ko 없을 때: 보도자료 출처는 영구 필터, 일반 기사는 재시도 허용
-            boolean emptyResult = result.getXaiKo() == null;
-            if (emptyResult) {
+            if (result.getXaiKo() == null) {
                 if (isPressRelease(link)) {
-                    // prnewswire, globenewswire 등 보도자료 → 영구 필터
                     try { newsRepo.markCleanFiltered(link); } catch (Exception e) {
                         log.warn("[백그라운드] clean_filtered 마킹 실패 ({}): {}", truncate(link), e.getMessage());
                     }
-                    deleted++;
+                    deleted.incrementAndGet();
                 } else {
-                    // 일반 기사(CNBC, Yahoo Finance 등) → 일시적 실패로 간주, 재시도 허용
                     log.info("[백그라운드] xai 없음 (재시도 대기): {}", truncate(link));
-                    skipped++;
+                    skipped.incrementAndGet();
                 }
-                continue;
+                return;
             }
 
             try {
                 NewsArticle article = (original.getId() != null) ? dbArticles.get(original.getId()) : null;
                 if (article == null) {
-                    // 배치 조회 미히트 시 URL로 폴백
                     article = newsRepo.findBySourceUrl(link)
                             .or(() -> newsRepo.findBySourceUrl(link + "/"))
                             .orElse(null);
                 }
-
                 if (article == null) {
                     log.warn("[DB] 업데이트 0행 — 기사를 찾을 수 없음: {}", truncate(link));
                 } else {
@@ -432,44 +412,27 @@ public class NewsCollectorService {
                     article.setHeadlineKo(result.getHeadlineKo());
                     article.setSummary3linesKo(result.getSummary3linesKo());
                     article.setXaiKo(safeJson(result.getXaiKo()));
-                    toSave.add(article);
+                    newsRepo.save(article); // 분석 완료 즉시 저장
+                    log.debug("[DB] 저장: {}", truncate(link));
                 }
-
-                // 신규 기사일 때만 관심 종목 알림 발송 (재분석은 중복 알림 방지)
-                List<String> tickers = original.getTickers();
-                String headline = original.getHeadline();
-                if (sendFcm && tickers != null && !tickers.isEmpty() && headline != null
-                        && fcmJson != null && !fcmJson.isBlank()) {
-                    Thread.ofVirtual().start(() -> notificationService.notifyTickerArticle(headline, tickers, fcmJson));
+                if (sendFcm) {
+                    List<String> tickers = original.getTickers();
+                    String headline = original.getHeadline();
+                    if (tickers != null && !tickers.isEmpty() && headline != null
+                            && fcmJson != null && !fcmJson.isBlank()) {
+                        Thread.ofVirtual().start(() ->
+                                notificationService.notifyTickerArticle(headline, tickers, fcmJson));
+                    }
                 }
-                updated++;
+                updated.incrementAndGet();
             } catch (Exception e) {
-                failed++;
+                failed.incrementAndGet();
                 log.error("[백그라운드] 업데이트 실패 ({}): {}", truncate(link), e.getMessage());
             }
-        }
+        });
 
-        // 일괄 저장
-        if (!toSave.isEmpty()) {
-            try {
-                newsRepo.saveAll(toSave);
-                log.info("[DB] 일괄 저장 완료: {}개", toSave.size());
-            } catch (Exception e) {
-                log.error("[DB] 일괄 저장 실패: {}", e.getMessage());
-            }
-        }
-
-        // 분석 결과 없는 기사 일괄 삭제
-        if (!toDelete.isEmpty()) {
-            try {
-                newsRepo.deleteAll(toDelete);
-                log.info("[DB] 분석불가 기사 삭제: {}개", toDelete.size());
-            } catch (Exception e) {
-                log.error("[DB] 삭제 실패: {}", e.getMessage());
-            }
-        }
-
-        log.info("[백그라운드] 완료 → 성공 {}개 / 필터처리 {}개 / 실패 {}개 / 분석불가 {}개", updated, deleted, failed, skipped);
+        log.info("[백그라운드] 완료 → 성공 {}개 / 필터처리 {}개 / 실패 {}개 / 분석불가 {}개",
+                updated.get(), deleted.get(), failed.get(), skipped.get());
     }
 
     /** Python: reanalyze_unanalyzed() */
