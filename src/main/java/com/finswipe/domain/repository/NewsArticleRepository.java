@@ -17,13 +17,22 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
 
     Optional<NewsArticle> findBySourceUrl(String sourceUrl);
 
-    // 최신 기사 페이징 — 분석 완료된 기사만 (xai_ko 있는 것만 노출)
+    // 최신 기사 페이징 — xai_ko, headline_ko, summary_3lines_ko 모두 있는 기사만 노출
+    @Query(value = """
+            SELECT * FROM news_articles
+            WHERE xai_ko IS NOT NULL
+              AND headline_ko IS NOT NULL
+              AND summary_3lines_ko IS NOT NULL
+            ORDER BY published_at DESC
+            """, nativeQuery = true)
     Page<NewsArticle> findByXaiKoIsNotNullOrderByPublishedAtDesc(Pageable pageable);
 
     // userId 기준 읽지 않은 기사 조회
     @Query(value = """
             SELECT * FROM news_articles
             WHERE xai_ko IS NOT NULL
+              AND headline_ko IS NOT NULL
+              AND summary_3lines_ko IS NOT NULL
               AND id NOT IN (
                 SELECT article_id FROM user_read_articles WHERE user_id = :userId::uuid
               )
@@ -37,6 +46,8 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
     @Query(value = """
             SELECT COUNT(*) FROM news_articles
             WHERE xai_ko IS NOT NULL
+              AND headline_ko IS NOT NULL
+              AND summary_3lines_ko IS NOT NULL
               AND id NOT IN (
                 SELECT article_id FROM user_read_articles WHERE user_id = :userId::uuid
               )
@@ -44,13 +55,13 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
     long countUnreadByUser(@Param("userId") String userId);
 
     // 특정 티커들을 포함한 기사 ID 목록 조회 — 분석 완료된 기사만
-    @Query(value = "SELECT id FROM news_articles WHERE tickers && CAST(:tickers AS text[]) AND xai_ko IS NOT NULL ORDER BY published_at DESC LIMIT :limit OFFSET :offset",
+    @Query(value = "SELECT id FROM news_articles WHERE tickers && CAST(:tickers AS text[]) AND xai_ko IS NOT NULL AND headline_ko IS NOT NULL AND summary_3lines_ko IS NOT NULL ORDER BY published_at DESC LIMIT :limit OFFSET :offset",
             nativeQuery = true)
     List<java.util.UUID> findIdsByTickersOverlap(@Param("tickers") String tickers,
                                                  @Param("limit") int limit,
                                                  @Param("offset") int offset);
 
-    @Query(value = "SELECT COUNT(*) FROM news_articles WHERE tickers && CAST(:tickers AS text[]) AND xai_ko IS NOT NULL",
+    @Query(value = "SELECT COUNT(*) FROM news_articles WHERE tickers && CAST(:tickers AS text[]) AND xai_ko IS NOT NULL AND headline_ko IS NOT NULL AND summary_3lines_ko IS NOT NULL",
             nativeQuery = true)
     long countByTickersOverlap(@Param("tickers") String tickers);
 
