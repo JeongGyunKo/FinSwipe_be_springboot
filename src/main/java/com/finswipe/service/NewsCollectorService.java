@@ -381,7 +381,9 @@ public class NewsCollectorService {
                 return;
             }
 
-            if (result.getXaiKo() == null) {
+            // xai_ko 없거나 영어 폴백인 경우
+            boolean noValidXaiKo = result.getXaiKo() == null || !containsKorean(result.getXaiKo());
+            if (noValidXaiKo) {
                 if (isPressRelease(link)) {
                     try { newsRepo.markCleanFiltered(link); } catch (Exception e) {
                         log.warn("[백그라운드] clean_filtered 마킹 실패 ({}): {}", truncate(link), e.getMessage());
@@ -395,6 +397,11 @@ public class NewsCollectorService {
             }
 
             try {
+                // 한글 문자 포함 여부 검증 — Gemini 영어 폴백 방지
+                String headlineKo = containsKorean(result.getHeadlineKo()) ? result.getHeadlineKo() : null;
+                List<String> summaryKo = koreanLines(result.getSummary3linesKo());
+                String xaiKo = containsKorean(result.getXaiKo()) ? safeJson(result.getXaiKo()) : null;
+
                 NewsArticle article = (original.getId() != null) ? dbArticles.get(original.getId()) : null;
                 if (article == null) {
                     article = newsRepo.findBySourceUrl(link)
@@ -409,17 +416,17 @@ public class NewsCollectorService {
                     article.setIsMixed("mixed".equals(result.getSentimentLabel()));
                     article.setSummary3lines(result.getSummary3lines());
                     article.setXai(safeJson(result.getXai()));
-                    article.setHeadlineKo(result.getHeadlineKo());
-                    article.setSummary3linesKo(result.getSummary3linesKo());
-                    article.setXaiKo(safeJson(result.getXaiKo()));
-                    newsRepo.save(article); // 분석 완료 즉시 저장
+                    article.setHeadlineKo(headlineKo);
+                    article.setSummary3linesKo(summaryKo);
+                    article.setXaiKo(xaiKo);
+                    newsRepo.save(article);
                     log.debug("[DB] 저장: {}", truncate(link));
                 }
-                // 3개 필드 모두 있을 때만 알림 — 불완전한 기사 알림 방지
+                // 3개 필드 모두 한국어로 있을 때만 알림
                 if (sendFcm
-                        && result.getHeadlineKo() != null
-                        && result.getSummary3linesKo() != null
-                        && result.getXaiKo() != null) {
+                        && headlineKo != null
+                        && summaryKo != null
+                        && xaiKo != null) {
                     List<String> tickers = original.getTickers();
                     String headline = original.getHeadline();
                     if (tickers != null && !tickers.isEmpty() && headline != null
@@ -519,6 +526,22 @@ public class NewsCollectorService {
             log.warn("[JSON] 유효하지 않은 JSON 무시: {}", json.length() > 50 ? json.substring(0, 50) : json);
             return null;
         }
+    }
+
+    /** 한글 음절/자모 포함 여부 — Gemini 영어 폴백 감지용 */
+    private boolean containsKorean(String text) {
+        if (text == null || text.isBlank()) return false;
+        return text.chars().anyMatch(c ->
+                (c >= 0xAC00 && c <= 0xD7A3) ||  // 한글 음절
+                (c >= 0x1100 && c <= 0x11FF) ||   // 한글 자모
+                (c >= 0x3130 && c <= 0x318F));     // 한글 호환 자모
+    }
+
+    /** 리스트에서 한글 포함된 줄만 반환, 전부 영어면 null */
+    private List<String> koreanLines(List<String> lines) {
+        if (lines == null || lines.isEmpty()) return null;
+        boolean hasKorean = lines.stream().anyMatch(this::containsKorean);
+        return hasKorean ? lines : null;
     }
 
     private boolean isStaleEntityException(Exception e) {
