@@ -17,17 +17,17 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
 
     Optional<NewsArticle> findBySourceUrl(String sourceUrl);
 
-    // 최신 기사 페이징 (published_at 내림차순)
-    Page<NewsArticle> findAllByOrderByPublishedAtDesc(Pageable pageable);
+    // 최신 기사 페이징 — 분석 완료된 기사만 (xai_ko 있는 것만 노출)
+    Page<NewsArticle> findByXaiKoIsNotNullOrderByPublishedAtDesc(Pageable pageable);
 
-    // 특정 티커들을 포함한 기사 ID 목록 조회 (native → JPQL 2단계로 StringListType 보호)
-    @Query(value = "SELECT id FROM news_articles WHERE tickers && CAST(:tickers AS text[]) ORDER BY published_at DESC LIMIT :limit OFFSET :offset",
+    // 특정 티커들을 포함한 기사 ID 목록 조회 — 분석 완료된 기사만
+    @Query(value = "SELECT id FROM news_articles WHERE tickers && CAST(:tickers AS text[]) AND xai_ko IS NOT NULL ORDER BY published_at DESC LIMIT :limit OFFSET :offset",
             nativeQuery = true)
     List<java.util.UUID> findIdsByTickersOverlap(@Param("tickers") String tickers,
                                                  @Param("limit") int limit,
                                                  @Param("offset") int offset);
 
-    @Query(value = "SELECT COUNT(*) FROM news_articles WHERE tickers && CAST(:tickers AS text[])",
+    @Query(value = "SELECT COUNT(*) FROM news_articles WHERE tickers && CAST(:tickers AS text[]) AND xai_ko IS NOT NULL",
             nativeQuery = true)
     long countByTickersOverlap(@Param("tickers") String tickers);
 
