@@ -381,6 +381,16 @@ public class NewsCollectorService {
                 return;
             }
 
+            // fatal_failure: GenAI 서버 내부 오류 (예: Pydantic 검증 실패) → 재시도해도 동일 결과, 영구 필터
+            if ("fatal_failure".equals(result.getOutcome())) {
+                log.info("[백그라운드] fatal_failure → _clean_filtered: {}", truncate(link));
+                try { newsRepo.markCleanFiltered(link); } catch (Exception e) {
+                    log.warn("[백그라운드] clean_filtered 마킹 실패 ({}): {}", truncate(link), e.getMessage());
+                }
+                deleted.incrementAndGet();
+                return;
+            }
+
             // xai_ko 없거나 영어 폴백인 경우
             boolean noValidXaiKo = result.getXaiKo() == null || !containsKorean(result.getXaiKo());
             if (noValidXaiKo) {
