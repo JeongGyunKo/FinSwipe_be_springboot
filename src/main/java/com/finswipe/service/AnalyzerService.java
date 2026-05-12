@@ -105,6 +105,43 @@ public class AnalyzerService {
                 .toList();
     }
 
+    /** 분석 완료 즉시 콜백 호출 — 저장을 기다리지 않고 실시간 처리 */
+    public void analyzeBatchStreaming(List<NewsArticle> articles,
+                                     java.util.function.BiConsumer<NewsArticle, EnrichmentResult> onEach) {
+        List<NewsArticle> valid = articles.stream()
+                .filter(a -> a.getSourceUrl() != null && !a.getSourceUrl().isBlank()
+                        && a.getContent() != null && !a.getContent().isBlank())
+                .toList();
+
+        log.info("[GenAI] enrichment 시작 → {}개", valid.size());
+
+        Map<String, String> health = checkHealth();
+        if (!"ok".equals(health.get("status"))) {
+            log.warn("[GenAI] 서버 비정상 ({}) → 배치 전체 스킵 ({}개)", health, valid.size());
+            valid.forEach(a -> onEach.accept(a, EnrichmentResult.unavailable(a.getSourceUrl())));
+            return;
+        }
+
+        List<CompletableFuture<Void>> futures = valid.stream()
+                .map(article -> CompletableFuture.supplyAsync(() -> {
+                    try {
+                        submitSemaphore.acquire();
+                        try {
+                            Thread.sleep(1000);
+                            return enrichSingle(article);
+                        } finally {
+                            submitSemaphore.release();
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return EnrichmentResult.unavailable(article.getSourceUrl());
+                    }
+                }, enrichmentExecutor).thenAccept(result -> onEach.accept(article, result)))
+                .toList();
+
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+    }
+
     /** Python: _enrich_one() 내부 로직 */
     public EnrichmentResult enrichSingle(NewsArticle article) {
         String link = article.getSourceUrl();
