@@ -272,6 +272,7 @@ public class NewsCollectorService {
         article.setSummary(summary.isEmpty() ? null : summary);
         article.setSourceUrl(link);
         article.setContent(content);
+        article.setContentPreview(content.length() > 300 ? content.substring(0, 300) : content);
         article.setImageUrl(images.isEmpty() ? null : (String) images.get(0));
         article.setCategories(categories.stream().map(Object::toString).collect(Collectors.toList()));
         article.setCountries(countries.stream().map(Object::toString).collect(Collectors.toList()));

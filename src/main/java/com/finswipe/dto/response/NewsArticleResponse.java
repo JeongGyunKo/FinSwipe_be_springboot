@@ -18,6 +18,7 @@ public class NewsArticleResponse {
     private final String summary;
     private final List<String> summary3lines;
     private final String sourceUrl;
+    private final String contentPreview;
     private final String imageUrl;
     private final OffsetDateTime publishedAt;
     private final List<String> categories;
@@ -39,6 +40,7 @@ public class NewsArticleResponse {
         this.summary = article.getSummary();
         this.summary3lines = article.getSummary3lines();
         this.sourceUrl = article.getSourceUrl();
+        this.contentPreview = article.getContentPreview();
         this.imageUrl = article.getImageUrl();
         this.publishedAt = article.getPublishedAt();
         this.categories = article.getCategories();

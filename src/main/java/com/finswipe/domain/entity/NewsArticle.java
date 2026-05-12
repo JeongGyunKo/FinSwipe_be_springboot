@@ -40,6 +40,9 @@ public class NewsArticle {
     @Column(columnDefinition = "text")
     private String content;
 
+    @Column(name = "content_preview")
+    private String contentPreview;
+
     @Column(name = "image_url")
     private String imageUrl;
 
