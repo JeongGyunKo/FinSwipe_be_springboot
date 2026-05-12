@@ -20,6 +20,29 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
     // 최신 기사 페이징 — 분석 완료된 기사만 (xai_ko 있는 것만 노출)
     Page<NewsArticle> findByXaiKoIsNotNullOrderByPublishedAtDesc(Pageable pageable);
 
+    // userId 기준 읽지 않은 기사 조회
+    @Query(value = """
+            SELECT * FROM news_articles
+            WHERE xai_ko IS NOT NULL
+              AND id NOT IN (
+                SELECT article_id FROM user_read_articles WHERE user_id = :userId::uuid
+              )
+            ORDER BY published_at DESC
+            LIMIT :limit OFFSET :offset
+            """, nativeQuery = true)
+    List<NewsArticle> findUnreadByUser(@Param("userId") String userId,
+                                       @Param("limit") int limit,
+                                       @Param("offset") int offset);
+
+    @Query(value = """
+            SELECT COUNT(*) FROM news_articles
+            WHERE xai_ko IS NOT NULL
+              AND id NOT IN (
+                SELECT article_id FROM user_read_articles WHERE user_id = :userId::uuid
+              )
+            """, nativeQuery = true)
+    long countUnreadByUser(@Param("userId") String userId);
+
     // 특정 티커들을 포함한 기사 ID 목록 조회 — 분석 완료된 기사만
     @Query(value = "SELECT id FROM news_articles WHERE tickers && CAST(:tickers AS text[]) AND xai_ko IS NOT NULL ORDER BY published_at DESC LIMIT :limit OFFSET :offset",
             nativeQuery = true)
