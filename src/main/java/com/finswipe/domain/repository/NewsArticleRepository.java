@@ -69,12 +69,17 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
     @Query("SELECT a FROM NewsArticle a WHERE a.id IN :ids ORDER BY a.publishedAt DESC")
     List<NewsArticle> findByIdIn(@Param("ids") List<java.util.UUID> ids);
 
-    // 미분석 기사 조회 — _clean_filtered 마킹으로 무한 재처리 방지
+    // 미분석 기사 조회 — NULL이거나 한글 없는 필드(영어 폴백) 포함
     @Query(value = """
             SELECT * FROM news_articles
             WHERE content IS NOT NULL
               AND (sentiment_label IS NULL OR sentiment_label != '_clean_filtered')
-              AND (sentiment_label IS NULL OR summary_3lines_ko IS NULL OR headline_ko IS NULL OR xai_ko IS NULL)
+              AND (
+                sentiment_label IS NULL
+                OR headline_ko IS NULL    OR headline_ko    !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+                OR summary_3lines_ko IS NULL OR summary_3lines_ko::text !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+                OR xai_ko IS NULL         OR xai_ko::text   !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              )
             ORDER BY published_at DESC
             LIMIT :#{#pageable.pageSize}
             """, nativeQuery = true)
