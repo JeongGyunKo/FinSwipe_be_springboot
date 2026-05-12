@@ -29,7 +29,7 @@ public class NewsScheduler {
     public void reanalyzeUnanalyzed() {
         Thread.ofVirtual().start(() -> {
             try {
-                int count = collectorService.reanalyzeUnanalyzed(200);
+                int count = collectorService.reanalyzeUnanalyzed(50);
                 if (count > 0) {
                     log.info("[Scheduler] Re-analyzed {} articles", count);
                 }
