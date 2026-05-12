@@ -17,22 +17,29 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
 
     Optional<NewsArticle> findBySourceUrl(String sourceUrl);
 
-    // 최신 기사 페이징 — xai_ko, headline_ko, summary_3lines_ko 모두 있는 기사만 노출
+    // 한국어 완성 기사 공통 조건 (NULL 체크 + 한글 포함 여부)
+    // headline_ko, summary_3lines_ko, xai_ko 셋 모두 한글 포함 필수
+    String KOREAN_COMPLETE =
+            "headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]' " +
+            "AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]' " +
+            "AND xai_ko IS NOT NULL AND xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'";
+
+    // 최신 기사 페이징 — 한국어 완성 기사만 노출
     @Query(value = """
             SELECT * FROM news_articles
-            WHERE xai_ko IS NOT NULL
-              AND headline_ko IS NOT NULL
-              AND summary_3lines_ko IS NOT NULL
+            WHERE headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND xai_ko IS NOT NULL AND xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
             ORDER BY published_at DESC
             """, nativeQuery = true)
     Page<NewsArticle> findByXaiKoIsNotNullOrderByPublishedAtDesc(Pageable pageable);
 
-    // userId 기준 읽지 않은 기사 조회
+    // userId 기준 읽지 않은 기사 조회 — 한국어 완성 기사만
     @Query(value = """
             SELECT * FROM news_articles
-            WHERE xai_ko IS NOT NULL
-              AND headline_ko IS NOT NULL
-              AND summary_3lines_ko IS NOT NULL
+            WHERE headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND xai_ko IS NOT NULL AND xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
               AND id NOT IN (
                 SELECT article_id FROM user_read_articles WHERE user_id = :userId::uuid
               )
@@ -45,24 +52,35 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
 
     @Query(value = """
             SELECT COUNT(*) FROM news_articles
-            WHERE xai_ko IS NOT NULL
-              AND headline_ko IS NOT NULL
-              AND summary_3lines_ko IS NOT NULL
+            WHERE headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND xai_ko IS NOT NULL AND xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
               AND id NOT IN (
                 SELECT article_id FROM user_read_articles WHERE user_id = :userId::uuid
               )
             """, nativeQuery = true)
     long countUnreadByUser(@Param("userId") String userId);
 
-    // 특정 티커들을 포함한 기사 ID 목록 조회 — 분석 완료된 기사만
-    @Query(value = "SELECT id FROM news_articles WHERE tickers && CAST(:tickers AS text[]) AND xai_ko IS NOT NULL AND headline_ko IS NOT NULL AND summary_3lines_ko IS NOT NULL ORDER BY published_at DESC LIMIT :limit OFFSET :offset",
-            nativeQuery = true)
+    // 특정 티커 기사 — 한국어 완성 기사만
+    @Query(value = """
+            SELECT id FROM news_articles
+            WHERE tickers && CAST(:tickers AS text[])
+              AND headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND xai_ko IS NOT NULL AND xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+            ORDER BY published_at DESC LIMIT :limit OFFSET :offset
+            """, nativeQuery = true)
     List<java.util.UUID> findIdsByTickersOverlap(@Param("tickers") String tickers,
                                                  @Param("limit") int limit,
                                                  @Param("offset") int offset);
 
-    @Query(value = "SELECT COUNT(*) FROM news_articles WHERE tickers && CAST(:tickers AS text[]) AND xai_ko IS NOT NULL AND headline_ko IS NOT NULL AND summary_3lines_ko IS NOT NULL",
-            nativeQuery = true)
+    @Query(value = """
+            SELECT COUNT(*) FROM news_articles
+            WHERE tickers && CAST(:tickers AS text[])
+              AND headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND xai_ko IS NOT NULL AND xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+            """, nativeQuery = true)
     long countByTickersOverlap(@Param("tickers") String tickers);
 
     // ID 목록으로 순서 보장하며 엔티티 조회 (JPQL → StringListType 정상 동작)
