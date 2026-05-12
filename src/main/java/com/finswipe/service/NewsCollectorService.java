@@ -389,14 +389,20 @@ public class NewsCollectorService {
                 continue;
             }
 
-            // xai_ko 없으면 FinSwipe 표시 불가 → _clean_filtered 마킹 (삭제 아님)
-            // 삭제하면 Finlight가 같은 기사를 반복 재수집하는 무한 루프 발생
+            // xai_ko 없을 때: 보도자료 출처는 영구 필터, 일반 기사는 재시도 허용
             boolean emptyResult = result.getXaiKo() == null;
             if (emptyResult) {
-                try { newsRepo.markCleanFiltered(link); } catch (Exception e) {
-                    log.warn("[백그라운드] clean_filtered 마킹 실패 ({}): {}", truncate(link), e.getMessage());
+                if (isPressRelease(link)) {
+                    // prnewswire, globenewswire 등 보도자료 → 영구 필터
+                    try { newsRepo.markCleanFiltered(link); } catch (Exception e) {
+                        log.warn("[백그라운드] clean_filtered 마킹 실패 ({}): {}", truncate(link), e.getMessage());
+                    }
+                    deleted++;
+                } else {
+                    // 일반 기사(CNBC, Yahoo Finance 등) → 일시적 실패로 간주, 재시도 허용
+                    log.info("[백그라운드] xai 없음 (재시도 대기): {}", truncate(link));
+                    skipped++;
                 }
-                deleted++;
                 continue;
             }
 
@@ -534,6 +540,12 @@ public class NewsCollectorService {
             log.warn("[JSON] 유효하지 않은 JSON 무시: {}", json.length() > 50 ? json.substring(0, 50) : json);
             return null;
         }
+    }
+
+    private boolean isPressRelease(String url) {
+        if (url == null) return false;
+        return url.contains("prnewswire.com") || url.contains("globenewswire.com")
+                || url.contains("businesswire.com") || url.contains("accesswire.com");
     }
 
     private String truncate(String s) {
