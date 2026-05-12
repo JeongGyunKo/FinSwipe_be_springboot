@@ -35,11 +35,10 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
     @Query("SELECT a FROM NewsArticle a WHERE a.id IN :ids ORDER BY a.publishedAt DESC")
     List<NewsArticle> findByIdIn(@Param("ids") List<java.util.UUID> ids);
 
-    // 미분석 기사 조회 — 30일 이내 기사만 (오래된 기사 무한 재처리 방지)
+    // 미분석 기사 조회 — _clean_filtered 마킹으로 무한 재처리 방지
     @Query(value = """
             SELECT * FROM news_articles
             WHERE content IS NOT NULL
-              AND published_at > NOW() - INTERVAL '30 days'
               AND (sentiment_label IS NULL OR sentiment_label != '_clean_filtered')
               AND (sentiment_label IS NULL OR summary_3lines_ko IS NULL OR headline_ko IS NULL OR xai_ko IS NULL)
             ORDER BY published_at DESC
