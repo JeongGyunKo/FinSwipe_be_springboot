@@ -430,8 +430,14 @@ public class NewsCollectorService {
                 }
                 updated.incrementAndGet();
             } catch (Exception e) {
-                failed.incrementAndGet();
-                log.error("[백그라운드] 업데이트 실패 ({}): {}", truncate(link), e.getMessage());
+                // 다른 배치가 동시에 저장한 경우 → 이미 저장됨, 정상
+                if (isStaleEntityException(e)) {
+                    log.debug("[DB] 동시 저장 충돌 → 이미 저장됨: {}", truncate(link));
+                    updated.incrementAndGet();
+                } else {
+                    failed.incrementAndGet();
+                    log.error("[백그라운드] 업데이트 실패 ({}): {}", truncate(link), e.getMessage());
+                }
             }
         });
 
@@ -513,6 +519,13 @@ public class NewsCollectorService {
             log.warn("[JSON] 유효하지 않은 JSON 무시: {}", json.length() > 50 ? json.substring(0, 50) : json);
             return null;
         }
+    }
+
+    private boolean isStaleEntityException(Exception e) {
+        String msg = e.getMessage();
+        if (msg != null && msg.contains("Row was already updated")) return true;
+        Throwable cause = e.getCause();
+        return cause != null && cause.getClass().getName().contains("StaleObject");
     }
 
     private boolean isPressRelease(String url) {
