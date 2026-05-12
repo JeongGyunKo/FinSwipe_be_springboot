@@ -331,7 +331,7 @@ public class NewsCollectorService {
             return true;
         }
         if (!reanalysisRunning.compareAndSet(false, true)) {
-            log.info("[재분석] 이미 실행 중 → 스킵 ({}개)", articles.size());
+            log.info("[재분석] 이전 배치 실행 중 → 스킵 (대기 중 {}개)", articles.size());
             return false;
         }
         try {
