@@ -45,21 +45,51 @@ public class NewsController {
 
     // ===================== Public Endpoints =====================
 
-    /** GET /news/latest — 최신 뉴스 목록 (페이징) */
+    /** GET /news/latest — 최신 뉴스 목록 (페이징). userId 전달 시 읽은 기사 제외 */
     @GetMapping("/latest")
-    @Cacheable(value = CacheConfig.CACHE_NEWS_LATEST, key = "#limit + ':' + #offset")
+    @Cacheable(value = CacheConfig.CACHE_NEWS_LATEST, key = "#limit + ':' + #offset",
+               condition = "#userId == null")
     public ResponseEntity<NewsListResponse> getLatest(
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit,
-            @RequestParam(defaultValue = "0") @Min(0) int offset) {
+            @RequestParam(defaultValue = "0") @Min(0) int offset,
+            @RequestParam(required = false) String userId) {
+
+        if (userId != null && isValidUuid(userId)) {
+            List<NewsArticle> articles = newsRepo.findUnreadByUser(userId, limit, offset);
+            long total = newsRepo.countUnreadByUser(userId);
+            List<NewsArticleResponse> data = articles.stream()
+                    .map(a -> new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers())))
+                    .toList();
+            return ResponseEntity.ok(new NewsListResponse(total, offset, data));
+        }
 
         Page<NewsArticle> page = newsRepo.findByXaiKoIsNotNullOrderByPublishedAtDesc(
                 PageRequest.of(offset / limit, limit));
-
         List<NewsArticleResponse> data = page.getContent().stream()
                 .map(a -> new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers())))
                 .toList();
-
         return ResponseEntity.ok(new NewsListResponse(page.getTotalElements(), offset, data));
+    }
+
+    /** POST /news/{articleId}/read — 기사 읽음 처리 */
+    @PostMapping("/{articleId}/read")
+    public ResponseEntity<Map<String, Boolean>> markAsRead(
+            @PathVariable java.util.UUID articleId,
+            @RequestParam String userId) {
+        if (!isValidUuid(userId)) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false));
+        }
+        try {
+            jdbc.update("""
+                    INSERT INTO user_read_articles (user_id, article_id)
+                    VALUES (?::uuid, ?)
+                    ON CONFLICT (user_id, article_id) DO NOTHING
+                    """, userId, articleId);
+            return ResponseEntity.ok(Map.of("ok", true));
+        } catch (Exception e) {
+            log.error("[읽음] 저장 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("ok", false));
+        }
     }
 
     /** GET /news/search?q= — 티커/회사명으로 뉴스 검색 */
