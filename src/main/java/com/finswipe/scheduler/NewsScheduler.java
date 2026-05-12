@@ -29,9 +29,11 @@ public class NewsScheduler {
     public void reanalyzeUnanalyzed() {
         Thread.ofVirtual().start(() -> {
             try {
-                int count = collectorService.reanalyzeUnanalyzed(50);
+                int count = collectorService.reanalyzeUnanalyzed(20);
                 if (count > 0) {
                     log.info("[Scheduler] Re-analyzed {} articles", count);
+                } else {
+                    log.debug("[Scheduler] Re-analysis skipped (running or no articles)");
                 }
             } catch (Exception e) {
                 log.error("[Scheduler] Re-analysis failed", e);
