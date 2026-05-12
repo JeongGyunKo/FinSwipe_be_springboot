@@ -415,7 +415,11 @@ public class NewsCollectorService {
                     newsRepo.save(article); // 분석 완료 즉시 저장
                     log.debug("[DB] 저장: {}", truncate(link));
                 }
-                if (sendFcm) {
+                // 3개 필드 모두 있을 때만 알림 — 불완전한 기사 알림 방지
+                if (sendFcm
+                        && result.getHeadlineKo() != null
+                        && result.getSummary3linesKo() != null
+                        && result.getXaiKo() != null) {
                     List<String> tickers = original.getTickers();
                     String headline = original.getHeadline();
                     if (tickers != null && !tickers.isEmpty() && headline != null
