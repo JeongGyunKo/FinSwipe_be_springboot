@@ -24,13 +24,13 @@ public class NewsScheduler {
         }
     }
 
-    // 2분마다 미분석 기사 재분석 — 신규 기사 분석보다 후순위
-    // 배치 5개: freshAnalysisRunning 플래그로 새 기사 분석 중이면 자동 스킵
-    @Scheduled(fixedDelay = 120_000, initialDelay = 60_000)
+    // 30초마다 미분석 기사 재분석 — 신규 기사 분석보다 후순위
+    // 배치 50개: Semaphore(2) 기준 ~90초 소요, freshAnalysisRunning으로 새 기사 우선
+    @Scheduled(fixedDelay = 30_000, initialDelay = 60_000)
     public void reanalyzeUnanalyzed() {
         Thread.ofVirtual().start(() -> {
             try {
-                int count = collectorService.reanalyzeUnanalyzed(5);
+                int count = collectorService.reanalyzeUnanalyzed(50);
                 if (count > 0) {
                     log.info("[Scheduler] Re-analyzed {} articles", count);
                 } else {
