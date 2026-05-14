@@ -23,6 +23,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.security.MessageDigest;
 import java.util.List;
@@ -322,13 +323,8 @@ public class NewsController {
         String expectedKey = props.getAdmin().getApiKey();
         if (!MessageDigest.isEqual(providedKey.getBytes(), expectedKey.getBytes())) {
             log.warn("[보안] 유효하지 않은 admin key 시도");
-            throw new AdminKeyException("Invalid admin key");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid admin key");
         }
-    }
-
-    @ResponseStatus(HttpStatus.FORBIDDEN)
-    static class AdminKeyException extends RuntimeException {
-        AdminKeyException(String message) { super(message); }
     }
 
     // ===================== Request Body Records =====================
