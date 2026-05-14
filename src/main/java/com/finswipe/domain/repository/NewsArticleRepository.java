@@ -91,13 +91,12 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
     @Query("SELECT a FROM NewsArticle a WHERE a.id IN :ids ORDER BY a.publishedAt DESC")
     List<NewsArticle> findByIdIn(@Param("ids") List<java.util.UUID> ids);
 
-    // 미분석 기사 조회 — 재분석 3회 미만만 대상 (3회 실패 시 영구 제외)
-    // Pageable 대신 limit 직접 사용 — PagedExecution 방지 (카운트 쿼리 실행 시 retry_count 매핑 오류)
+    // 미분석 기사 조회 — 30분 이내만 재시도 (retry_count 컬럼 추가 전 임시)
     @Query(value = """
             SELECT * FROM news_articles
             WHERE content IS NOT NULL
+              AND created_at > NOW() - INTERVAL '30 minutes'
               AND (sentiment_label IS NULL OR sentiment_label != '_clean_filtered')
-              AND retry_count < 3
               AND (
                 sentiment_label IS NULL
                 OR headline_ko IS NULL    OR headline_ko    !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
