@@ -115,6 +115,22 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             nativeQuery = true)
     int incrementRetryCount(@Param("url") String url);
 
+    // 최근 읽은 기사 조회 — 뒤로 보내기용 (읽은 순서 최신순)
+    @Query(value = """
+            SELECT na.* FROM news_articles na
+            INNER JOIN user_read_articles ura ON ura.article_id = na.id
+            WHERE ura.user_id = CAST(:userId AS uuid)
+              AND na.headline_ko IS NOT NULL AND na.headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND na.summary_3lines_ko IS NOT NULL AND na.summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND na.xai_ko IS NOT NULL AND na.xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND na.tickers && (
+                SELECT COALESCE(tickers, '{}') FROM user_profiles WHERE id = CAST(:userId AS uuid)
+              )
+            ORDER BY ura.read_at DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<NewsArticle> findRecentReadArticles(@Param("userId") String userId, @Param("limit") int limit);
+
     // 기존 URL 목록에서 이미 존재하는 URL 반환 (중복 제거용)
     @Query("SELECT a.sourceUrl FROM NewsArticle a WHERE a.sourceUrl IN :urls")
     List<String> findExistingUrls(@Param("urls") List<String> urls);

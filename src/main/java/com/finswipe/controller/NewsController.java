@@ -58,9 +58,13 @@ public class NewsController {
         if (userId != null && isValidUuid(userId)) {
             Page<NewsArticle> page = newsRepo.findUnreadByUser(
                     userId, PageRequest.of(offset / limit, limit));
-            List<NewsArticleResponse> data = page.getContent().stream()
-                    .map(a -> new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers())))
-                    .toList();
+            // 읽은 기사를 뒤에 붙여서 반환 — 사라지지 않고 뒤로 이동
+            List<NewsArticle> readArticles = newsRepo.findRecentReadArticles(userId, 10);
+            List<NewsArticleResponse> data = new java.util.ArrayList<>();
+            page.getContent().forEach(a ->
+                    data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false)));
+            readArticles.forEach(a ->
+                    data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), true)));
             return ResponseEntity.ok(new NewsListResponse(page.getTotalElements(), offset, data));
         }
 
