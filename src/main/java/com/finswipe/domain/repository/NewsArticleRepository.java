@@ -34,12 +34,15 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             nativeQuery = true)
     Page<NewsArticle> findByXaiKoIsNotNullOrderByPublishedAtDesc(Pageable pageable);
 
-    // userId 기준 읽지 않은 기사 조회 — 한국어 완성 기사만 (Pageable로 LIMIT/OFFSET 위임)
+    // userId 기준 읽지 않은 기사 조회 — 사용자 관심 티커 + 한국어 완성 기사만
     @Query(value = """
             SELECT * FROM news_articles
             WHERE headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
               AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
               AND xai_ko IS NOT NULL AND xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND tickers && (
+                SELECT COALESCE(tickers, '{}') FROM user_profiles WHERE id = CAST(:userId AS uuid)
+              )
               AND id NOT IN (
                 SELECT article_id FROM user_read_articles WHERE user_id = CAST(:userId AS uuid)
               )
@@ -50,6 +53,9 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             WHERE headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
               AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
               AND xai_ko IS NOT NULL AND xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND tickers && (
+                SELECT COALESCE(tickers, '{}') FROM user_profiles WHERE id = CAST(:userId AS uuid)
+              )
               AND id NOT IN (
                 SELECT article_id FROM user_read_articles WHERE user_id = CAST(:userId AS uuid)
               )
