@@ -19,13 +19,21 @@ public class HealthController {
     private final AnalyzerService analyzerService;
     private final JdbcTemplate jdbcTemplate;
 
+    /** Zeabur health probe용 — DB만 확인 (빠른 응답) */
     @GetMapping("/health")
     public ResponseEntity<HealthResponse> health() {
+        String dbStatus = checkDb();
+        String overall = "ok".equals(dbStatus) ? "ok" : "degraded";
+        return ResponseEntity.ok(new HealthResponse(overall, dbStatus, "unknown"));
+    }
+
+    /** 관리자용 상세 헬스체크 — GenAI 포함 (느릴 수 있음) */
+    @GetMapping("/health/detail")
+    public ResponseEntity<HealthResponse> healthDetail() {
         String dbStatus = checkDb();
         Map<String, String> genai = analyzerService.checkHealth();
         String genaiStatus = genai.getOrDefault("status", "offline");
         String overall = "ok".equals(dbStatus) && "ok".equals(genaiStatus) ? "ok" : "degraded";
-
         return ResponseEntity.ok(new HealthResponse(overall, dbStatus, genaiStatus));
     }
 
