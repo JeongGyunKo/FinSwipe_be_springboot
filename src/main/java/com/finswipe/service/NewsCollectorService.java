@@ -7,7 +7,6 @@ import com.finswipe.domain.entity.NewsArticle;
 import com.finswipe.domain.repository.NewsArticleRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -484,7 +483,7 @@ public class NewsCollectorService {
             log.debug("[재분석] 신규 기사 분석 중 → 스킵");
             return 0;
         }
-        List<NewsArticle> unanalyzed = newsRepo.findUnanalyzed(PageRequest.of(0, limit));
+        List<NewsArticle> unanalyzed = newsRepo.findUnanalyzed(limit);
         if (unanalyzed.isEmpty()) return 0;
         log.info("[재분석] 미분석 기사 {}개 발견 → 분석 시작", unanalyzed.size());
         boolean ran = analyzeAndUpdate(unanalyzed, true);

@@ -88,9 +88,6 @@ public class NewsArticle {
     @JdbcTypeCode(SqlTypes.JSON)
     private String xaiKo;
 
-    @Column(name = "retry_count", nullable = false)
-    private int retryCount = 0;
-
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
 

@@ -92,6 +92,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
     List<NewsArticle> findByIdIn(@Param("ids") List<java.util.UUID> ids);
 
     // 미분석 기사 조회 — 재분석 3회 미만만 대상 (3회 실패 시 영구 제외)
+    // Pageable 대신 limit 직접 사용 — PagedExecution 방지 (카운트 쿼리 실행 시 retry_count 매핑 오류)
     @Query(value = """
             SELECT * FROM news_articles
             WHERE content IS NOT NULL
@@ -104,9 +105,9 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
                 OR xai_ko IS NULL         OR xai_ko::text   !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
               )
             ORDER BY published_at DESC
-            LIMIT :#{#pageable.pageSize}
+            LIMIT :limit
             """, nativeQuery = true)
-    List<NewsArticle> findUnanalyzed(Pageable pageable);
+    List<NewsArticle> findUnanalyzed(@Param("limit") int limit);
 
     // 재분석 실패 시 카운트 증가 — 3회 도달 시 자동으로 findUnanalyzed 대상에서 제외
     @Modifying
