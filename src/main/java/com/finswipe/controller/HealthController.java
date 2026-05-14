@@ -19,6 +19,12 @@ public class HealthController {
     private final AnalyzerService analyzerService;
     private final JdbcTemplate jdbcTemplate;
 
+    /** Zeabur 기본 health probe가 / 를 치는 경우 대응 */
+    @GetMapping("/")
+    public ResponseEntity<Map<String, String>> root() {
+        return ResponseEntity.ok(Map.of("status", "ok"));
+    }
+
     /** Zeabur health probe용 — DB만 확인 (빠른 응답) */
     @GetMapping("/health")
     public ResponseEntity<HealthResponse> health() {
