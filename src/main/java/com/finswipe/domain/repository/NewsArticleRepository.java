@@ -36,28 +36,30 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
 
     // userId 기준 읽지 않은 기사 조회 — 사용자 관심 티커 + 한국어 완성 기사만
     @Query(value = """
-            SELECT * FROM news_articles
-            WHERE headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
-              AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
-              AND xai_ko IS NOT NULL AND xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
-              AND tickers && (
+            SELECT * FROM news_articles na
+            WHERE na.headline_ko IS NOT NULL AND na.headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND na.summary_3lines_ko IS NOT NULL AND na.summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND na.xai_ko IS NOT NULL AND na.xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND na.tickers && (
                 SELECT COALESCE(tickers, '{}') FROM user_profiles WHERE id = CAST(:userId AS uuid)
               )
-              AND id NOT IN (
-                SELECT article_id FROM user_read_articles WHERE user_id = CAST(:userId AS uuid)
+              AND NOT EXISTS (
+                SELECT 1 FROM user_read_articles
+                WHERE user_id = CAST(:userId AS uuid) AND article_id = na.id
               )
-            ORDER BY published_at DESC
+            ORDER BY na.published_at DESC
             """,
             countQuery = """
-            SELECT COUNT(*) FROM news_articles
-            WHERE headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
-              AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
-              AND xai_ko IS NOT NULL AND xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
-              AND tickers && (
+            SELECT COUNT(*) FROM news_articles na
+            WHERE na.headline_ko IS NOT NULL AND na.headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND na.summary_3lines_ko IS NOT NULL AND na.summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND na.xai_ko IS NOT NULL AND na.xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND na.tickers && (
                 SELECT COALESCE(tickers, '{}') FROM user_profiles WHERE id = CAST(:userId AS uuid)
               )
-              AND id NOT IN (
-                SELECT article_id FROM user_read_articles WHERE user_id = CAST(:userId AS uuid)
+              AND NOT EXISTS (
+                SELECT 1 FROM user_read_articles
+                WHERE user_id = CAST(:userId AS uuid) AND article_id = na.id
               )
             """,
             nativeQuery = true)
