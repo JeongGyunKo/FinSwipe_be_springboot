@@ -24,12 +24,13 @@ public class NewsScheduler {
         }
     }
 
-    // 1분마다 미분석 기사 재분석
-    @Scheduled(fixedDelay = 60_000, initialDelay = 30_000)
+    // 10분마다 미분석 기사 재분석 — 신규 기사 분석보다 후순위
+    // 배치 5개: Semaphore 슬롯을 신규 기사 분석에 양보하기 위해 소규모로 실행
+    @Scheduled(fixedDelay = 600_000, initialDelay = 120_000)
     public void reanalyzeUnanalyzed() {
         Thread.ofVirtual().start(() -> {
             try {
-                int count = collectorService.reanalyzeUnanalyzed(20);
+                int count = collectorService.reanalyzeUnanalyzed(5);
                 if (count > 0) {
                     log.info("[Scheduler] Re-analyzed {} articles", count);
                 } else {
