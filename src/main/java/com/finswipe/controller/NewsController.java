@@ -65,7 +65,9 @@ public class NewsController {
                     data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false)));
             readArticles.forEach(a ->
                     data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), true)));
-            return ResponseEntity.ok(new NewsListResponse(page.getTotalElements(), offset, data));
+            // 사용자 관심 티커 목록 포함 — FE에서 Supabase 별도 호출 없이 "기사 없음" 처리용
+            List<String> userTickers = getUserTickers(userId);
+            return ResponseEntity.ok(new NewsListResponse(page.getTotalElements(), offset, data, userTickers));
         }
 
         Page<NewsArticle> page = newsRepo.findByXaiKoIsNotNullOrderByPublishedAtDesc(
@@ -316,6 +318,24 @@ public class NewsController {
     }
 
     // ===================== 내부 유틸 =====================
+
+    @SuppressWarnings("unchecked")
+    private List<String> getUserTickers(String userId) {
+        try {
+            return jdbc.queryForObject(
+                    "SELECT tickers FROM user_profiles WHERE id = ?::uuid",
+                    (rs, rowNum) -> {
+                        String raw = rs.getString("tickers");
+                        if (raw == null || raw.equals("{}")) return List.of();
+                        raw = raw.substring(1, raw.length() - 1);
+                        if (raw.isBlank()) return List.of();
+                        return List.of(raw.split(","));
+                    }, userId);
+        } catch (Exception e) {
+            log.warn("[userTickers] 조회 실패: {}", e.getMessage());
+            return List.of();
+        }
+    }
 
     private static boolean isValidUuid(String value) {
         try { java.util.UUID.fromString(value); return true; }
