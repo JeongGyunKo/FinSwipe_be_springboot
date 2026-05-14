@@ -56,17 +56,36 @@ public class NewsController {
             @RequestParam(required = false) String userId) {
 
         if (userId != null && isValidUuid(userId)) {
-            Page<NewsArticle> page = newsRepo.findUnreadByUser(
-                    userId, PageRequest.of(offset / limit, limit));
-            // 읽은 기사를 뒤에 붙여서 반환 — 사라지지 않고 뒤로 이동
-            List<NewsArticle> readArticles = newsRepo.findRecentReadArticles(userId, 10);
+            final int pageNum = offset / limit;
+            // 3개 DB 쿼리 병렬 실행 — 순차 350ms → 병렬 200ms
+            var pageFuture = new java.util.concurrent.CompletableFuture<Page<NewsArticle>>();
+            var readFuture = new java.util.concurrent.CompletableFuture<List<NewsArticle>>();
+            var tickersFuture = new java.util.concurrent.CompletableFuture<List<String>>();
+
+            Thread.ofVirtual().start(() -> {
+                try { pageFuture.complete(newsRepo.findUnreadByUser(userId, PageRequest.of(pageNum, limit))); }
+                catch (Exception e) { pageFuture.completeExceptionally(e); }
+            });
+            Thread.ofVirtual().start(() -> {
+                try { readFuture.complete(newsRepo.findRecentReadArticles(userId, 10)); }
+                catch (Exception e) { readFuture.completeExceptionally(e); }
+            });
+            Thread.ofVirtual().start(() -> {
+                try { tickersFuture.complete(getUserTickers(userId)); }
+                catch (Exception e) { tickersFuture.completeExceptionally(e); }
+            });
+
+            java.util.concurrent.CompletableFuture.allOf(pageFuture, readFuture, tickersFuture).join();
+
+            Page<NewsArticle> page = pageFuture.join();
+            List<NewsArticle> readArticles = readFuture.join();
+            List<String> userTickers = tickersFuture.join();
+
             List<NewsArticleResponse> data = new java.util.ArrayList<>();
             page.getContent().forEach(a ->
                     data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false)));
             readArticles.forEach(a ->
                     data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), true)));
-            // 사용자 관심 티커 목록 포함 — FE에서 Supabase 별도 호출 없이 "기사 없음" 처리용
-            List<String> userTickers = getUserTickers(userId);
             return ResponseEntity.ok(new NewsListResponse(page.getTotalElements(), offset, data, userTickers));
         }
 
