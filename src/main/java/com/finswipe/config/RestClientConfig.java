@@ -52,6 +52,7 @@ public class RestClientConfig {
         return RestClient.builder()
                 .baseUrl(props.getFinlight().getBaseUrl())
                 .defaultHeader("X-API-KEY", props.getFinlight().getApiKey())
+                .requestFactory(factory(10, 60))
                 .build();
     }
 }

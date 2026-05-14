@@ -31,7 +31,14 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
               AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
               AND xai_ko IS NOT NULL AND xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
             ORDER BY published_at DESC
-            """, nativeQuery = true)
+            """,
+            countQuery = """
+            SELECT COUNT(*) FROM news_articles
+            WHERE headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND xai_ko IS NOT NULL AND xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+            """,
+            nativeQuery = true)
     Page<NewsArticle> findByXaiKoIsNotNullOrderByPublishedAtDesc(Pageable pageable);
 
     // userId 기준 읽지 않은 기사 조회 — 한국어 완성 기사만 (Pageable로 LIMIT/OFFSET 위임)

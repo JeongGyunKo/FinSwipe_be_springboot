@@ -54,7 +54,6 @@ public class AppProperties {
         private int connectTimeoutSeconds = 10;
         private int readTimeoutSeconds = 300;
         private int concurrentRequests = 3;   // 동시 GenAI 요청 수 (Semaphore)
-        private int enrichmentThreads = 5;    // 분석 스레드 풀 크기
     }
 
     @Getter

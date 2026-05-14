@@ -28,7 +28,7 @@ public class AsyncConfig {
 
     @Bean("enrichmentExecutor")
     public ExecutorService enrichmentExecutor() {
-        enrichmentExecutorRef = Executors.newFixedThreadPool(props.getGenai().getEnrichmentThreads());
+        enrichmentExecutorRef = Executors.newVirtualThreadPerTaskExecutor();
         return enrichmentExecutorRef;
     }
 
