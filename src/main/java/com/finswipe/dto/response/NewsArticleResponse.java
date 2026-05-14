@@ -1,6 +1,7 @@
 package com.finswipe.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonRawValue;
 import com.finswipe.domain.entity.NewsArticle;
 import lombok.Getter;
@@ -36,8 +37,14 @@ public class NewsArticleResponse {
     private final List<String> summary3linesKo;
     @JsonRawValue
     private final String xaiKo;
+    @JsonProperty("is_read")
+    private final boolean isRead;
 
     public NewsArticleResponse(NewsArticle article, List<Map<String, String>> tickerNames) {
+        this(article, tickerNames, false);
+    }
+
+    public NewsArticleResponse(NewsArticle article, List<Map<String, String>> tickerNames, boolean isRead) {
         this.id = article.getId();
         this.headline = article.getHeadline();
         this.summary = article.getSummary();
@@ -58,5 +65,6 @@ public class NewsArticleResponse {
         this.headlineKo = article.getHeadlineKo();
         this.summary3linesKo = article.getSummary3linesKo();
         this.xaiKo = article.getXaiKo();
+        this.isRead = isRead;
     }
 }
