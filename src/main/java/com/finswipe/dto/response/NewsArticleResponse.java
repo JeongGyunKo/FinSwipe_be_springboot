@@ -1,6 +1,7 @@
 package com.finswipe.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonRawValue;
 import com.finswipe.domain.entity.NewsArticle;
 import lombok.Getter;
 
@@ -28,10 +29,12 @@ public class NewsArticleResponse {
     private final boolean isPaywalled;
     private final String sentimentLabel;
     private final Double sentimentScore;
+    @JsonRawValue
     private final String xai;
     private final Boolean isMixed;
     private final String headlineKo;
     private final List<String> summary3linesKo;
+    @JsonRawValue
     private final String xaiKo;
 
     public NewsArticleResponse(NewsArticle article, List<Map<String, String>> tickerNames) {
