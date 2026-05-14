@@ -42,17 +42,17 @@ public class TickerService {
 
     /**
      * 티커 목록에 회사명 정보를 붙여서 반환 [{ticker, corp, ko}, ...]
-     * findAllById 배치 조회로 N+1 방지
+     * getAllTickers() 캐시 활용 — 기사당 DB 쿼리 없이 인메모리 조회 (60번 → 0번)
      */
     public List<Map<String, String>> enrichTickers(List<String> tickers) {
         if (tickers == null || tickers.isEmpty()) return List.of();
-        Map<String, TickerName> infoMap = repo.findAllById(tickers).stream()
-                .collect(Collectors.toMap(TickerName::getTicker, t -> t));
+        Map<String, TickerInfo> infoMap = getAllTickers().stream()
+                .collect(Collectors.toMap(TickerInfo::getTicker, t -> t));
         return tickers.stream()
                 .map(t -> {
                     Map<String, String> m = new java.util.HashMap<>();
                     m.put("ticker", t);
-                    TickerName info = infoMap.get(t);
+                    TickerInfo info = infoMap.get(t);
                     if (info != null) {
                         m.put("corp", info.getCorp());
                         m.put("ko", info.getKo());
