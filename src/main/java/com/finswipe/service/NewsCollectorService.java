@@ -380,11 +380,6 @@ public class NewsCollectorService {
                     try { newsRepo.markCleanFiltered(link); } catch (Exception e) {
                         log.error("[백그라운드] clean_filtered 표시 실패 ({}): {}", truncate(link), e.getMessage());
                     }
-                } else if (!sendFcm) {
-                    // 재분석 모드에서 GenAI 타임아웃 → 재시도 카운트 증가
-                    try { newsRepo.incrementRetryCount(link); } catch (Exception e) {
-                        log.warn("[백그라운드] retry_count 증가 실패 ({}): {}", truncate(link), e.getMessage());
-                    }
                 }
                 skipped.incrementAndGet();
                 return;
@@ -409,13 +404,7 @@ public class NewsCollectorService {
                     }
                     deleted.incrementAndGet();
                 } else {
-                    // 재분석 모드에서 한글 번역 실패 → 재시도 카운트 증가
-                    if (!sendFcm) {
-                        try { newsRepo.incrementRetryCount(link); } catch (Exception e) {
-                            log.warn("[백그라운드] retry_count 증가 실패 ({}): {}", truncate(link), e.getMessage());
-                        }
-                    }
-                    log.info("[백그라운드] xai 없음 (재시도 대기, retry_count 증가): {}", truncate(link));
+                    log.info("[백그라운드] xai 없음 (재시도 대기): {}", truncate(link));
                     skipped.incrementAndGet();
                 }
                 return;
