@@ -24,9 +24,9 @@ public class NewsScheduler {
         }
     }
 
-    // 10분마다 미분석 기사 재분석 — 신규 기사 분석보다 후순위
-    // 배치 5개: Semaphore 슬롯을 신규 기사 분석에 양보하기 위해 소규모로 실행
-    @Scheduled(fixedDelay = 600_000, initialDelay = 120_000)
+    // 2분마다 미분석 기사 재분석 — 신규 기사 분석보다 후순위
+    // 배치 5개: freshAnalysisRunning 플래그로 새 기사 분석 중이면 자동 스킵
+    @Scheduled(fixedDelay = 120_000, initialDelay = 60_000)
     public void reanalyzeUnanalyzed() {
         Thread.ofVirtual().start(() -> {
             try {
