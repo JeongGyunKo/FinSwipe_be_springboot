@@ -472,15 +472,18 @@ public class NewsCollectorService {
     }
 
     /** Python: cleanup_old_content() */
-    @Transactional
     public void cleanupOldContent() {
         try {
             newsRepo.deleteArticlesWithoutContent();
-            newsRepo.deleteArticlesWithoutTickers();
-            log.info("[정리] content/tickers 없는 기사 삭제 완료");
         } catch (Exception e) {
-            log.error("[정리] 삭제 실패: {}", e.getMessage());
+            log.error("[정리] content 없는 기사 삭제 실패: {}", e.getMessage());
         }
+        try {
+            newsRepo.deleteArticlesWithoutTickers();
+        } catch (Exception e) {
+            log.error("[정리] tickers 없는 기사 삭제 실패: {}", e.getMessage());
+        }
+        log.info("[정리] content/tickers 없는 기사 삭제 완료");
     }
 
     /**
