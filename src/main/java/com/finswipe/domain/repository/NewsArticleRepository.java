@@ -34,32 +34,28 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             """, nativeQuery = true)
     Page<NewsArticle> findByXaiKoIsNotNullOrderByPublishedAtDesc(Pageable pageable);
 
-    // userId 기준 읽지 않은 기사 조회 — 한국어 완성 기사만
+    // userId 기준 읽지 않은 기사 조회 — 한국어 완성 기사만 (Pageable로 LIMIT/OFFSET 위임)
     @Query(value = """
             SELECT * FROM news_articles
             WHERE headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
               AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
               AND xai_ko IS NOT NULL AND xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
               AND id NOT IN (
-                SELECT article_id FROM user_read_articles WHERE user_id = :userId::uuid
+                SELECT article_id FROM user_read_articles WHERE user_id = CAST(:userId AS uuid)
               )
             ORDER BY published_at DESC
-            LIMIT :limit OFFSET :offset
-            """, nativeQuery = true)
-    List<NewsArticle> findUnreadByUser(@Param("userId") String userId,
-                                       @Param("limit") int limit,
-                                       @Param("offset") int offset);
-
-    @Query(value = """
+            """,
+            countQuery = """
             SELECT COUNT(*) FROM news_articles
             WHERE headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
               AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
               AND xai_ko IS NOT NULL AND xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
               AND id NOT IN (
-                SELECT article_id FROM user_read_articles WHERE user_id = :userId::uuid
+                SELECT article_id FROM user_read_articles WHERE user_id = CAST(:userId AS uuid)
               )
-            """, nativeQuery = true)
-    long countUnreadByUser(@Param("userId") String userId);
+            """,
+            nativeQuery = true)
+    Page<NewsArticle> findUnreadByUser(@Param("userId") String userId, Pageable pageable);
 
     // 특정 티커 기사 — 한국어 완성 기사만
     @Query(value = """

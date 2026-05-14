@@ -55,12 +55,12 @@ public class NewsController {
             @RequestParam(required = false) String userId) {
 
         if (userId != null && isValidUuid(userId)) {
-            List<NewsArticle> articles = newsRepo.findUnreadByUser(userId, limit, offset);
-            long total = newsRepo.countUnreadByUser(userId);
-            List<NewsArticleResponse> data = articles.stream()
+            Page<NewsArticle> page = newsRepo.findUnreadByUser(
+                    userId, PageRequest.of(offset / limit, limit));
+            List<NewsArticleResponse> data = page.getContent().stream()
                     .map(a -> new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers())))
                     .toList();
-            return ResponseEntity.ok(new NewsListResponse(total, offset, data));
+            return ResponseEntity.ok(new NewsListResponse(page.getTotalElements(), offset, data));
         }
 
         Page<NewsArticle> page = newsRepo.findByXaiKoIsNotNullOrderByPublishedAtDesc(
