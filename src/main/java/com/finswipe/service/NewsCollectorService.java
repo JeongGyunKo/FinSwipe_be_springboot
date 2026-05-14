@@ -61,6 +61,7 @@ public class NewsCollectorService {
     private final AppProperties props;
 
     private final AtomicBoolean reanalysisRunning = new AtomicBoolean(false);
+    private final AtomicBoolean freshAnalysisRunning = new AtomicBoolean(false);
 
     public NewsCollectorService(@Qualifier("finlightRestClient") RestClient finlightClient,
                                 NewsArticleRepository newsRepo,
@@ -323,10 +324,15 @@ public class NewsCollectorService {
         return Map.of("saved", saved, "skipped", skipped);
     }
 
-    /** 신규 수집 기사 분석 — FCM 알림 발송 포함 */
+    /** 신규 수집 기사 분석 — FCM 알림 발송 포함, 최우선 실행 */
     public void analyzeAndUpdate(List<NewsArticle> articles) {
         if (articles.isEmpty()) return;
-        doAnalyzeAndUpdate(articles, true);
+        freshAnalysisRunning.set(true);
+        try {
+            doAnalyzeAndUpdate(articles, true);
+        } finally {
+            freshAnalysisRunning.set(false);
+        }
     }
 
     /** 재분석 전용 — FCM 알림 발송 안 함, 이미 실행 중이면 스킵 */
@@ -461,8 +467,12 @@ public class NewsCollectorService {
                 updated.get(), deleted.get(), failed.get(), skipped.get());
     }
 
-    /** Python: reanalyze_unanalyzed() */
+    /** Python: reanalyze_unanalyzed() — 신규 기사 분석 중이면 스킵 */
     public int reanalyzeUnanalyzed(int limit) {
+        if (freshAnalysisRunning.get()) {
+            log.debug("[재분석] 신규 기사 분석 중 → 스킵");
+            return 0;
+        }
         List<NewsArticle> unanalyzed = newsRepo.findUnanalyzed(PageRequest.of(0, limit));
         if (unanalyzed.isEmpty()) return 0;
         log.info("[재분석] 미분석 기사 {}개 발견 → 분석 시작", unanalyzed.size());
