@@ -17,13 +17,6 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
 
     Optional<NewsArticle> findBySourceUrl(String sourceUrl);
 
-    // 한국어 완성 기사 공통 조건 (NULL 체크 + 한글 포함 여부)
-    // headline_ko, summary_3lines_ko, xai_ko 셋 모두 한글 포함 필수
-    String KOREAN_COMPLETE =
-            "headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]' " +
-            "AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]' " +
-            "AND xai_ko IS NOT NULL AND xai_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'";
-
     // 최신 기사 페이징 — 한국어 완성 기사만 노출
     @Query(value = """
             SELECT * FROM news_articles

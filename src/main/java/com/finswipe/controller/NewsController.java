@@ -117,7 +117,7 @@ public class NewsController {
                 .toList();
 
         return ResponseEntity.ok(Map.of(
-                "count", (int) total,
+                "count", total,
                 "offset", offset,
                 "query", q,
                 "matched_tickers", matchingTickers,
@@ -126,7 +126,6 @@ public class NewsController {
 
     /** GET /news/tickers — 전체 티커 목록 (자동완성용) */
     @GetMapping("/tickers")
-    @Cacheable(CacheConfig.CACHE_TICKERS)
     public ResponseEntity<Map<String, Object>> getTickers() {
         List<TickerInfo> tickers = tickerService.getAllTickers();
         return ResponseEntity.ok(Map.of("count", tickers.size(), "data", tickers));
