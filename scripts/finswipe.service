@@ -1,0 +1,18 @@
+[Unit]
+Description=FinSwipe Spring Boot Backend
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/finswipe
+EnvironmentFile=/home/ubuntu/finswipe/.env
+ExecStart=/usr/bin/java -Xmx256m -Xms128m -jar /home/ubuntu/finswipe/app.jar
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=finswipe
+
+[Install]
+WantedBy=multi-user.target

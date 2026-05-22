@@ -1,0 +1,27 @@
+name: EC2 배포
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: EC2 배포 (git pull → 빌드 → 재시작)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 10m
+          script: |
+            cd ~/finswipe
+            git pull origin master
+            ./gradlew bootJar --no-daemon -x test
+            sudo systemctl restart finswipe
+            sleep 8
+            sudo systemctl status finswipe --no-pager
+            echo "배포 완료: $(date)"
