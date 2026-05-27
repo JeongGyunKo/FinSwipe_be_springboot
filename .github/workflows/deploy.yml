@@ -20,7 +20,10 @@ jobs:
           script: |
             cd ~/finswipe
             git pull origin master
+            cd be
             ./gradlew bootJar --no-daemon -x test
+            cp build/libs/app.jar ~/finswipe/app.jar
+            cd ~/finswipe
             sudo systemctl restart finswipe
             sleep 8
             sudo systemctl status finswipe --no-pager

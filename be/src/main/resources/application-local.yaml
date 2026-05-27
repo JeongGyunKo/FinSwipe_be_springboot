@@ -1,0 +1,18 @@
+server:
+  port: 8081
+
+spring:
+  datasource:
+    url: jdbc:postgresql://aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres?prepareThreshold=0
+    username: postgres.dbkbdshdgxjqldbavbco
+    password: "qlfejtmflrmvmfhwprxm#1"
+
+app:
+  finlight:
+    api-key: sk_27a33efd0dd80ec7f839b40b57f92d5401e18df70c784bfcc628a3d7c9fb8ad0
+  genai:
+    url: https://finswipe.zeabur.app
+    user: fin
+    password: "1234"
+  admin:
+    api-key: l_NlyedZlKhUgtNDLMx-Z3vq00QAogNeJZ_keA4Fjng
