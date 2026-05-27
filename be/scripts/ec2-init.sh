@@ -60,8 +60,8 @@ EOF
 # .env 템플릿 생성 (값이 없으면 경고)
 if [ ! -f "$APP_DIR/.env" ]; then
     cat > "$APP_DIR/.env" << 'EOF'
-# DB (Supabase)
-DB_URL=jdbc:postgresql://HOST:5432/DATABASE?sslmode=require
+# DB (AWS RDS)
+DB_URL=jdbc:postgresql://YOUR-RDS-ENDPOINT.rds.amazonaws.com:5432/finswipe_db
 DB_USERNAME=postgres
 DB_PASSWORD=CHANGE_ME
 
