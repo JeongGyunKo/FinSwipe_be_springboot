@@ -16,15 +16,25 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          command_timeout: 10m
+          command_timeout: 15m
           script: |
             cd ~/finswipe
             git pull origin master
+
+            # ── Spring Boot 빌드 및 재시작 ──────────────────────────
             cd be
             ./gradlew bootJar --no-daemon -x test
             cp build/libs/app.jar ~/finswipe/app.jar
-            cd ~/finswipe
             sudo systemctl restart finswipe
             sleep 8
             sudo systemctl status finswipe --no-pager
+
+            # ── GenAI 패키지 업데이트 및 재시작 ─────────────────────
+            cd ~/finswipe/genai
+            source venv/bin/activate
+            pip install -r requirements.txt --quiet
+            sudo systemctl restart finswipe-genai
+            sleep 5
+            sudo systemctl status finswipe-genai --no-pager
+
             echo "배포 완료: $(date)"
