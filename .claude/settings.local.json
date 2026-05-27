@@ -72,7 +72,13 @@
       "Bash(mv FinSwipe_be_springboot.iml be/)",
       "Bash(mv docker-compose.prod.yml be/)",
       "Bash(mv finn *)",
-      "Bash(mv scripts *)"
+      "Bash(mv scripts *)",
+      "Bash(chmod 600 /c/Users/PC/Downloads/finswipe-key.pem)",
+      "Bash(ssh -i /c/Users/PC/Downloads/finswipe-key.pem -o StrictHostKeyChecking=no ubuntu@15.165.126.201 \"echo 'SSH 연결 성공' && cat /home/ubuntu/finswipe/.env\")",
+      "Bash(ssh -i /c/Users/PC/Downloads/finswipe-key.pem -o StrictHostKeyChecking=no ubuntu@15.165.126.201 \"sudo systemctl status finswipe --no-pager -l | tail -30\")",
+      "Bash(ssh -i /c/Users/PC/Downloads/finswipe-key.pem -o StrictHostKeyChecking=no ubuntu@15.165.126.201 \"curl -s http://localhost:8080/health\")",
+      "Bash(ssh -i *)",
+      "Bash(xargs grep -l \"import\\\\|class\")"
     ],
     "additionalDirectories": [
       "c:\\dev\\FinSwipe_be_springboot"

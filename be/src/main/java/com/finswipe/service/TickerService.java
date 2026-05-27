@@ -1,7 +1,6 @@
 package com.finswipe.service;
 
 import com.finswipe.config.CacheConfig;
-import com.finswipe.domain.entity.TickerName;
 import com.finswipe.domain.repository.TickerNameRepository;
 import com.finswipe.dto.response.TickerInfo;
 import lombok.RequiredArgsConstructor;
