@@ -63,3 +63,8 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+// JAR 파일명 고정 (배포 스크립트에서 경로 단순화)
+tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
+    archiveFileName = "app.jar"
+}

@@ -58,6 +58,7 @@ public class NewsCollectorService {
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
     private final AppProperties props;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     private final AtomicBoolean reanalysisRunning = new AtomicBoolean(false);
     private final AtomicBoolean freshAnalysisRunning = new AtomicBoolean(false);
@@ -67,13 +68,15 @@ public class NewsCollectorService {
                                 AnalyzerService analyzerService,
                                 NotificationService notificationService,
                                 ObjectMapper objectMapper,
-                                AppProperties props) {
+                                AppProperties props,
+                                org.springframework.jdbc.core.JdbcTemplate jdbc) {
         this.finlightClient = finlightClient;
         this.newsRepo = newsRepo;
         this.analyzerService = analyzerService;
         this.notificationService = notificationService;
         this.objectMapper = objectMapper;
         this.props = props;
+        this.jdbc = jdbc;
     }
 
     /** Python: collect_market_news() */
@@ -92,12 +95,19 @@ public class NewsCollectorService {
         if (result.get("saved") > 0) {
             Thread.ofVirtual().start(() -> {
                 try {
-                    analyzeAndUpdate(newArticles);
+                    // 사용자 관심 티커 기사만 분석 (비용 최적화)
+                    List<NewsArticle> toAnalyze = filterByWatchedTickers(newArticles);
+                    if (toAnalyze.isEmpty()) {
+                        log.info("[백그라운드] 관심 티커 기사 없음 → 분석 스킵 (저장만 완료)");
+                        return;
+                    }
+                    log.info("[백그라운드] 관심 티커 필터: {}개 → {}개", newArticles.size(), toAnalyze.size());
+                    analyzeAndUpdate(toAnalyze);
                 } catch (Exception e) {
                     log.error("[백그라운드] 분석 파이프라인 예외: {}: {}", e.getClass().getSimpleName(), e.getMessage(), e);
                 }
             });
-            log.info("[백그라운드] GenAI 분석 예약 → {}개", result.get("saved"));
+            log.info("[백그라운드] GenAI 분석 예약 → {}개 저장됨", result.get("saved"));
         }
 
         return Map.of("saved", result.get("saved"), "skipped", result.get("skipped"),
@@ -484,9 +494,37 @@ public class NewsCollectorService {
         }
         List<NewsArticle> unanalyzed = newsRepo.findUnanalyzed(limit);
         if (unanalyzed.isEmpty()) return 0;
-        log.info("[재분석] 미분석 기사 {}개 발견 → 분석 시작", unanalyzed.size());
+        log.info("[재분석] 미분석 기사 {}개 발견 (관심 티커 기준) → 분석 시작", unanalyzed.size());
         boolean ran = analyzeAndUpdate(unanalyzed, true);
         return ran ? unanalyzed.size() : 0;
+    }
+
+    /**
+     * 사용자가 새 티커를 추가했을 때 최근 7일치 미분석 기사를 소급 분석.
+     * UserProfileService 등에서 티커 업데이트 후 호출.
+     *
+     * @param newTickers 새로 추가된 티커 목록
+     */
+    public void triggerAnalysisForNewTickers(List<String> newTickers) {
+        if (newTickers == null || newTickers.isEmpty()) return;
+
+        // PostgreSQL text[] 리터럴 형식: {AAPL,NVDA}
+        String tickersParam = "{" + String.join(",", newTickers) + "}";
+        List<NewsArticle> articles = newsRepo.findUnanalyzedForTickers(tickersParam, 100);
+
+        if (articles.isEmpty()) {
+            log.info("[신규 티커] 미분석 기사 없음: {}", newTickers);
+            return;
+        }
+
+        log.info("[신규 티커] 소급 분석 시작 → {}개 (티커: {})", articles.size(), newTickers);
+        Thread.ofVirtual().start(() -> {
+            try {
+                doAnalyzeAndUpdate(articles, false);
+            } catch (Exception e) {
+                log.error("[신규 티커] 소급 분석 실패: {}", e.getMessage());
+            }
+        });
     }
 
     /** Python: cleanup_old_content() */
@@ -580,6 +618,35 @@ public class NewsCollectorService {
         if (msg != null && msg.contains("Row was already updated")) return true;
         Throwable cause = e.getCause();
         return cause != null && cause.getClass().getName().contains("StaleObject");
+    }
+
+    /**
+     * 전체 사용자의 관심 티커를 조회한 뒤, 해당 티커를 포함하는 기사만 반환.
+     * 관심 티커가 한 명도 없으면 원본 목록을 그대로 반환 (초기 상태 대비).
+     */
+    private List<NewsArticle> filterByWatchedTickers(List<NewsArticle> articles) {
+        if (articles.isEmpty()) return articles;
+        try {
+            // 모든 사용자의 관심 티커를 flat하게 수집
+            List<String> watchedTickers = jdbc.queryForList(
+                    "SELECT DISTINCT t FROM user_profiles, unnest(tickers) AS t " +
+                    "WHERE tickers IS NOT NULL AND array_length(tickers, 1) > 0",
+                    String.class);
+
+            if (watchedTickers.isEmpty()) {
+                // 아직 티커를 선택한 사용자가 없으면 전체 분석 (초기 운영 시)
+                return articles;
+            }
+
+            Set<String> watchedSet = new HashSet<>(watchedTickers);
+            return articles.stream()
+                    .filter(a -> a.getTickers() != null &&
+                                 a.getTickers().stream().anyMatch(watchedSet::contains))
+                    .toList();
+        } catch (Exception e) {
+            log.warn("[티커 필터] 관심 티커 조회 실패 → 전체 분석 ({})", e.getMessage());
+            return articles; // 오류 시 안전하게 전체 처리
+        }
     }
 
     private boolean isPressRelease(String url) {

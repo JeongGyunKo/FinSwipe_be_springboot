@@ -91,7 +91,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
     @Query("SELECT a FROM NewsArticle a WHERE a.id IN :ids ORDER BY a.publishedAt DESC")
     List<NewsArticle> findByIdIn(@Param("ids") List<java.util.UUID> ids);
 
-    // 미분석 기사 조회 — 재분석 3회 미만만 대상 (3회 실패 시 영구 제외)
+    // 미분석 기사 조회 — 사용자가 관심 등록한 티커 기사만 대상 (비용 최적화)
     @Query(value = """
             SELECT * FROM news_articles
             WHERE content IS NOT NULL
@@ -103,10 +103,35 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
                 OR summary_3lines_ko IS NULL OR summary_3lines_ko::text !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
                 OR xai_ko IS NULL         OR xai_ko::text   !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
               )
+              AND tickers && (
+                SELECT array_agg(DISTINCT t)
+                FROM user_profiles, unnest(tickers) AS t
+                WHERE tickers IS NOT NULL AND array_length(tickers, 1) > 0
+              )
             ORDER BY published_at DESC
             LIMIT :limit
             """, nativeQuery = true)
     List<NewsArticle> findUnanalyzed(@Param("limit") int limit);
+
+    // 특정 티커 목록의 미분석 기사 — 사용자가 새 티커 추가 시 소급 분석용
+    @Query(value = """
+            SELECT * FROM news_articles
+            WHERE content IS NOT NULL
+              AND (sentiment_label IS NULL OR sentiment_label != '_clean_filtered')
+              AND retry_count < 3
+              AND (
+                sentiment_label IS NULL
+                OR headline_ko IS NULL    OR headline_ko    !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+                OR summary_3lines_ko IS NULL OR summary_3lines_ko::text !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+                OR xai_ko IS NULL         OR xai_ko::text   !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              )
+              AND tickers && CAST(:tickers AS text[])
+              AND published_at >= NOW() - INTERVAL '7 days'
+            ORDER BY published_at DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<NewsArticle> findUnanalyzedForTickers(@Param("tickers") String tickers,
+                                               @Param("limit") int limit);
 
     // 재분석 실패 시 카운트 증가 — 3회 도달 시 자동으로 findUnanalyzed 대상에서 제외
     @Modifying
