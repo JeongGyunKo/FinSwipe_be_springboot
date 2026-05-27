@@ -40,5 +40,9 @@ out/
 src/main/resources/application-local.yaml
 .env
 
-### Python 구버전 프로젝트 (로컬 참조용) ###
+### Python (genai/) ###
+__pycache__/
+*.py[cod]
+genai/venv/
+genai/.venv/
 finn/
