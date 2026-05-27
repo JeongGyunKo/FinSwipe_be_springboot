@@ -338,7 +338,6 @@ public class NewsController {
 
     // ===================== 내부 유틸 =====================
 
-    @SuppressWarnings("unchecked")
     private List<String> getUserTickers(String userId) {
         try {
             return jdbc.queryForObject(

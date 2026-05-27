@@ -3,15 +3,15 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres?prepareThreshold=0
-    username: postgres.dbkbdshdgxjqldbavbco
+    url: jdbc:postgresql://REMOVED-DB-HOST:5432/finswipe
+    username: finswipe
     password: "***REMOVED-DB-PASSWORD***"
 
 app:
   finlight:
     api-key: ***REMOVED-ADMIN-API-KEY***
   genai:
-    url: https://finswipe.zeabur.app
+    url: http://localhost:8000
     user: fin
     password: "1234"
   admin:

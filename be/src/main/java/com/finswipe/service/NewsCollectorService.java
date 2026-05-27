@@ -252,7 +252,6 @@ public class NewsCollectorService {
     }
 
     /** Python: save_news_to_db() — Finlight 응답 raw map → NewsArticle 엔티티 변환 */
-    @SuppressWarnings("unchecked")
     private NewsArticle toEntity(Map<String, Object> a) {
         String link = (String) a.get("link");
         String title = (String) a.get("title");

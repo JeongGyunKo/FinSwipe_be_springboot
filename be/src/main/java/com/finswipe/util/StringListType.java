@@ -23,8 +23,8 @@ public class StringListType implements UserType<List<String>> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Class<List<String>> returnedClass() {
-        //noinspection unchecked
         return (Class<List<String>>) (Class<?>) List.class;
     }
 
