@@ -12,7 +12,6 @@ os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
 from app.services.xai.attention_explainer import explain_sentiment as explain_attention
-from app.services.xai.lime_explainer import explain_sentiment as explain_lime
 
 
 SAMPLES = [
@@ -133,7 +132,6 @@ def main() -> None:
 
     backends = [
         ("attention", explain_attention),
-        ("lime", explain_lime),
     ]
     results = [
         _benchmark_backend(

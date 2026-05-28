@@ -13,8 +13,6 @@ def explain_sentiment(*args, **kwargs):
         from app.services.xai.attention_explainer import (
             explain_sentiment as _explain_sentiment,
         )
-    elif backend == "lime":
-        from app.services.xai.lime_explainer import explain_sentiment as _explain_sentiment
     elif backend == "disabled":
         raise RuntimeError("XAI backend is disabled.")
     else:
