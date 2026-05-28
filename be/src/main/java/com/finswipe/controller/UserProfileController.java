@@ -31,7 +31,7 @@ public class UserProfileController {
         }
         try {
             return jdbc.queryForObject(
-                    "SELECT tickers, level FROM user_profiles WHERE id = ?::uuid",
+                    "SELECT tickers, level FROM user_profiles WHERE id = CAST(? AS UUID)",
                     (rs, row) -> {
                         List<String> tickers = parseTickers(rs.getString("tickers"));
                         Integer level = (Integer) rs.getObject("level");
@@ -64,7 +64,7 @@ public class UserProfileController {
             String rawOld;
             try {
                 rawOld = jdbc.queryForObject(
-                        "SELECT tickers FROM user_profiles WHERE id = ?::uuid",
+                        "SELECT tickers FROM user_profiles WHERE id = CAST(? AS UUID)",
                         String.class, userId);
             } catch (EmptyResultDataAccessException e) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -77,7 +77,7 @@ public class UserProfileController {
                     "{" + String.join(",", newTickers) + "}";
 
             jdbc.update(
-                    "UPDATE user_profiles SET tickers = ?::text[], updated_at = NOW() WHERE id = ?::uuid",
+                    "UPDATE user_profiles SET tickers = CAST(? AS TEXT[]), updated_at = NOW() WHERE id = CAST(? AS UUID)",
                     tickersArray, userId);
 
             // 신규 추가된 티커만 소급 분석 (최근 7일)
@@ -112,7 +112,7 @@ public class UserProfileController {
         }
         try {
             int updated = jdbc.update(
-                    "UPDATE user_profiles SET level = ?, updated_at = NOW() WHERE id = ?::uuid",
+                    "UPDATE user_profiles SET level = ?, updated_at = NOW() WHERE id = CAST(? AS UUID)",
                     body.level(), userId);
             if (updated == 0) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
