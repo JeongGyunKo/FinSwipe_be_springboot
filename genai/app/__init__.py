@@ -1,0 +1,1 @@
+"""Application package for the financial news Gen AI service."""

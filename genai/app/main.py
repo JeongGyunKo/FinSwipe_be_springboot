@@ -1,74 +1,72 @@
-"""FinSwipe GenAI Server — FastAPI 엔트리포인트"""
+import asyncio
 import logging
-import sys
-from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
-from app.config import get_settings
-from app.database import create_pool, close_pool
-from app.routers import health, news, quiz, legacy
-
-# 로깅 설정
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-    stream=sys.stdout,
+from app.api.routes.enrichment import router as enrichment_router
+from app.api.routes.health import router as health_router
+from app.api.routes.ingestion import router as ingestion_router
+from app.api.routes.web import router as web_router
+from app.core import get_settings
+from app.core.auth import (
+    basic_auth_required,
+    is_basic_auth_authorized,
+    unauthorized_basic_auth_response,
 )
+from app.core.logging import configure_logging, log_event
+from app.core.runtime_safety import get_runtime_safety_snapshot
+from app.db import initialize_database_backend
+
+
+configure_logging()
+settings = get_settings()
 logger = logging.getLogger(__name__)
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """앱 시작/종료 시 DB 풀 초기화/해제"""
-    settings = get_settings()
-    logger.info("GenAI 서버 시작 (포트 %d)", settings.port)
-    await create_pool()
-    logger.info("DB 풀 초기화 완료")
-    yield
-    await close_pool()
-    logger.info("DB 풀 해제 완료")
+WEB_DIR = Path(__file__).resolve().parent / "web"
 
 
 app = FastAPI(
-    title="FinSwipe GenAI API",
-    description="금융 뉴스 분석 및 사용자 레벨 테스트 서버",
-    version="1.0.0",
-    lifespan=lifespan,
+    title="Financial News Gen AI Service",
+    version="0.1.0",
+    description="Enrichment API for financial news articles.",
 )
 
-# CORS 설정
-settings = get_settings()
-origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins if origins != ["*"] else ["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
-# 라우터 등록
-app.include_router(health.router)
-app.include_router(news.router)
-app.include_router(quiz.router)
-app.include_router(legacy.router)  # /api/v1/articles/enrich-text (Spring Boot 호환)
+@app.on_event("startup")
+async def warm_database_backend() -> None:
+    runtime = get_runtime_safety_snapshot()
+    if runtime["suspicious_gpu_runtime"]:
+        log_event(
+            logger,
+            logging.ERROR if settings.fail_on_suspicious_gpu_runtime else logging.WARNING,
+            "runtime_gpu_safety_check_failed",
+            fail_on_suspicious_gpu_runtime=settings.fail_on_suspicious_gpu_runtime,
+            runtime_torch_cuda_version=runtime["torch_cuda_version"],
+            runtime_torch_cuda_available=bool(runtime["torch_cuda_available"]),
+            runtime_gpu_packages_detected=",".join(runtime["gpu_packages_detected"]),
+        )
+        if settings.fail_on_suspicious_gpu_runtime:
+            raise RuntimeError("Suspicious GPU runtime artifacts detected in CPU-target service.")
+
+    async def _initialize_in_background() -> None:
+        try:
+            await asyncio.to_thread(initialize_database_backend)
+        except Exception:
+            logger.exception("Background database initialization failed during startup.")
+
+    asyncio.create_task(_initialize_in_background())
 
 
-@app.get("/")
-async def root():
-    return {
-        "service": "FinSwipe GenAI",
-        "version": "1.0.0",
-        "endpoints": [
-            "GET  /health",
-            "POST /news/analyze",
-            "GET  /news/summary/{ticker}",
-            "POST /quiz/start",
-            "GET  /quiz/question/{session_id}",
-            "POST /quiz/answer",
-            "GET  /quiz/result/{session_id}",
-            "POST /api/v1/articles/enrich-text  (Spring Boot 호환)",
-        ],
-    }
+@app.middleware("http")
+async def basic_auth_middleware(request, call_next):
+    if basic_auth_required(request) and not is_basic_auth_authorized(request):
+        return unauthorized_basic_auth_response()
+    return await call_next(request)
+
+app.include_router(health_router)
+app.include_router(web_router)
+app.include_router(ingestion_router, prefix="/api/v1")
+app.include_router(enrichment_router, prefix="/api/v1")
+app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
