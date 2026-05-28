@@ -84,29 +84,6 @@ def _install_transformers_stub() -> None:
     sys.modules["transformers"] = transformers_module
 
 
-def _install_lime_stub() -> None:
-    if "lime" in sys.modules and "lime.lime_text" in sys.modules:
-        return
-
-    class _FakeExplanation:
-        def as_list(self, label):
-            return [("s0", 0.5), ("s1", -0.2)]
-
-    class _FakeLimeTextExplainer:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def explain_instance(self, *args, **kwargs):
-            return _FakeExplanation()
-
-    lime_module = types.ModuleType("lime")
-    lime_text_module = types.ModuleType("lime.lime_text")
-    lime_text_module.LimeTextExplainer = _FakeLimeTextExplainer
-    sys.modules["lime"] = lime_module
-    sys.modules["lime.lime_text"] = lime_text_module
-
-
 _install_numpy_stub()
 _install_torch_stub()
 _install_transformers_stub()
-_install_lime_stub()
