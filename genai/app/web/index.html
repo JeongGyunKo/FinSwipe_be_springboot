@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinSwipe</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <main class="page-shell">
+        <section class="hero">
+            <p class="eyebrow">FinSwipe</p>
+            <h1>기사 분석 플레이그라운드</h1>
+        </section>
+
+        <section class="workspace">
+            <form id="enrichment-form" class="panel form-panel">
+                <div class="section-header">
+                    <h2>Request</h2>
+                    <p>Fill in the article metadata and call the current FastAPI endpoint.</p>
+                </div>
+
+                <label>
+                    <span>News ID</span>
+                    <input id="news_id" name="news_id" type="text" value="news-demo-001" required>
+                </label>
+
+                <label>
+                    <span>Title</span>
+                    <input
+                        id="title"
+                        name="title"
+                        type="text"
+                        value="Sample financial news title"
+                        required
+                    >
+                </label>
+
+                <label>
+                    <span>Link</span>
+                    <input
+                        id="link"
+                        name="link"
+                        type="url"
+                        value="https://example.com/article"
+                        required
+                    >
+                </label>
+
+                <label>
+                    <span>Tickers</span>
+                    <input
+                        id="ticker"
+                        name="ticker"
+                        type="text"
+                        placeholder="AAPL, MSFT"
+                    >
+                </label>
+
+                <label>
+                    <span>Source</span>
+                    <input id="source" name="source" type="text" placeholder="Reuters">
+                </label>
+
+                <label>
+                    <span>Published At</span>
+                    <input id="published_at" name="published_at" type="datetime-local">
+                </label>
+
+                <div class="actions">
+                    <button id="submit-button" type="submit">Run Enrichment</button>
+                    <a class="secondary-link" href="/docs" target="_blank" rel="noreferrer">
+                        Open API Docs
+                    </a>
+                </div>
+
+                <p id="status-banner" class="status-banner" aria-live="polite">
+                    Ready to call the enrichment pipeline.
+                </p>
+            </form>
+
+            <section class="panel result-panel">
+                <div class="section-header">
+                    <h2>Response</h2>
+                    <p>The API response is rendered below for quick inspection.</p>
+                </div>
+
+                <div class="result-grid">
+                    <article class="result-card">
+                        <p class="result-label">Analysis Status</p>
+                        <p id="analysis-status" class="result-value">Not started</p>
+                    </article>
+                    <article class="result-card">
+                        <p class="result-label">Outcome</p>
+                        <p id="analysis-outcome" class="result-value">Not started</p>
+                    </article>
+                    <article class="result-card">
+                        <p class="result-label">Summary Lines</p>
+                        <p id="summary-count" class="result-value">0</p>
+                    </article>
+                    <article class="result-card">
+                        <p class="result-label">Job ID</p>
+                        <p id="job-id" class="result-value">n/a</p>
+                    </article>
+                    <article class="result-card">
+                        <p class="result-label">Errors</p>
+                        <p id="error-count" class="result-value">0</p>
+                    </article>
+                </div>
+
+                <pre id="response-output" class="response-output">No response yet.</pre>
+            </section>
+        </section>
+    </main>
+
+    <script src="/static/app.js" defer></script>
+</body>
+</html>

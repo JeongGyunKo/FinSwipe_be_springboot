@@ -1,0 +1,26 @@
+.git
+.gitignore
+.DS_Store
+
+# Local secrets and env files should never be baked into the image.
+.env
+.env.*
+
+# Local runtime/test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+data/
+
+# Local docs, tests, and generated metadata are not needed at runtime.
+docs/
+tests/
+scripts/
+financial_news_genai_service.egg-info/
+
+# Common key/cert patterns
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
