@@ -34,6 +34,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-cache")
     implementation("com.github.ben-manes.caffeine:caffeine")
 
+    // HTTP 연결 풀 (Apache HttpClient 5)
+    implementation("org.apache.httpcomponents.client5:httpclient5")
+
     // Security + JWT
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
