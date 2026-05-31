@@ -12,45 +12,132 @@ from app.db.postgres import connect_postgres
 
 logger = logging.getLogger(__name__)
 
-TOTAL_QUESTIONS: int = int(os.getenv("GENAI_QUIZ_TOTAL_QUESTIONS", "7"))
+TOTAL_QUESTIONS: int = 10          # 7 지식 + 3 성향
+KNOWLEDGE_QUESTIONS: int = 7
 
 _DIFFICULTY_LABELS = {1: "입문", 2: "기초", 3: "중급", 4: "고급", 5: "전문가"}
 
-# 카테고리 → 투자 성향 설명
-_TENDENCY_MAP = {
-    "기업가치": ("가치투자형", "기업의 내재가치를 분석하는 성향입니다. 재무제표와 기업 분석에 강점이 있으며 저평가 종목 발굴에 관심이 높습니다."),
-    "시장트렌드": ("모멘텀 투자형", "시장의 흐름과 트렌드를 읽는 성향입니다. 타이밍과 섹터 로테이션에 민감하게 반응합니다."),
-    "경제지표": ("거시경제형", "금리·환율·GDP 등 거시경제 지표를 기반으로 판단하는 성향입니다. 큰 그림에서 투자 방향을 잡습니다."),
-    "투자전략": ("전략형", "체계적인 포트폴리오와 분산투자를 중시하는 성향입니다. 장기적 관점에서 자산 배분에 강점이 있습니다."),
-    "투자심리": ("역발상 투자형", "시장 심리와 군중 행동을 이해하는 성향입니다. 공포와 탐욕을 역이용하는 역발상 투자에 강합니다."),
-    "리스크관리": ("안정추구형", "손실 방어와 리스크 관리를 최우선으로 하는 성향입니다. 안정적인 수익을 선호합니다."),
-    "글로벌시장": ("글로벌 투자형", "해외 시장과 환율 변동에 주목하는 성향입니다. 글로벌 분산투자에 관심이 높습니다."),
-    "파생상품": ("전문투자형", "옵션·선물 등 고급 투자 도구에 관심이 높은 성향입니다. 레버리지와 헤징 전략을 활용합니다."),
-    "균형형": ("종합균형형", "특정 분야에 치우치지 않고 폭넓게 접근하는 성향입니다. 다양한 투자 방식을 균형 있게 이해합니다."),
+# ── 고정 성향 문제 3개 ─────────────────────────────────────────────────────────
+_PREFERENCE_QUESTIONS = [
+    {
+        "question_number_offset": 1,  # Q8
+        "key": "Q8",
+        "question_text": "주식 시장에서 예상치 못한 큰 하락이 발생했을 때, 당신은 어떻게 하겠습니까?",
+        "choices": {
+            "A": "지금이 기회다 — 추가 매수한다",
+            "B": "상황을 지켜보며 기다린다",
+            "C": "리스크를 줄이기 위해 일부 매도한다",
+            "D": "손실 최소화를 위해 대부분 매도한다",
+            "E": "아직 투자 경험이 없어 잘 모르겠다",
+        },
+    },
+    {
+        "question_number_offset": 2,  # Q9
+        "key": "Q9",
+        "question_text": "투자할 종목을 고를 때 가장 먼저 보는 것은 무엇인가요?",
+        "choices": {
+            "A": "기업의 실적, 재무제표, 내재가치",
+            "B": "최근 뉴스, 이슈, 시장 분위기",
+            "C": "주가 차트와 기술적 지표",
+            "D": "전문가 추천이나 커뮤니티 의견",
+            "E": "아직 스스로 판단하기 어렵다",
+        },
+    },
+    {
+        "question_number_offset": 3,  # Q10
+        "key": "Q10",
+        "question_text": "나에게 가장 잘 맞는 투자 스타일은 무엇인가요?",
+        "choices": {
+            "A": "단기 수익 — 빠르게 사고 팔며 수익 실현",
+            "B": "성장 투자 — 몇 달~1년 보유하며 성장 기대",
+            "C": "장기 투자 — 5년 이상 보유하며 복리 효과 기대",
+            "D": "인컴 투자 — 배당금·이자 등 정기 수익 선호",
+            "E": "아직 어떤 스타일이 맞는지 모르겠다",
+        },
+    },
+]
+
+# ── 성향 점수표 ────────────────────────────────────────────────────────────────
+_TENDENCY_WEIGHTS = {
+    "Q8": {
+        "A": {"공격성장형": 2, "모멘텀형": 1},
+        "B": {"가치투자형": 2, "안정추구형": 1},
+        "C": {"안정추구형": 2},
+        "D": {"안정추구형": 1},
+        "E": {"탐색형": 3},
+    },
+    "Q9": {
+        "A": {"가치투자형": 3},
+        "B": {"모멘텀형": 2, "공격성장형": 1},
+        "C": {"모멘텀형": 3},
+        "D": {"안정추구형": 2},
+        "E": {"탐색형": 3},
+    },
+    "Q10": {
+        "A": {"모멘텀형": 3},
+        "B": {"공격성장형": 2},
+        "C": {"가치투자형": 2, "안정추구형": 1},
+        "D": {"인컴형": 3},
+        "E": {"탐색형": 3},
+    },
 }
 
-_SYSTEM_PROMPT = """당신은 금융 투자 교육 전문가입니다. 주어진 난이도와 카테고리에 맞는 금융 퀴즈 문제를 생성합니다.
+_TENDENCY_INFO = {
+    "공격성장형": (
+        "공격성장형",
+        "성장 가능성이 높은 자산에 과감하게 투자하는 성향입니다.",
+        "성장주, 기술주, 신흥시장, 섹터 트렌드 뉴스를 중심으로 보여드립니다.",
+    ),
+    "가치투자형": (
+        "가치투자형",
+        "기업의 내재가치를 분석해 저평가 종목을 찾는 성향입니다.",
+        "기업 실적, 재무제표, 저평가 종목 분석 뉴스를 중심으로 보여드립니다.",
+    ),
+    "모멘텀형": (
+        "모멘텀형",
+        "시장 흐름과 이슈를 빠르게 포착해 움직이는 성향입니다.",
+        "시장 이슈, 핫 섹터, 단기 시황 뉴스를 중심으로 보여드립니다.",
+    ),
+    "안정추구형": (
+        "안정추구형",
+        "손실 방어와 안정적 수익을 최우선으로 하는 성향입니다.",
+        "배당주, 채권, 방어적 업종, 리스크 관리 뉴스를 중심으로 보여드립니다.",
+    ),
+    "인컴형": (
+        "인컴형",
+        "배당금·이자 등 정기적인 현금 흐름을 선호하는 성향입니다.",
+        "고배당주, 리츠, 채권 수익률, 배당 캘린더 뉴스를 중심으로 보여드립니다.",
+    ),
+    "탐색형": (
+        "탐색형",
+        "아직 투자 스타일을 찾아가는 단계입니다.",
+        "기초 개념 설명이 포함된 다양한 섹터 입문 뉴스를 보여드립니다.",
+    ),
+}
+
+# ── 지식 문제 프롬프트 ──────────────────────────────────────────────────────────
+_KNOWLEDGE_SYSTEM_PROMPT = """당신은 금융 투자 교육 전문가입니다. 주어진 난이도와 카테고리에 맞는 금융 퀴즈 문제를 생성합니다.
 
 문제 유형: 객관식 5지선다 (A, B, C, D + E번은 반드시 "잘 모르겠다"로 고정)
 언어: 한국어
 
-문제 카테고리 — 아래 카테고리를 골고루 출제하세요:
-- 시장트렌드: 불/베어마켓, 금리 사이클, 섹터 로테이션, 시장 사이클, 경기 침체
-- 투자심리: 공포탐욕 지수, 군중심리, 손실회피, 행동경제학, 버블과 패닉
-- 경제지표: GDP, 인플레이션, 기준금리, 환율, 실업률, 소비자물가지수
-- 기업가치: PER, PBR, ROE, EPS, 배당수익률, 현금흐름, 부채비율
-- 투자전략: 분산투자, 가치투자, 성장주투자, 배당투자, ETF, 적립식 투자
-- 리스크관리: 헤징, 포트폴리오 비중, 손절매, 변동성, 베타계수
-- 글로벌시장: 미국/중국 시장, 신흥시장, 환율 영향, 글로벌 공급망
+문제 카테고리:
+- 시장트렌드: 불/베어마켓, 금리 사이클, 섹터 로테이션
+- 투자심리: 공포탐욕 지수, 군중심리, 손실회피
+- 경제지표: GDP, 인플레이션, 기준금리, 환율
+- 기업가치: PER, PBR, ROE, EPS, 배당수익률
+- 투자전략: 분산투자, 가치투자, ETF, 적립식
+- 리스크관리: 헤징, 손절매, 변동성, 베타계수
+- 글로벌시장: 미국/중국 시장, 환율 영향
 
 난이도 기준:
 - 1 (입문): 주식이란, 분산투자 개념, 기초 금융 용어
-- 2 (기초): PER, 배당수익률, 불/베어마켓, 기본 경제 지표 읽기
-- 3 (중급): EBITDA, 베타계수, 금리와 주가 관계, 섹터 분석
+- 2 (기초): PER, 배당수익률, 불/베어마켓, 기본 경제 지표
+- 3 (중급): EBITDA, 베타계수, 금리와 주가 관계
 - 4 (고급): DCF 모델, 옵션 전략, 포트폴리오 최적화
 - 5 (전문가): 블랙숄즈, 차익거래, 고급 파생상품
 
-반드시 다음 JSON 형식으로만 응답하세요. JSON 외 텍스트는 절대 포함하지 마세요:
+반드시 다음 JSON 형식으로만 응답하세요:
 {
   "question_text": "문제 내용",
   "choices": {
@@ -61,15 +148,15 @@ _SYSTEM_PROMPT = """당신은 금융 투자 교육 전문가입니다. 주어진
     "E": "잘 모르겠다"
   },
   "correct_answer": "A",
-  "explanation": "정답 설명 (2~3문장, 핵심 개념 포함)",
-  "topic": "주제 키워드 (예: PER, 금리, 손절매)",
-  "category": "카테고리명 (시장트렌드/투자심리/경제지표/기업가치/투자전략/리스크관리/글로벌시장 중 하나)"
+  "explanation": "정답 설명 (2~3문장)",
+  "topic": "주제 키워드",
+  "category": "카테고리명"
 }
 
 E번은 항상 "잘 모르겠다"로 고정하며, correct_answer는 절대 E가 될 수 없습니다."""
 
 
-def _build_user_prompt(difficulty: float, used_topics: list[str]) -> str:
+def _build_knowledge_prompt(difficulty: float, used_topics: list[str]) -> str:
     level = max(1, min(5, round(difficulty)))
     label = _DIFFICULTY_LABELS[level]
     topics_str = ", ".join(used_topics[-6:]) if used_topics else "없음"
@@ -92,7 +179,7 @@ def _adjust_difficulty(current: float, is_correct: bool, is_모름: bool = False
     if is_correct:
         return min(5.0, round(current + 0.4, 2))
     elif is_모름:
-        return max(1.0, round(current - 0.15, 2))  # 모름은 소폭 하향
+        return max(1.0, round(current - 0.15, 2))
     else:
         return max(1.0, round(current - 0.3, 2))
 
@@ -101,58 +188,42 @@ def _compute_final_level(difficulty: float) -> int:
     return max(1, min(5, round(difficulty)))
 
 
-def _compute_tendency(session_id: str, settings) -> dict:
-    """카테고리별 정답률 기반으로 투자 성향 분석."""
+def _compute_tendency_from_preferences(session_id: str, settings) -> dict:
     with connect_postgres(settings.postgres_dsn) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT topic, is_correct, user_answer
+                SELECT topic, user_answer
                 FROM quiz_questions
-                WHERE session_id = %s AND is_correct IS NOT NULL
+                WHERE session_id = %s AND question_type = 'preference' AND user_answer IS NOT NULL
+                ORDER BY question_number ASC
                 """,
                 (session_id,),
             )
             rows = cur.fetchall()
 
-    category_stats: dict[str, dict] = {}
+    scores: dict[str, int] = {}
     for row in rows:
-        topic = row["topic"] or ""
-        category = topic.split("|")[0] if "|" in topic else "기타"
-        if category not in category_stats:
-            category_stats[category] = {"correct": 0, "wrong": 0, "모름": 0}
-        if row["user_answer"] == "E":
-            category_stats[category]["모름"] += 1
-        elif row["is_correct"]:
-            category_stats[category]["correct"] += 1
-        else:
-            category_stats[category]["wrong"] += 1
+        q_key = row["topic"]        # Q8, Q9, Q10
+        answer = row["user_answer"] # A~E
+        weights = _TENDENCY_WEIGHTS.get(q_key, {}).get(answer, {})
+        for tendency, weight in weights.items():
+            scores[tendency] = scores.get(tendency, 0) + weight
 
-    if not category_stats:
-        tendency_key = "균형형"
+    if not scores:
+        best = "탐색형"
     else:
-        # 정답이 가장 많은 카테고리를 주요 성향으로
-        best_category = max(
-            category_stats.keys(),
-            key=lambda c: category_stats[c]["correct"]
-        )
-        # 모든 카테고리에 정답이 0이면 균형형
-        if category_stats[best_category]["correct"] == 0:
-            tendency_key = "균형형"
-        elif len([c for c in category_stats if category_stats[c]["correct"] > 0]) >= 3:
-            tendency_key = "균형형"
-        else:
-            tendency_key = best_category if best_category in _TENDENCY_MAP else "균형형"
+        best = max(scores, key=lambda k: scores[k])
 
-    label, description = _TENDENCY_MAP.get(tendency_key, _TENDENCY_MAP["균형형"])
+    name, description, news_hint = _TENDENCY_INFO.get(best, _TENDENCY_INFO["탐색형"])
     return {
-        "tendency": label,
+        "tendency": name,
         "tendency_description": description,
-        "category_stats": {
-            c: s for c, s in category_stats.items() if c != "기타"
-        },
+        "news_hint": news_hint,
     }
 
+
+# ── Public API ─────────────────────────────────────────────────────────────────
 
 def create_session(user_id: str | None) -> dict:
     settings = get_settings()
@@ -167,7 +238,7 @@ def create_session(user_id: str | None) -> dict:
                 """
                 INSERT INTO quiz_sessions
                     (id, user_id, current_difficulty, questions_asked, correct_count, status, started_at, created_at)
-                VALUES (%s, %s, 2.0, 0, 0, 'in_progress', %s, %s)
+                VALUES (%s, %s, 1.0, 0, 0, 'in_progress', %s, %s)
                 RETURNING id, current_difficulty, questions_asked, correct_count, status, final_level
                 """,
                 (session_id, user_id, now, now),
@@ -180,6 +251,7 @@ def create_session(user_id: str | None) -> dict:
         "questions_asked": row["questions_asked"],
         "correct_count": row["correct_count"],
         "total_questions": TOTAL_QUESTIONS,
+        "knowledge_questions": KNOWLEDGE_QUESTIONS,
         "final_level": row["final_level"],
     }
 
@@ -189,10 +261,7 @@ def get_session(session_id: str) -> dict | None:
     with connect_postgres(settings.postgres_dsn) as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """
-                SELECT id, current_difficulty, questions_asked, correct_count, status, final_level
-                FROM quiz_sessions WHERE id = %s
-                """,
+                "SELECT id, current_difficulty, questions_asked, correct_count, status, final_level FROM quiz_sessions WHERE id = %s",
                 (session_id,),
             )
             row = cur.fetchone()
@@ -205,14 +274,12 @@ def get_session(session_id: str) -> dict | None:
         "questions_asked": row["questions_asked"],
         "correct_count": row["correct_count"],
         "total_questions": TOTAL_QUESTIONS,
+        "knowledge_questions": KNOWLEDGE_QUESTIONS,
         "final_level": row["final_level"],
     }
 
 
 def generate_next_question(session_id: str) -> dict:
-    from app.services.gemini.client import gemini_generate_content
-    from psycopg.types.json import Jsonb
-
     settings = get_settings()
     with connect_postgres(settings.postgres_dsn) as conn:
         with conn.cursor() as cur:
@@ -228,28 +295,41 @@ def generate_next_question(session_id: str) -> dict:
             if session["questions_asked"] >= TOTAL_QUESTIONS:
                 raise ValueError("모든 문제를 이미 출제했습니다.")
 
+    question_number = session["questions_asked"] + 1
+
+    # Q8~Q10: 고정 성향 문제
+    if question_number > KNOWLEDGE_QUESTIONS:
+        return _get_preference_question(session_id, question_number, settings)
+
+    # Q1~Q7: Gemini 지식 문제
+    return _get_knowledge_question(session_id, question_number, session["current_difficulty"], settings)
+
+
+def _get_knowledge_question(session_id: str, question_number: int, difficulty: float, settings) -> dict:
+    from app.services.gemini.client import gemini_generate_content
+    from psycopg.types.json import Jsonb
+
+    with connect_postgres(settings.postgres_dsn) as conn:
+        with conn.cursor() as cur:
             cur.execute(
-                "SELECT topic FROM quiz_questions WHERE session_id = %s ORDER BY question_number ASC",
+                "SELECT topic FROM quiz_questions WHERE session_id = %s AND question_type = 'multiple_choice' ORDER BY question_number ASC",
                 (session_id,),
             )
             used_topics = [r["topic"] for r in cur.fetchall() if r["topic"]]
 
-    difficulty = session["current_difficulty"]
-    question_number = session["questions_asked"] + 1
-
     raw = gemini_generate_content(
-        system_prompt=_SYSTEM_PROMPT,
-        user_prompt=_build_user_prompt(difficulty, used_topics),
+        system_prompt=_KNOWLEDGE_SYSTEM_PROMPT,
+        user_prompt=_build_knowledge_prompt(difficulty, used_topics),
         model=settings.gemini_summary_model,
         temperature=0.8,
-        request_label="quiz_question",
+        request_label="quiz_knowledge",
     )
     parsed = _parse_gemini_response(raw)
 
     choices = parsed["choices"]
-    if not isinstance(choices, dict) or not {"A", "B", "C", "D", "E"}.issubset(choices.keys()):
+    if not isinstance(choices, dict) or not {"A", "B", "C", "D"}.issubset(choices.keys()):
         raise RuntimeError("Gemini가 올바른 선택지 형식을 반환하지 않았습니다.")
-    choices["E"] = "잘 모르겠다"  # E는 항상 고정
+    choices["E"] = "잘 모르겠다"
 
     correct_answer = parsed["correct_answer"].strip().upper()
     if correct_answer not in {"A", "B", "C", "D"}:
@@ -270,57 +350,98 @@ def generate_next_question(session_id: str) -> dict:
                      choices, correct_answer, explanation, difficulty, topic, created_at)
                 VALUES (%s, %s, %s, %s, 'multiple_choice', %s, %s, %s, %s, %s, %s)
                 """,
-                (
-                    question_id, session_id, question_number,
-                    parsed["question_text"],
-                    Jsonb(choices),
-                    correct_answer,
-                    parsed.get("explanation", ""),
-                    difficulty,
-                    topic_stored,
-                    now,
-                ),
+                (question_id, session_id, question_number, parsed["question_text"],
+                 Jsonb(choices), correct_answer, parsed.get("explanation", ""),
+                 difficulty, topic_stored, now),
             )
 
     return {
         "question_id": question_id,
         "question_number": question_number,
+        "question_type": "knowledge",
         "question_text": parsed["question_text"],
         "choices": choices,
         "difficulty": difficulty,
     }
 
 
+def _get_preference_question(session_id: str, question_number: int, settings) -> dict:
+    from psycopg.types.json import Jsonb
+
+    offset = question_number - KNOWLEDGE_QUESTIONS - 1  # 0,1,2
+    pq = _PREFERENCE_QUESTIONS[offset]
+
+    question_id = str(uuid4())
+    now = datetime.now(timezone.utc)
+    with connect_postgres(settings.postgres_dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO quiz_questions
+                    (id, session_id, question_number, question_text, question_type,
+                     choices, correct_answer, explanation, difficulty, topic, created_at)
+                VALUES (%s, %s, %s, %s, 'preference', %s, 'PREFERENCE', '', NULL, %s, %s)
+                """,
+                (question_id, session_id, question_number, pq["question_text"],
+                 Jsonb(pq["choices"]), pq["key"], now),
+            )
+
+    return {
+        "question_id": question_id,
+        "question_number": question_number,
+        "question_type": "preference",
+        "question_text": pq["question_text"],
+        "choices": pq["choices"],
+        "difficulty": None,
+    }
+
+
 def submit_answer(session_id: str, question_id: str, answer: str) -> dict:
     settings = get_settings()
-    is_모름 = answer == "E"
 
     with connect_postgres(settings.postgres_dsn) as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT correct_answer, explanation, is_correct FROM quiz_questions WHERE id = %s AND session_id = %s",
+                "SELECT correct_answer, explanation, is_correct, question_type FROM quiz_questions WHERE id = %s AND session_id = %s",
                 (question_id, session_id),
             )
             question = cur.fetchone()
             if question is None:
                 raise ValueError("문항을 찾을 수 없습니다.")
-            if question["is_correct"] is not None:
+            if question["is_correct"] is not None or (
+                question["question_type"] == "preference" and question["explanation"] == "" and
+                _already_answered(cur, question_id)
+            ):
                 raise ValueError("이미 답변한 문항입니다.")
 
-            is_correct = (not is_모름) and (answer == question["correct_answer"])
-            cur.execute(
-                "UPDATE quiz_questions SET user_answer = %s, is_correct = %s WHERE id = %s",
-                (answer, is_correct, question_id),
-            )
+            is_preference = question["question_type"] == "preference"
+            is_모름 = answer == "E" and not is_preference
+            is_correct = False if is_preference or is_모름 else (answer == question["correct_answer"])
+
+            if is_preference:
+                cur.execute(
+                    "UPDATE quiz_questions SET user_answer = %s WHERE id = %s",
+                    (answer, question_id),
+                )
+            else:
+                cur.execute(
+                    "UPDATE quiz_questions SET user_answer = %s, is_correct = %s WHERE id = %s",
+                    (answer, is_correct, question_id),
+                )
 
             cur.execute(
                 "SELECT current_difficulty, questions_asked, correct_count FROM quiz_sessions WHERE id = %s",
                 (session_id,),
             )
             session = cur.fetchone()
-            new_difficulty = _adjust_difficulty(session["current_difficulty"], is_correct, is_모름)
             new_questions_asked = session["questions_asked"] + 1
-            new_correct_count = session["correct_count"] + (1 if is_correct else 0)
+
+            if is_preference:
+                new_difficulty = session["current_difficulty"]
+                new_correct_count = session["correct_count"]
+            else:
+                new_difficulty = _adjust_difficulty(session["current_difficulty"], is_correct, is_모름)
+                new_correct_count = session["correct_count"] + (1 if is_correct else 0)
 
             if new_questions_asked >= TOTAL_QUESTIONS:
                 final_level = _compute_final_level(new_difficulty)
@@ -338,11 +459,7 @@ def submit_answer(session_id: str, question_id: str, answer: str) -> dict:
             else:
                 final_level = None
                 cur.execute(
-                    """
-                    UPDATE quiz_sessions
-                    SET current_difficulty = %s, questions_asked = %s, correct_count = %s
-                    WHERE id = %s
-                    """,
+                    "UPDATE quiz_sessions SET current_difficulty = %s, questions_asked = %s, correct_count = %s WHERE id = %s",
                     (new_difficulty, new_questions_asked, new_correct_count, session_id),
                 )
                 session_status = "in_progress"
@@ -350,20 +467,28 @@ def submit_answer(session_id: str, question_id: str, answer: str) -> dict:
     result = {
         "is_correct": is_correct,
         "is_모름": is_모름,
-        "correct_answer": question["correct_answer"],
-        "explanation": question["explanation"] or "",
+        "is_preference": is_preference,
+        "correct_answer": question["correct_answer"] if not is_preference else None,
+        "explanation": question["explanation"] if not is_preference else None,
         "session_status": session_status,
         "questions_asked": new_questions_asked,
         "correct_count": new_correct_count,
         "total_questions": TOTAL_QUESTIONS,
+        "knowledge_questions": KNOWLEDGE_QUESTIONS,
         "final_level": final_level,
         "tendency": None,
         "tendency_description": None,
+        "news_hint": None,
     }
 
     if session_status == "completed":
-        tendency_info = _compute_tendency(session_id, settings)
-        result["tendency"] = tendency_info["tendency"]
-        result["tendency_description"] = tendency_info["tendency_description"]
+        tendency_info = _compute_tendency_from_preferences(session_id, settings)
+        result.update(tendency_info)
 
     return result
+
+
+def _already_answered(cur, question_id: str) -> bool:
+    cur.execute("SELECT user_answer FROM quiz_questions WHERE id = %s", (question_id,))
+    row = cur.fetchone()
+    return row is not None and row["user_answer"] is not None

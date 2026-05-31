@@ -6,64 +6,56 @@
   <title>FinSwipe 금융 퀴즈</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      min-height: 100vh;
-      background: #0f1923;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      color: #e8eaf0;
-      padding: 20px;
-    }
-    .card {
-      background: #1a2535;
-      border-radius: 20px;
-      padding: 40px;
-      width: 100%;
-      max-width: 660px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-    }
+    body { min-height: 100vh; background: #0f1923; display: flex; align-items: center; justify-content: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #e8eaf0; padding: 20px; }
+    .card { background: #1a2535; border-radius: 20px; padding: 40px; width: 100%; max-width: 660px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
 
-    /* 진행 바 */
     .progress-bar-wrap { background: #243044; border-radius: 99px; height: 6px; margin-bottom: 10px; overflow: hidden; }
-    .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #8b5cf6); border-radius: 99px; transition: width 0.4s ease; }
+    .progress-bar-fill { height: 100%; border-radius: 99px; transition: width 0.4s ease; }
+    .progress-bar-fill.knowledge { background: linear-gradient(90deg, #3b82f6, #8b5cf6); }
+    .progress-bar-fill.preference { background: linear-gradient(90deg, #f59e0b, #ef4444); }
     .progress-label { text-align: right; font-size: 13px; color: #6b7fa3; margin-bottom: 24px; }
 
-    .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px; margin-bottom: 16px; background: #1e3a5f; color: #60a5fa; }
-    .question-text { font-size: 17px; line-height: 1.7; color: #d1d9ef; margin-bottom: 24px; min-height: 72px; }
+    .phase-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 6px; }
+    .phase-label.knowledge { color: #3b82f6; }
+    .phase-label.preference { color: #f59e0b; }
+    .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px; margin-bottom: 16px; }
+    .badge.knowledge { background: #1e3a5f; color: #60a5fa; }
+    .badge.preference { background: #3d2a00; color: #fbbf24; }
 
-    /* 선택지 */
+    .question-text { font-size: 17px; line-height: 1.7; color: #d1d9ef; margin-bottom: 24px; min-height: 60px; }
     .choices { display: flex; flex-direction: column; gap: 10px; }
-    .choice-btn {
-      background: #243044; border: 2px solid #2d3f5c; border-radius: 12px;
-      padding: 13px 16px; color: #c8d0e8; font-size: 14px; text-align: left;
-      cursor: pointer; transition: all 0.15s; display: flex; gap: 10px; align-items: flex-start;
-    }
+    .choice-btn { background: #243044; border: 2px solid #2d3f5c; border-radius: 12px; padding: 13px 16px; color: #c8d0e8; font-size: 14px; text-align: left; cursor: pointer; transition: all 0.15s; display: flex; gap: 10px; align-items: flex-start; }
     .choice-btn:hover:not(:disabled) { border-color: #3b82f6; background: #1e3a5f; color: #e8edf8; }
-    .choice-btn .key { font-weight: 700; color: #3b82f6; min-width: 18px; }
+    .choice-btn .key { font-weight: 700; min-width: 18px; color: #3b82f6; }
     .choice-btn.correct { border-color: #22c55e; background: #14321f; color: #86efac; }
     .choice-btn.correct .key { color: #22c55e; }
     .choice-btn.wrong { border-color: #ef4444; background: #3b1212; color: #fca5a5; }
     .choice-btn.wrong .key { color: #ef4444; }
     .choice-btn.moram { border-color: #6b7fa3; background: #1e2d44; color: #94a8c8; }
-    .choice-btn.moram .key { color: #6b7fa3; }
-    .choice-btn:disabled { cursor: default; }
+    .choice-btn.selected-pref { border-color: #f59e0b; background: #2d1f00; color: #fde68a; }
+    .choice-btn.selected-pref .key { color: #f59e0b; }
     .choice-btn.e-btn { border-style: dashed; color: #6b7fa3; }
     .choice-btn.e-btn .key { color: #4b5a73; }
+    .choice-btn:disabled { cursor: default; }
 
-    /* 해설 */
     .explanation { margin-top: 16px; background: #1e2d44; border-left: 3px solid #3b82f6; border-radius: 8px; padding: 14px 16px; font-size: 14px; line-height: 1.6; color: #94a8c8; display: none; }
     .explanation.moram-hint { border-color: #6b7fa3; }
+    .explanation.pref-confirm { border-color: #f59e0b; color: #d4a04a; }
 
     .next-btn { margin-top: 16px; width: 100%; padding: 13px; border: none; border-radius: 12px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; display: none; transition: opacity 0.15s; }
+    .next-btn.pref-mode { background: linear-gradient(135deg, #f59e0b, #ef4444); }
     .next-btn:hover { opacity: 0.88; }
 
-    /* 시작 화면 */
+    /* 시작 */
     .start-screen { text-align: center; padding: 20px 0; }
     .start-screen h1 { font-size: 26px; font-weight: 700; margin-bottom: 10px; }
-    .start-screen p { color: #6b7fa3; margin-bottom: 10px; line-height: 1.7; font-size: 14px; }
-    .start-screen ul { color: #6b7fa3; font-size: 13px; text-align: left; display: inline-block; margin: 12px 0 28px; line-height: 2; }
+    .start-screen p { color: #6b7fa3; font-size: 14px; line-height: 1.7; margin-bottom: 20px; }
+    .phase-desc { display: flex; gap: 12px; margin-bottom: 28px; }
+    .phase-box { flex: 1; background: #243044; border-radius: 12px; padding: 16px; text-align: left; }
+    .phase-box .ph-title { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 6px; }
+    .phase-box .ph-body { font-size: 13px; color: #7a90b4; line-height: 1.5; }
+    .ph-title.k { color: #3b82f6; }
+    .ph-title.p { color: #f59e0b; }
     .start-btn { padding: 14px 40px; border: none; border-radius: 12px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; }
     .start-btn:hover { opacity: 0.88; }
 
@@ -72,22 +64,21 @@
     .spinner { width: 36px; height: 36px; border: 3px solid #243044; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* 결과 화면 */
+    /* 결과 */
     .result { text-align: center; padding: 10px 0; }
-    .result .level-num { font-size: 76px; font-weight: 800; background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1; margin-bottom: 4px; }
-    .result .level-label { font-size: 18px; color: #8899bb; margin-bottom: 24px; }
-    .result .score-badge { display: inline-block; background: #243044; border-radius: 99px; padding: 6px 18px; font-size: 14px; color: #94a8c8; margin-bottom: 28px; }
+    .result-row { display: flex; gap: 16px; margin-bottom: 16px; }
+    .result-box { flex: 1; background: #243044; border-radius: 14px; padding: 20px; text-align: center; }
+    .result-box .rb-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: #4b6a9b; text-transform: uppercase; margin-bottom: 8px; }
+    .result-box .rb-value { font-size: 48px; font-weight: 800; background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1; }
+    .result-box .rb-sub { font-size: 14px; color: #7a90b4; margin-top: 4px; }
+    .result-box .rb-tendency { font-size: 20px; font-weight: 700; color: #fbbf24; line-height: 1.2; }
 
-    .tendency-card { background: #243044; border-radius: 14px; padding: 20px 22px; margin-bottom: 20px; text-align: left; }
-    .tendency-title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; color: #4b6a9b; text-transform: uppercase; margin-bottom: 8px; }
-    .tendency-name { font-size: 20px; font-weight: 700; color: #60a5fa; margin-bottom: 8px; }
-    .tendency-desc { font-size: 14px; color: #7a90b4; line-height: 1.65; }
+    .tendency-card { background: #243044; border-radius: 14px; padding: 20px 22px; margin-bottom: 16px; text-align: left; }
+    .tendency-card .tc-title { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: #4b6a9b; text-transform: uppercase; margin-bottom: 8px; }
+    .tendency-card .tc-desc { font-size: 14px; color: #7a90b4; line-height: 1.65; margin-bottom: 10px; }
+    .news-hint { background: #1a2535; border-left: 3px solid #f59e0b; border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #d4a04a; line-height: 1.6; }
 
-    .category-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
-    .cat-item { background: #1a2535; border-radius: 8px; padding: 6px 12px; font-size: 12px; color: #7a90b4; display: flex; gap: 6px; align-items: center; }
-    .cat-item .cat-correct { color: #22c55e; font-weight: 600; }
-    .cat-item .cat-moram { color: #6b7fa3; }
-
+    .score-row { font-size: 14px; color: #6b7fa3; margin-bottom: 20px; }
     .restart-btn { padding: 12px 32px; border: none; border-radius: 12px; background: #243044; color: #c8d0e8; font-size: 15px; cursor: pointer; }
     .restart-btn:hover { background: #2d3f5c; }
     .hidden { display: none !important; }
@@ -98,29 +89,35 @@
 
   <!-- 시작 -->
   <div id="screen-start" class="start-screen">
-    <h1>💹 금융 지식 퀴즈</h1>
-    <p>7문제로 나의 금융 투자 레벨과 투자 성향을 분석합니다.<br>난이도는 정답률에 따라 자동 조절됩니다.</p>
-    <ul>
-      <li>✅ 정답 → 난이도 상승</li>
-      <li>❌ 오답 → 난이도 하락</li>
-      <li>🤷 잘 모르겠다 → 소폭 하락 (찍기 방지)</li>
-    </ul>
-    <button class="start-btn" onclick="startQuiz()">퀴즈 시작</button>
+    <h1>💹 금융 투자 진단</h1>
+    <p>10문제로 나의 금융 레벨과 투자 성향을 분석합니다.</p>
+    <div class="phase-desc">
+      <div class="phase-box">
+        <div class="ph-title k">Phase 1 · 지식 7문제</div>
+        <div class="ph-body">정답이 있는 금융 지식 퀴즈<br>난이도 자동 조절 → 레벨 1~5</div>
+      </div>
+      <div class="phase-box">
+        <div class="ph-title p">Phase 2 · 성향 3문제</div>
+        <div class="ph-body">정답 없는 시나리오 선택<br>투자 스타일 · 관심 분야 분석</div>
+      </div>
+    </div>
+    <button class="start-btn" onclick="startQuiz()">진단 시작</button>
   </div>
 
   <!-- 로딩 -->
   <div id="screen-loading" class="loader hidden">
     <div class="spinner"></div>
-    문제를 생성하는 중...
+    <span id="loading-text">문제를 생성하는 중...</span>
   </div>
 
   <!-- 퀴즈 -->
   <div id="screen-quiz" class="hidden">
     <div class="progress-bar-wrap">
-      <div class="progress-bar-fill" id="progress-fill" style="width:0%"></div>
+      <div class="progress-bar-fill knowledge" id="progress-fill" style="width:0%"></div>
     </div>
-    <div class="progress-label" id="progress-label">0 / 7</div>
-    <div class="badge" id="difficulty-badge">기초</div>
+    <div class="progress-label" id="progress-label"></div>
+    <div class="phase-label knowledge" id="phase-label">PHASE 1 · 지식</div>
+    <div class="badge knowledge" id="difficulty-badge"></div>
     <div class="question-text" id="question-text"></div>
     <div class="choices" id="choices"></div>
     <div class="explanation" id="explanation"></div>
@@ -129,74 +126,94 @@
 
   <!-- 결과 -->
   <div id="screen-result" class="result hidden">
-    <div class="level-num" id="result-level"></div>
-    <div class="level-label" id="result-label"></div>
-    <div class="score-badge" id="result-score"></div>
-    <div class="tendency-card">
-      <div class="tendency-title">투자 성향 분석</div>
-      <div class="tendency-name" id="tendency-name"></div>
-      <div class="tendency-desc" id="tendency-desc"></div>
-      <div class="category-list" id="category-list"></div>
+    <div class="result-row">
+      <div class="result-box">
+        <div class="rb-label">금융 레벨</div>
+        <div class="rb-value" id="result-level"></div>
+        <div class="rb-sub" id="result-level-label"></div>
+      </div>
+      <div class="result-box">
+        <div class="rb-label">투자 성향</div>
+        <div class="rb-tendency" id="result-tendency"></div>
+      </div>
     </div>
-    <button class="restart-btn" onclick="restartQuiz()">다시 풀기</button>
+    <div class="score-row" id="result-score"></div>
+    <div class="tendency-card">
+      <div class="tc-title">성향 분석</div>
+      <div class="tc-desc" id="tendency-desc"></div>
+      <div class="news-hint" id="news-hint"></div>
+    </div>
+    <button class="restart-btn" onclick="restartQuiz()">다시 진단하기</button>
   </div>
 
 </div>
-
 <script>
-  const BASE = '';
-  const AUTH = 'Basic ' + btoa('fin:1234');
+  const BASE = '', AUTH = 'Basic ' + btoa('fin:1234');
   const LEVEL_LABELS = {1:'입문', 2:'기초', 3:'중급', 4:'고급', 5:'전문가'};
   const DIFF_LABELS  = {1:'입문', 2:'기초', 3:'중급', 4:'고급', 5:'전문가'};
+  let sessionId = null, currentQuestion = null, totalQ = 10, knowledgeQ = 7;
 
-  let sessionId = null, currentQuestion = null, totalQuestions = 7;
-
-  function api(path, opts = {}) {
-    return fetch(BASE + path, {
-      ...opts,
-      headers: { 'Content-Type': 'application/json', 'Authorization': AUTH, ...(opts.headers||{}) }
-    }).then(r => r.json());
+  function api(path, opts={}) {
+    return fetch(BASE+path, {...opts, headers:{'Content-Type':'application/json','Authorization':AUTH,...(opts.headers||{})}}).then(r=>r.json());
   }
-
   function show(id) {
-    ['screen-start','screen-loading','screen-quiz','screen-result']
-      .forEach(s => document.getElementById(s).classList.add('hidden'));
+    ['screen-start','screen-loading','screen-quiz','screen-result'].forEach(s=>document.getElementById(s).classList.add('hidden'));
     document.getElementById(id).classList.remove('hidden');
   }
 
   async function startQuiz() {
     show('screen-loading');
-    const s = await api('/api/v1/quiz/sessions', { method: 'POST', body: JSON.stringify({user_id:null}) });
-    sessionId = s.session_id;
-    totalQuestions = s.total_questions;
+    document.getElementById('loading-text').textContent = '준비 중...';
+    const s = await api('/api/v1/quiz/sessions', {method:'POST', body:JSON.stringify({user_id:null})});
+    sessionId = s.session_id; totalQ = s.total_questions; knowledgeQ = s.knowledge_questions;
     await loadNextQuestion();
   }
 
   async function loadNextQuestion() {
     show('screen-loading');
-    const q = await api(`/api/v1/quiz/sessions/${sessionId}/next-question`, { method: 'POST' });
+    const isPref = currentQuestion && currentQuestion.question_number >= knowledgeQ;
+    document.getElementById('loading-text').textContent = isPref ? '다음 질문 불러오는 중...' : '문제를 생성하는 중...';
+    const q = await api(`/api/v1/quiz/sessions/${sessionId}/next-question`, {method:'POST'});
     currentQuestion = q;
     renderQuestion(q);
     show('screen-quiz');
   }
 
   function renderQuestion(q) {
-    const lvl = Math.max(1, Math.min(5, Math.round(q.difficulty)));
-    document.getElementById('difficulty-badge').textContent = DIFF_LABELS[lvl] + ' Lv.' + lvl;
+    const isPref = q.question_type === 'preference';
+    const phaseLbl = document.getElementById('phase-label');
+    const badge = document.getElementById('difficulty-badge');
+    const fill = document.getElementById('progress-fill');
+
+    phaseLbl.textContent = isPref ? 'PHASE 2 · 성향 분석' : 'PHASE 1 · 지식';
+    phaseLbl.className = 'phase-label ' + (isPref ? 'preference' : 'knowledge');
+    fill.className = 'progress-bar-fill ' + (isPref ? 'preference' : 'knowledge');
+
+    if (isPref) {
+      badge.textContent = `성향 질문 ${q.question_number - knowledgeQ} / 3`;
+      badge.className = 'badge preference';
+    } else {
+      const lvl = Math.max(1, Math.min(5, Math.round(q.difficulty)));
+      badge.textContent = DIFF_LABELS[lvl] + ' Lv.' + lvl;
+      badge.className = 'badge knowledge';
+    }
+
+    const pct = ((q.question_number - 1) / totalQ) * 100;
+    fill.style.width = pct + '%';
+    document.getElementById('progress-label').textContent = `${q.question_number} / ${totalQ}`;
     document.getElementById('question-text').textContent = q.question_text;
     document.getElementById('explanation').style.display = 'none';
     document.getElementById('explanation').className = 'explanation';
-    document.getElementById('next-btn').style.display = 'none';
 
-    const pct = ((q.question_number - 1) / totalQuestions) * 100;
-    document.getElementById('progress-fill').style.width = pct + '%';
-    document.getElementById('progress-label').textContent = `${q.question_number} / ${totalQuestions}`;
+    const nextBtn = document.getElementById('next-btn');
+    nextBtn.style.display = 'none';
+    nextBtn.className = 'next-btn' + (isPref ? ' pref-mode' : '');
 
     const el = document.getElementById('choices');
     el.innerHTML = '';
     Object.entries(q.choices).forEach(([key, text]) => {
       const btn = document.createElement('button');
-      btn.className = 'choice-btn' + (key === 'E' ? ' e-btn' : '');
+      btn.className = 'choice-btn' + (key==='E' && !isPref ? ' e-btn' : '');
       btn.innerHTML = `<span class="key">${key}</span><span>${text}</span>`;
       btn.onclick = () => submitAnswer(key);
       el.appendChild(btn);
@@ -204,40 +221,48 @@
   }
 
   async function submitAnswer(answer) {
-    document.querySelectorAll('.choice-btn').forEach(b => b.disabled = true);
+    document.querySelectorAll('.choice-btn').forEach(b=>b.disabled=true);
     const r = await api(`/api/v1/quiz/sessions/${sessionId}/answers`, {
-      method: 'POST', body: JSON.stringify({ question_id: currentQuestion.question_id, answer })
+      method:'POST', body:JSON.stringify({question_id:currentQuestion.question_id, answer})
     });
 
     const btns = document.querySelectorAll('.choice-btn');
     const keys = Object.keys(currentQuestion.choices);
-    btns.forEach((btn, i) => {
-      const k = keys[i];
-      if (k === r.correct_answer) btn.classList.add('correct');
-      else if (k === answer && r.is_모름) btn.classList.add('moram');
-      else if (k === answer && !r.is_correct) btn.classList.add('wrong');
-    });
-
     const expEl = document.getElementById('explanation');
-    if (r.is_모름) {
-      expEl.textContent = `정답은 ${r.correct_answer}번입니다. ${r.explanation}`;
-      expEl.classList.add('moram-hint');
-    } else {
-      expEl.textContent = r.explanation;
-    }
-    expEl.style.display = 'block';
 
-    const pct = (r.questions_asked / totalQuestions) * 100;
+    if (r.is_preference) {
+      btns.forEach((btn,i) => { if (keys[i]===answer) btn.classList.add('selected-pref'); });
+      expEl.textContent = '선택하셨습니다. 다음 질문으로 넘어가세요.';
+      expEl.className = 'explanation pref-confirm';
+      expEl.style.display = 'block';
+    } else {
+      btns.forEach((btn,i) => {
+        const k = keys[i];
+        if (k===r.correct_answer) btn.classList.add('correct');
+        else if (k===answer && r.is_모름) btn.classList.add('moram');
+        else if (k===answer && !r.is_correct) btn.classList.add('wrong');
+      });
+      if (r.is_모름) {
+        expEl.textContent = `정답은 ${r.correct_answer}번입니다. ${r.explanation}`;
+        expEl.className = 'explanation moram-hint';
+      } else {
+        expEl.textContent = r.explanation;
+      }
+      expEl.style.display = 'block';
+    }
+
+    const pct = (r.questions_asked / totalQ) * 100;
     document.getElementById('progress-fill').style.width = pct + '%';
-    document.getElementById('progress-label').textContent = `${r.questions_asked} / ${totalQuestions}`;
+    document.getElementById('progress-label').textContent = `${r.questions_asked} / ${totalQ}`;
 
     const nextBtn = document.getElementById('next-btn');
     nextBtn.style.display = 'block';
+    nextBtn.className = 'next-btn' + (r.is_preference ? ' pref-mode' : '');
     if (r.session_status === 'completed') {
       nextBtn.textContent = '결과 보기 →';
       nextBtn.onclick = () => showResult(r);
     } else {
-      nextBtn.textContent = '다음 문제 →';
+      nextBtn.textContent = r.is_preference ? '다음 질문 →' : '다음 문제 →';
       nextBtn.onclick = loadNextQuestion;
     }
   }
@@ -245,15 +270,15 @@
   function showResult(r) {
     const level = r.final_level;
     document.getElementById('result-level').textContent = level;
-    document.getElementById('result-label').textContent = `Level ${level} · ${LEVEL_LABELS[level]}`;
-    document.getElementById('result-score').textContent = `${r.correct_count} / ${r.total_questions} 정답`;
-    document.getElementById('tendency-name').textContent = r.tendency || '종합균형형';
+    document.getElementById('result-level-label').textContent = LEVEL_LABELS[level];
+    document.getElementById('result-tendency').textContent = r.tendency || '탐색형';
+    document.getElementById('result-score').textContent = `지식 문제 ${r.correct_count} / ${r.knowledge_questions} 정답`;
     document.getElementById('tendency-desc').textContent = r.tendency_description || '';
-    document.getElementById('category-list').innerHTML = '';
+    document.getElementById('news-hint').textContent = r.news_hint || '';
     show('screen-result');
   }
 
-  function restartQuiz() { sessionId = null; currentQuestion = null; show('screen-start'); }
+  function restartQuiz() { sessionId=null; currentQuestion=null; show('screen-start'); }
 </script>
 </body>
 </html>

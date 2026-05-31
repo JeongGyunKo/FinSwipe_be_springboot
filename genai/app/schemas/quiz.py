@@ -16,15 +16,17 @@ class SessionResponse(BaseModel):
     questions_asked: int
     correct_count: int
     total_questions: int
+    knowledge_questions: int
     final_level: Optional[int] = None
 
 
 class QuestionResponse(BaseModel):
     question_id: str
     question_number: int
+    question_type: str          # "knowledge" | "preference"
     question_text: str
     choices: dict[str, str]
-    difficulty: float
+    difficulty: Optional[float] = None
 
 
 class SubmitAnswerRequest(BaseModel):
@@ -43,12 +45,15 @@ class SubmitAnswerRequest(BaseModel):
 class AnswerResultResponse(BaseModel):
     is_correct: bool
     is_모름: bool
-    correct_answer: str
-    explanation: str
+    is_preference: bool
+    correct_answer: Optional[str] = None
+    explanation: Optional[str] = None
     session_status: str
     questions_asked: int
     correct_count: int
     total_questions: int
+    knowledge_questions: int
     final_level: Optional[int] = None
     tendency: Optional[str] = None
     tendency_description: Optional[str] = None
+    news_hint: Optional[str] = None
