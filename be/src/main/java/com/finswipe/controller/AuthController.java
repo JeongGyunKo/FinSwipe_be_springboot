@@ -1,5 +1,7 @@
 package com.finswipe.controller;
 
+import com.finswipe.dto.request.*;
+import com.finswipe.service.AuthService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -19,18 +21,85 @@ import java.util.Map;
 public class AuthController {
 
     private final JdbcTemplate jdbc;
+    private final AuthService authService;
+
+    // ── 회원가입 ──────────────────────────────────────────────────────────────
+
+    @PostMapping("/register")
+    public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest body) {
+        try {
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(authService.register(body.email(), body.password(), body.displayName()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ── 로그인 ────────────────────────────────────────────────────────────────
+
+    @PostMapping("/login")
+    public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginRequest body) {
+        try {
+            return ResponseEntity.ok(authService.login(body.email(), body.password()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ── Google 로그인 ─────────────────────────────────────────────────────────
+
+    @PostMapping("/google")
+    public ResponseEntity<Map<String, Object>> googleLogin(@Valid @RequestBody GoogleAuthRequest body) {
+        try {
+            return ResponseEntity.ok(authService.googleLogin(body.idToken()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ── 이메일 인증 ───────────────────────────────────────────────────────────
+
+    @GetMapping("/verify-email")
+    public ResponseEntity<Map<String, Object>> verifyEmail(@RequestParam String token) {
+        try {
+            authService.verifyEmail(token);
+            return ResponseEntity.ok(Map.of("message", "이메일 인증이 완료되었습니다."));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ── 비밀번호 재설정 ───────────────────────────────────────────────────────
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, Object>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest body) {
+        authService.forgotPassword(body.email());
+        return ResponseEntity.ok(Map.of("message", "비밀번호 재설정 링크를 이메일로 발송했습니다."));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, Object>> resetPassword(@Valid @RequestBody ResetPasswordRequest body) {
+        try {
+            authService.resetPassword(body.token(), body.newPassword());
+            return ResponseEntity.ok(Map.of("message", "비밀번호가 변경되었습니다."));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ── 기존 엔드포인트 유지 ──────────────────────────────────────────────────
 
     record FindEmailRequest(@NotBlank String loginId) {}
     record FindLoginIdRequest(@NotBlank String email) {}
 
-    /** Python: POST /auth/find-email — login_id로 마스킹된 이메일 조회 */
     @PostMapping("/find-email")
     public ResponseEntity<Map<String, String>> findEmail(@Valid @RequestBody FindEmailRequest body) {
         try {
             List<String> rows = jdbc.queryForList(
                     "SELECT email FROM user_profiles WHERE login_id = ?",
                     String.class, body.loginId().strip());
-
             if (rows.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("detail", "해당 아이디로 가입된 계정을 찾을 수 없습니다."));
@@ -48,14 +117,12 @@ public class AuthController {
         }
     }
 
-    /** Python: POST /auth/find-login-id — 이메일로 login_id 조회 */
     @PostMapping("/find-login-id")
     public ResponseEntity<Map<String, String>> findLoginId(@Valid @RequestBody FindLoginIdRequest body) {
         try {
             List<String> rows = jdbc.queryForList(
                     "SELECT login_id FROM user_profiles WHERE email = ?",
                     String.class, body.email().strip().toLowerCase());
-
             if (rows.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("detail", "해당 이메일로 가입된 계정을 찾을 수 없습니다."));
@@ -73,15 +140,13 @@ public class AuthController {
         }
     }
 
-    /** Python: _mask_email() — sw22tm1dn1ght@gmail.com → sw2***@gmail.com */
     private String maskEmail(String email) {
         try {
             int at = email.indexOf('@');
             if (at < 0) return "***@***.com";
             String local = email.substring(0, at);
             String domain = email.substring(at);
-            String maskedLocal = local.substring(0, Math.min(3, local.length())) + "***";
-            return maskedLocal + domain;
+            return local.substring(0, Math.min(3, local.length())) + "***" + domain;
         } catch (Exception e) {
             return "***@***.com";
         }
