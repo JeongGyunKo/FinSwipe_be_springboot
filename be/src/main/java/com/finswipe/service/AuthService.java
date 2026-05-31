@@ -190,10 +190,22 @@ public class AuthService {
     private Map<String, Object> verifyGoogleToken(String idToken) {
         try {
             var client = RestClient.create();
-            return client.get()
+            Map<String, Object> payload = client.get()
                     .uri("https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken)
                     .retrieve()
                     .body(Map.class);
+
+            // Client ID 검증 — 우리 앱용 토큰인지 확인
+            String clientId = props.getAuth().getGoogleClientId();
+            if (clientId != null && !clientId.isBlank()) {
+                String aud = (String) payload.get("aud");
+                if (!clientId.equals(aud)) {
+                    throw new IllegalArgumentException("유효하지 않은 Google 토큰입니다.");
+                }
+            }
+            return payload;
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
             throw new IllegalArgumentException("유효하지 않은 Google 토큰입니다.");
         }
