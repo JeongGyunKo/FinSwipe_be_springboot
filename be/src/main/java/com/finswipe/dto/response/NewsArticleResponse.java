@@ -37,6 +37,7 @@ public class NewsArticleResponse {
     private final List<String> summary3linesKo;
     @JsonRawValue
     private final String xaiKo;
+    private final String sentimentReason;
     @JsonProperty("is_read")
     private final boolean isRead;
 
@@ -65,6 +66,7 @@ public class NewsArticleResponse {
         this.headlineKo = article.getHeadlineKo();
         this.summary3linesKo = article.getSummary3linesKo();
         this.xaiKo = article.getXaiKo();
+        this.sentimentReason = article.getSentimentReason();
         this.isRead = isRead;
     }
 }

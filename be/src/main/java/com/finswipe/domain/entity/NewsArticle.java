@@ -88,6 +88,9 @@ public class NewsArticle {
     @JdbcTypeCode(SqlTypes.JSON)
     private String xaiKo;
 
+    @Column(name = "sentiment_reason", columnDefinition = "text")
+    private String sentimentReason;
+
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
 

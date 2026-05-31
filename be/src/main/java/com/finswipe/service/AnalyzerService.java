@@ -246,8 +246,10 @@ public class AnalyzerService {
                     xaiKo = objectMapper.writeValueAsString(localized.get("xai"));
                 }
             }
-            return new EnrichmentResult(sourceUrl, sentimentLabel, sentimentScore,
-                    summary3lines, xai, headlineKo, summary3linesKo, xaiKo, rawJson, outcome);
+            String sentimentReason = root.path("sentiment_reason").asText(null);
+
+        return new EnrichmentResult(sourceUrl, sentimentLabel, sentimentScore,
+                    summary3lines, xai, headlineKo, summary3linesKo, xaiKo, sentimentReason, rawJson, outcome);
 
         } catch (Exception e) {
             log.warn("[GenAI] 응답 파싱 실패: {} | {}", sourceUrl, e.getMessage());
@@ -301,12 +303,13 @@ public class AnalyzerService {
         private final String headlineKo;
         private final List<String> summary3linesKo;
         private final String xaiKo;
+        private final String sentimentReason;
         private final String rawResponse;
         private final String outcome;
 
         public static EnrichmentResult unavailable(String sourceUrl) {
             return new EnrichmentResult(sourceUrl, "unavailable", null,
-                    null, null, null, null, null, null, "fatal_failure");
+                    null, null, null, null, null, null, null, "fatal_failure");
         }
 
         /** GenAI 서버와 통신 자체가 성공했는지 (빈 응답 포함) */
