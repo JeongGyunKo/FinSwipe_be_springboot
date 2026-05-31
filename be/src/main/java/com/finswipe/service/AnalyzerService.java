@@ -82,7 +82,6 @@ public class AnalyzerService {
                     try {
                         submitSemaphore.acquire();
                         try {
-                            Thread.sleep(1000);
                             return enrichSingle(article);
                         } finally {
                             submitSemaphore.release();
@@ -127,7 +126,6 @@ public class AnalyzerService {
                     try {
                         submitSemaphore.acquire();
                         try {
-                            Thread.sleep(1000);
                             return enrichSingle(article);
                         } finally {
                             submitSemaphore.release();
@@ -164,9 +162,6 @@ public class AnalyzerService {
         body.put("title", article.getHeadline() != null ? article.getHeadline() : "");
         body.put("link", link + cacheBuster);
         body.put("article_text", content.strip());
-        if (article.getSummary() != null && !article.getSummary().isBlank()) {
-            body.put("summary_text", article.getSummary().strip());
-        }
         if (article.getTickers() != null && !article.getTickers().isEmpty()) {
             body.put("ticker", article.getTickers());
         }
