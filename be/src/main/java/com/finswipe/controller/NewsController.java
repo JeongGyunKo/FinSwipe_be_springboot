@@ -108,7 +108,7 @@ public class NewsController {
         try {
             jdbc.update("""
                     INSERT INTO user_read_articles (user_id, article_id)
-                    VALUES (?::uuid, ?)
+                    VALUES (CAST(? AS UUID), ?)
                     ON CONFLICT (user_id, article_id) DO NOTHING
                     """, userId, articleId);
             return ResponseEntity.ok(Map.of("ok", true));
@@ -176,7 +176,7 @@ public class NewsController {
         try {
             // 사용자당 최대 10개 토큰 제한 (기기 무제한 등록 방지)
             Integer count = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM device_tokens WHERE user_id = ?::uuid",
+                    "SELECT COUNT(*) FROM device_tokens WHERE user_id = CAST(? AS UUID)",
                     Integer.class, userId);
             if (count != null && count >= 10) {
                 log.warn("[알림] 토큰 한도 초과: userId={}", userId);
@@ -184,7 +184,7 @@ public class NewsController {
             }
             jdbc.update("""
                     INSERT INTO device_tokens (user_id, token, platform)
-                    VALUES (?::uuid, ?, ?)
+                    VALUES (CAST(? AS UUID), ?, ?)
                     ON CONFLICT (user_id, token) DO NOTHING
                     """, userId, body.token(), body.platform());
             return ResponseEntity.ok(Map.of("ok", true));
@@ -204,7 +204,7 @@ public class NewsController {
             return ResponseEntity.badRequest().body(Map.of("ok", false));
         }
         try {
-            jdbc.update("DELETE FROM device_tokens WHERE user_id = ?::uuid AND token = ?",
+            jdbc.update("DELETE FROM device_tokens WHERE user_id = CAST(? AS UUID) AND token = ?",
                     userId, body.token());
             return ResponseEntity.ok(Map.of("ok", true));
         } catch (Exception e) {
@@ -341,7 +341,7 @@ public class NewsController {
     private List<String> getUserTickers(String userId) {
         try {
             return jdbc.queryForObject(
-                    "SELECT tickers FROM user_profiles WHERE id = ?::uuid",
+                    "SELECT tickers FROM user_profiles WHERE id = CAST(? AS UUID)",
                     (rs, rowNum) -> {
                         String raw = rs.getString("tickers");
                         if (raw == null || raw.equals("{}")) return List.of();
