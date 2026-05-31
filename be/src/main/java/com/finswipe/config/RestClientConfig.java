@@ -1,9 +1,11 @@
 package com.finswipe.config;
 
 import lombok.RequiredArgsConstructor;
+import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -61,17 +63,21 @@ public class RestClientConfig {
         PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager();
         connManager.setMaxTotal(maxConnections);
         connManager.setDefaultMaxPerRoute(maxConnections);
+        connManager.setDefaultConnectionConfig(ConnectionConfig.custom()
+                .setConnectTimeout(Timeout.ofSeconds(connectSec))
+                .setSocketTimeout(Timeout.ofSeconds(readSec))
+                .build());
 
         RequestConfig requestConfig = RequestConfig.custom()
-                .setConnectTimeout(Timeout.ofSeconds(connectSec))
-                .setResponseTimeout(Timeout.ofSeconds(readSec))
                 .setConnectionRequestTimeout(Timeout.ofSeconds(5))
+                .setResponseTimeout(Timeout.ofSeconds(readSec))
                 .build();
 
         var httpClient = HttpClients.custom()
                 .setConnectionManager(connManager)
                 .setDefaultRequestConfig(requestConfig)
                 .evictExpiredConnections()
+                .evictIdleConnections(TimeValue.ofMinutes(1))
                 .build();
 
         return new HttpComponentsClientHttpRequestFactory(httpClient);
