@@ -35,13 +35,14 @@ class SubmitAnswerRequest(BaseModel):
     @classmethod
     def answer_must_be_valid(cls, v: str) -> str:
         normalized = v.strip().upper()
-        if normalized not in {"A", "B", "C", "D"}:
-            raise ValueError("답은 A, B, C, D 중 하나여야 합니다.")
+        if normalized not in {"A", "B", "C", "D", "E"}:
+            raise ValueError("답은 A, B, C, D, E 중 하나여야 합니다.")
         return normalized
 
 
 class AnswerResultResponse(BaseModel):
     is_correct: bool
+    is_모름: bool
     correct_answer: str
     explanation: str
     session_status: str
@@ -49,3 +50,5 @@ class AnswerResultResponse(BaseModel):
     correct_count: int
     total_questions: int
     final_level: Optional[int] = None
+    tendency: Optional[str] = None
+    tendency_description: Optional[str] = None
