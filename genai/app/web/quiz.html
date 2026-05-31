@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinSwipe 금융 퀴즈</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: #0f1923;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #e8eaf0;
+      padding: 20px;
+    }
+
+    .card {
+      background: #1a2535;
+      border-radius: 20px;
+      padding: 40px;
+      width: 100%;
+      max-width: 640px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+
+    /* 진행 바 */
+    .progress-bar-wrap {
+      background: #243044;
+      border-radius: 99px;
+      height: 6px;
+      margin-bottom: 28px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+      border-radius: 99px;
+      transition: width 0.4s ease;
+    }
+    .progress-label {
+      text-align: right;
+      font-size: 13px;
+      color: #6b7fa3;
+      margin-top: 6px;
+      margin-bottom: 24px;
+    }
+
+    /* 난이도 뱃지 */
+    .badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 99px;
+      margin-bottom: 16px;
+      background: #1e3a5f;
+      color: #60a5fa;
+    }
+
+    /* 문제 */
+    .question-text {
+      font-size: 18px;
+      line-height: 1.65;
+      color: #d1d9ef;
+      margin-bottom: 28px;
+      min-height: 80px;
+    }
+
+    /* 선택지 버튼 */
+    .choices { display: flex; flex-direction: column; gap: 12px; }
+
+    .choice-btn {
+      background: #243044;
+      border: 2px solid #2d3f5c;
+      border-radius: 12px;
+      padding: 14px 18px;
+      color: #c8d0e8;
+      font-size: 15px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .choice-btn:hover:not(:disabled) {
+      border-color: #3b82f6;
+      background: #1e3a5f;
+      color: #e8edf8;
+    }
+    .choice-btn .key {
+      font-weight: 700;
+      color: #3b82f6;
+      min-width: 20px;
+    }
+    .choice-btn.correct {
+      border-color: #22c55e;
+      background: #14321f;
+      color: #86efac;
+    }
+    .choice-btn.correct .key { color: #22c55e; }
+    .choice-btn.wrong {
+      border-color: #ef4444;
+      background: #3b1212;
+      color: #fca5a5;
+    }
+    .choice-btn.wrong .key { color: #ef4444; }
+    .choice-btn:disabled { cursor: default; opacity: 0.8; }
+
+    /* 해설 */
+    .explanation {
+      margin-top: 20px;
+      background: #1e2d44;
+      border-left: 3px solid #3b82f6;
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #94a8c8;
+      display: none;
+    }
+
+    /* 다음 버튼 */
+    .next-btn {
+      margin-top: 20px;
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      display: none;
+      transition: opacity 0.15s;
+    }
+    .next-btn:hover { opacity: 0.88; }
+
+    /* 결과 화면 */
+    .result {
+      text-align: center;
+      padding: 20px 0;
+    }
+    .result .level-num {
+      font-size: 80px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    .result .level-label {
+      font-size: 20px;
+      color: #8899bb;
+      margin-bottom: 24px;
+    }
+    .result .score-info {
+      font-size: 15px;
+      color: #6b7fa3;
+      margin-bottom: 32px;
+    }
+    .restart-btn {
+      padding: 12px 32px;
+      border: none;
+      border-radius: 12px;
+      background: #243044;
+      color: #c8d0e8;
+      font-size: 15px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .restart-btn:hover { background: #2d3f5c; }
+
+    /* 시작 화면 */
+    .start-screen { text-align: center; padding: 20px 0; }
+    .start-screen h1 { font-size: 26px; font-weight: 700; margin-bottom: 10px; }
+    .start-screen p { color: #6b7fa3; margin-bottom: 32px; line-height: 1.6; }
+    .start-btn {
+      padding: 14px 40px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .start-btn:hover { opacity: 0.88; }
+
+    /* 로딩 */
+    .loader {
+      text-align: center;
+      padding: 40px 0;
+      color: #6b7fa3;
+      font-size: 15px;
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #243044;
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div class="card">
+
+  <!-- 시작 화면 -->
+  <div id="screen-start" class="start-screen">
+    <h1>💹 금융 지식 퀴즈</h1>
+    <p>7문제를 풀어 나의 금융 투자 레벨을 확인하세요.<br>난이도는 정답률에 따라 자동으로 조절됩니다.</p>
+    <button class="start-btn" onclick="startQuiz()">퀴즈 시작</button>
+  </div>
+
+  <!-- 로딩 -->
+  <div id="screen-loading" class="loader hidden">
+    <div class="spinner"></div>
+    문제를 생성하는 중...
+  </div>
+
+  <!-- 퀴즈 화면 -->
+  <div id="screen-quiz" class="hidden">
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+    <div class="progress-label" id="progress-label">0 / 7</div>
+    <div class="badge" id="difficulty-badge">기초</div>
+    <div class="question-text" id="question-text"></div>
+    <div class="choices" id="choices"></div>
+    <div class="explanation" id="explanation"></div>
+    <button class="next-btn" id="next-btn" onclick="nextQuestion()">다음 문제 →</button>
+  </div>
+
+  <!-- 결과 화면 -->
+  <div id="screen-result" class="result hidden">
+    <div class="level-num" id="result-level">3</div>
+    <div class="level-label" id="result-label">중급</div>
+    <div class="score-info" id="result-score"></div>
+    <button class="restart-btn" onclick="restartQuiz()">다시 풀기</button>
+  </div>
+
+</div>
+
+<script>
+  const BASE = '';
+  const AUTH = 'Basic ' + btoa('fin:1234');
+  const LEVEL_LABELS = { 1:'입문', 2:'기초', 3:'중급', 4:'고급', 5:'전문가' };
+  const DIFF_LABELS  = { 1:'입문', 2:'기초', 3:'중급', 4:'고급', 5:'전문가' };
+
+  let sessionId = null;
+  let currentQuestion = null;
+  let totalQuestions = 7;
+
+  function api(path, options = {}) {
+    return fetch(BASE + path, {
+      ...options,
+      headers: { 'Content-Type': 'application/json', 'Authorization': AUTH, ...(options.headers || {}) }
+    }).then(r => r.json());
+  }
+
+  function show(id) {
+    ['screen-start','screen-loading','screen-quiz','screen-result']
+      .forEach(s => document.getElementById(s).classList.add('hidden'));
+    document.getElementById(id).classList.remove('hidden');
+  }
+
+  async function startQuiz() {
+    show('screen-loading');
+    const session = await api('/api/v1/quiz/sessions', {
+      method: 'POST', body: JSON.stringify({ user_id: null })
+    });
+    sessionId = session.session_id;
+    totalQuestions = session.total_questions;
+    await loadNextQuestion();
+  }
+
+  async function loadNextQuestion() {
+    show('screen-loading');
+    const q = await api(`/api/v1/quiz/sessions/${sessionId}/next-question`, { method: 'POST' });
+    currentQuestion = q;
+    renderQuestion(q);
+    show('screen-quiz');
+  }
+
+  function renderQuestion(q) {
+    const diffLevel = Math.max(1, Math.min(5, Math.round(q.difficulty)));
+    document.getElementById('difficulty-badge').textContent = DIFF_LABELS[diffLevel] + ' Lv.' + diffLevel;
+    document.getElementById('question-text').textContent = q.question_text;
+    document.getElementById('explanation').style.display = 'none';
+    document.getElementById('explanation').textContent = '';
+    document.getElementById('next-btn').style.display = 'none';
+
+    const pct = ((q.question_number - 1) / totalQuestions) * 100;
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('progress-label').textContent = `${q.question_number} / ${totalQuestions}`;
+
+    const choicesEl = document.getElementById('choices');
+    choicesEl.innerHTML = '';
+    ['A','B','C','D'].forEach(key => {
+      const btn = document.createElement('button');
+      btn.className = 'choice-btn';
+      btn.innerHTML = `<span class="key">${key}</span><span>${q.choices[key]}</span>`;
+      btn.onclick = () => submitAnswer(key);
+      choicesEl.appendChild(btn);
+    });
+  }
+
+  async function submitAnswer(answer) {
+    document.querySelectorAll('.choice-btn').forEach(b => b.disabled = true);
+
+    const result = await api(`/api/v1/quiz/sessions/${sessionId}/answers`, {
+      method: 'POST',
+      body: JSON.stringify({ question_id: currentQuestion.question_id, answer })
+    });
+
+    const buttons = document.querySelectorAll('.choice-btn');
+    const keys = ['A','B','C','D'];
+    buttons.forEach((btn, i) => {
+      if (keys[i] === result.correct_answer) btn.classList.add('correct');
+      else if (keys[i] === answer && !result.is_correct) btn.classList.add('wrong');
+    });
+
+    const expEl = document.getElementById('explanation');
+    expEl.textContent = result.explanation;
+    expEl.style.display = 'block';
+
+    const nextBtn = document.getElementById('next-btn');
+    nextBtn.style.display = 'block';
+
+    const pct = (result.questions_asked / totalQuestions) * 100;
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('progress-label').textContent = `${result.questions_asked} / ${totalQuestions}`;
+
+    if (result.session_status === 'completed') {
+      nextBtn.textContent = '결과 보기 →';
+      nextBtn.onclick = () => showResult(result);
+    } else {
+      nextBtn.textContent = '다음 문제 →';
+      nextBtn.onclick = nextQuestion;
+    }
+  }
+
+  function showResult(result) {
+    const level = result.final_level;
+    document.getElementById('result-level').textContent = level;
+    document.getElementById('result-label').textContent = 'Level ' + level + ' · ' + LEVEL_LABELS[level];
+    document.getElementById('result-score').textContent =
+      `${result.correct_count} / ${result.total_questions} 정답`;
+    show('screen-result');
+  }
+
+  function nextQuestion() { loadNextQuestion(); }
+
+  function restartQuiz() {
+    sessionId = null;
+    currentQuestion = null;
+    show('screen-start');
+  }
+</script>
+</body>
+</html>
