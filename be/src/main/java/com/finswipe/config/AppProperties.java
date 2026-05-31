@@ -94,4 +94,17 @@ public class AppProperties {
         private String clientEmail = "";
         private String privateKey = "";
     }
+
+    @Valid
+    private Auth auth = new Auth();
+
+    @Getter
+    @Setter
+    public static class Auth {
+        @NotBlank
+        private String jwtSecret;
+        private long accessTokenExpiryMs = 604800000L; // 7일
+        private String googleClientId = "";
+        private String appBaseUrl = "http://localhost:8080";
+    }
 }

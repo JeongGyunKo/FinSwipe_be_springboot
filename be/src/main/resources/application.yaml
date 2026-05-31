@@ -31,6 +31,16 @@ spring:
   cache:
     type: caffeine
 
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+    default-encoding: UTF-8
+
   threads:
     virtual:
       enabled: true
@@ -72,3 +82,8 @@ app:
     project-id: ${FCM_PROJECT_ID:}
     client-email: ${FCM_CLIENT_EMAIL:}
     private-key: ${FCM_PRIVATE_KEY:}
+  auth:
+    jwt-secret: ${JWT_SECRET}
+    access-token-expiry-ms: ${JWT_ACCESS_EXPIRY_MS:604800000}
+    google-client-id: ${GOOGLE_CLIENT_ID:}
+    app-base-url: ${APP_BASE_URL:http://localhost:8080}

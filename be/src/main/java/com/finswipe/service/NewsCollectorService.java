@@ -460,7 +460,7 @@ public class NewsCollectorService {
                 if (sendFcm
                         && headlineKo != null
                         && summaryKo != null
-                        && xaiKo != null) {
+                        && result.getSentimentReason() != null) {
                     List<String> tickers = original.getTickers();
                     String headline = original.getHeadline();
                     if (tickers != null && !tickers.isEmpty() && headline != null
