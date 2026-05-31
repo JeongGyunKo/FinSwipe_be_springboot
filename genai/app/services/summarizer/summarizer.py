@@ -177,7 +177,7 @@ def _normalize_generated_line(line: str) -> str:
     return _normalize_text(line).removesuffix("...").strip()
 
 
-@lru_cache(maxsize=256)
+@lru_cache(maxsize=2000)
 def _cached_summary_completion(base_url: str, model: str, title: str, article_text: str) -> str:
     del base_url
     return gemini_generate_content(

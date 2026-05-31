@@ -58,7 +58,16 @@ async def warm_database_backend() -> None:
         except Exception:
             logger.exception("Background database initialization failed during startup.")
 
+    async def _warmup_finbert() -> None:
+        try:
+            from app.services.sentiment.finbert import _get_finbert_components
+            await asyncio.to_thread(_get_finbert_components)
+            logger.info("FinBERT model pre-loaded successfully.")
+        except Exception:
+            logger.warning("FinBERT warmup failed — will load on first request.")
+
     asyncio.create_task(_initialize_in_background())
+    asyncio.create_task(_warmup_finbert())
 
 
 @app.middleware("http")
