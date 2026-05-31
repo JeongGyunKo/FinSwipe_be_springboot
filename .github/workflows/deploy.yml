@@ -32,7 +32,8 @@ jobs:
             # ── GenAI 패키지 업데이트 및 재시작 ─────────────────────
             cd ~/finswipe/genai
             source venv/bin/activate
-            pip install -e . --quiet
+            pip install torch --index-url https://download.pytorch.org/whl/cpu --no-cache-dir -q
+            pip install -e . --no-cache-dir --quiet
             sudo systemctl restart finswipe-genai
             sleep 5
             sudo systemctl status finswipe-genai --no-pager
