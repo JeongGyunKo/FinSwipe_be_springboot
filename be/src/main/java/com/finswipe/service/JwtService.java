@@ -52,7 +52,8 @@ public class JwtService {
     }
 
     public String getEmailFromToken(String token) {
-        return validateToken(token).get("email", String.class);
+        String email = validateToken(token).get("email", String.class);
+        return email != null ? email : "";
     }
 
     private SecretKey getKey() {
