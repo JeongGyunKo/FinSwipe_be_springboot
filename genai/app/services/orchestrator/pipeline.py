@@ -127,6 +127,7 @@ class EnrichmentOrchestrator:
         summary_3lines: list[str] | None = None
         sentiment_result = None
         xai_result = None
+        sentiment_reason: str | None = None
         article_mixed = None
         ticker_mixed = None
 
@@ -153,8 +154,13 @@ class EnrichmentOrchestrator:
                     else:
                         tracker.skip(
                             PipelineStageName.XAI,
-                            "Skipped in the base pipeline. Run the dedicated XAI flow if explanations are required.",
+                            "XAI disabled — using sentiment_reason instead.",
                         )
+                    sentiment_reason = self._run_sentiment_explain_stage(
+                        request=request,
+                        cleaned_text=cleaned_text,
+                        sentiment_result=sentiment_result,
+                    )
                     article_mixed, ticker_mixed = self._run_mixed_detection_stage(
                         request=request,
                         sentiment_result=sentiment_result,
@@ -188,6 +194,7 @@ class EnrichmentOrchestrator:
             summary_3lines=summary_3lines,
             sentiment_result=sentiment_result,
             xai_result=xai_result,
+            sentiment_reason=sentiment_reason,
             article_mixed=article_mixed,
             ticker_mixed=ticker_mixed,
         )
@@ -635,6 +642,25 @@ class EnrichmentOrchestrator:
 
         return article_mixed, ticker_mixed
 
+    def _run_sentiment_explain_stage(
+        self,
+        *,
+        request: ArticleEnrichmentRequest,
+        cleaned_text: str,
+        sentiment_result: SentimentResult,
+    ) -> str | None:
+        from app.services.sentiment_explainer import explain_sentiment_reason
+        try:
+            return explain_sentiment_reason(
+                title=request.title,
+                article_text=cleaned_text,
+                sentiment_label=sentiment_result.label.value,
+                sentiment_score=float(sentiment_result.score),
+            )
+        except Exception as exc:
+            log_event(logger, logging.WARNING, "sentiment_explain_failed", error=str(exc))
+            return None
+
     def _build_payload(
         self,
         *,
@@ -647,6 +673,7 @@ class EnrichmentOrchestrator:
         summary_3lines,
         sentiment_result,
         xai_result,
+        sentiment_reason: str | None = None,
         article_mixed,
         ticker_mixed,
     ) -> EnrichmentStoragePayload:
@@ -670,6 +697,7 @@ class EnrichmentOrchestrator:
                 summary_3lines=summary_3lines,
                 sentiment_result=sentiment_result,
                 xai_result=xai_result,
+                sentiment_reason=sentiment_reason,
                 article_mixed=article_mixed,
                 ticker_mixed=ticker_mixed,
                 tickers=request.ticker,

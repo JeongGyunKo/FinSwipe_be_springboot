@@ -135,6 +135,10 @@ class EnrichmentStoragePayload(SchemaModel):
         default=None,
         description="Stored explainability payload.",
     )
+    sentiment_reason: str | None = Field(
+        default=None,
+        description="Natural language Korean explanation of why this article received its sentiment score.",
+    )
     localized: LocalizedArticleContent | None = Field(
         default=None,
         description="Stored localized display payload to avoid repeated translation calls.",

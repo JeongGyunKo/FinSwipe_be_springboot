@@ -452,6 +452,7 @@ public class NewsCollectorService {
                     article.setHeadlineKo(headlineKo);
                     article.setSummary3linesKo(summaryKo);
                     article.setXaiKo(xaiKo);
+                    article.setSentimentReason(result.getSentimentReason());
                     newsRepo.save(article);
                     log.debug("[DB] 저장: {}", truncate(link));
                 }
