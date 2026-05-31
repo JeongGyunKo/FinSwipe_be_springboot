@@ -2,7 +2,6 @@ package com.finswipe.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonRawValue;
 import com.finswipe.domain.entity.NewsArticle;
 import lombok.Getter;
 
@@ -17,7 +16,6 @@ public class NewsArticleResponse {
 
     private final UUID id;
     private final String headline;
-    private final String summary;
     private final List<String> summary3lines;
     private final String sourceUrl;
     private final String contentPreview;
@@ -30,13 +28,9 @@ public class NewsArticleResponse {
     private final boolean isPaywalled;
     private final String sentimentLabel;
     private final Double sentimentScore;
-    @JsonRawValue
-    private final String xai;
     private final Boolean isMixed;
     private final String headlineKo;
     private final List<String> summary3linesKo;
-    @JsonRawValue
-    private final String xaiKo;
     private final String sentimentReason;
     @JsonProperty("is_read")
     private final boolean isRead;
@@ -48,7 +42,6 @@ public class NewsArticleResponse {
     public NewsArticleResponse(NewsArticle article, List<Map<String, String>> tickerNames, boolean isRead) {
         this.id = article.getId();
         this.headline = article.getHeadline();
-        this.summary = article.getSummary();
         this.summary3lines = article.getSummary3lines();
         this.sourceUrl = article.getSourceUrl();
         this.contentPreview = article.getContentPreview();
@@ -61,11 +54,9 @@ public class NewsArticleResponse {
         this.isPaywalled = article.isPaywalled();
         this.sentimentLabel = article.getSentimentLabel();
         this.sentimentScore = article.getSentimentScore();
-        this.xai = article.getXai();
         this.isMixed = article.getIsMixed();
         this.headlineKo = article.getHeadlineKo();
         this.summary3linesKo = article.getSummary3linesKo();
-        this.xaiKo = article.getXaiKo();
         this.sentimentReason = article.getSentimentReason();
         this.isRead = isRead;
     }

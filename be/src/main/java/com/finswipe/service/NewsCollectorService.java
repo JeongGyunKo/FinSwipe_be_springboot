@@ -278,7 +278,6 @@ public class NewsCollectorService {
 
         NewsArticle article = new NewsArticle();
         article.setHeadline(title);
-        article.setSummary(summary.isEmpty() ? null : summary);
         article.setSourceUrl(link);
         article.setContent(content);
         if (content.length() > 300) {
@@ -409,9 +408,8 @@ public class NewsCollectorService {
                 return;
             }
 
-            // xai_ko 없거나 영어 폴백인 경우
-            boolean noValidXaiKo = result.getXaiKo() == null || !containsKorean(result.getXaiKo());
-            if (noValidXaiKo) {
+            // sentiment_reason 없는 경우
+            if (result.getSentimentReason() == null) {
                 if (isPressRelease(link)) {
                     try { newsRepo.markCleanFiltered(link); } catch (Exception e) {
                         log.warn("[백그라운드] clean_filtered 마킹 실패 ({}): {}", truncate(link), e.getMessage());
@@ -423,7 +421,7 @@ public class NewsCollectorService {
                             log.warn("[백그라운드] retry_count 증가 실패 ({}): {}", truncate(link), e.getMessage());
                         }
                     }
-                    log.info("[백그라운드] xai 없음 (재시도 대기): {}", truncate(link));
+                    log.info("[백그라운드] sentiment_reason 없음 (재시도 대기): {}", truncate(link));
                     skipped.incrementAndGet();
                 }
                 return;
@@ -433,7 +431,6 @@ public class NewsCollectorService {
                 // 한글 문자 포함 여부 검증 — Gemini 영어 폴백 방지
                 String headlineKo = containsKorean(result.getHeadlineKo()) ? result.getHeadlineKo() : null;
                 List<String> summaryKo = koreanLines(result.getSummary3linesKo());
-                String xaiKo = containsKorean(result.getXaiKo()) ? safeJson(result.getXaiKo()) : null;
 
                 NewsArticle article = (original.getId() != null) ? dbArticles.get(original.getId()) : null;
                 if (article == null) {
@@ -448,10 +445,8 @@ public class NewsCollectorService {
                     article.setSentimentScore(result.getSentimentScore());
                     article.setIsMixed("mixed".equals(result.getSentimentLabel()));
                     article.setSummary3lines(result.getSummary3lines());
-                    article.setXai(safeJson(result.getXai()));
                     article.setHeadlineKo(headlineKo);
                     article.setSummary3linesKo(summaryKo);
-                    article.setXaiKo(xaiKo);
                     article.setSentimentReason(result.getSentimentReason());
                     newsRepo.save(article);
                     log.debug("[DB] 저장: {}", truncate(link));
@@ -581,18 +576,6 @@ public class NewsCollectorService {
             ));
         } catch (Exception e) {
             log.warn("[FCM] 서비스 계정 JSON 조립 실패: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    /** xai/xai_ko 저장 전 JSON 유효성 검증 — 잘못된 JSON이면 null 반환 */
-    private String safeJson(String json) {
-        if (json == null) return null;
-        try {
-            objectMapper.readTree(json);
-            return json;
-        } catch (Exception e) {
-            log.warn("[JSON] 유효하지 않은 JSON 무시: {}", json.length() > 50 ? json.substring(0, 50) : json);
             return null;
         }
     }
