@@ -20,15 +20,15 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
     // 최신 기사 페이징 — 한국어 완성 + sentiment_reason 있는 기사만 노출
     @Query(value = """
             SELECT * FROM news_articles
-            WHERE headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
-              AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+            WHERE headline_ko IS NOT NULL
+              AND summary_3lines_ko IS NOT NULL
               AND sentiment_reason IS NOT NULL
             ORDER BY published_at DESC
             """,
             countQuery = """
             SELECT COUNT(*) FROM news_articles
-            WHERE headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
-              AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+            WHERE headline_ko IS NOT NULL
+              AND summary_3lines_ko IS NOT NULL
               AND sentiment_reason IS NOT NULL
             """,
             nativeQuery = true)
@@ -148,8 +148,8 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             SELECT na.* FROM news_articles na
             INNER JOIN user_read_articles ura ON ura.article_id = na.id
             WHERE ura.user_id = CAST(:userId AS uuid)
-              AND na.headline_ko IS NOT NULL AND na.headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
-              AND na.summary_3lines_ko IS NOT NULL AND na.summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+              AND na.headline_ko IS NOT NULL
+              AND na.summary_3lines_ko IS NOT NULL
               AND na.sentiment_reason IS NOT NULL
               AND na.tickers && (
                 SELECT COALESCE(tickers, '{}') FROM user_profiles WHERE id = CAST(:userId AS uuid)

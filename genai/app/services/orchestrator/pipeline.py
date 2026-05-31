@@ -156,11 +156,25 @@ class EnrichmentOrchestrator:
                             PipelineStageName.XAI,
                             "XAI disabled — using sentiment_reason instead.",
                         )
-                    sentiment_reason = self._run_sentiment_explain_stage(
-                        request=request,
-                        cleaned_text=cleaned_text,
-                        sentiment_result=sentiment_result,
-                    )
+
+                    # 감성 설명 + 요약 병렬 실행 (각 ~5초 → 합계 ~5초로 단축)
+                    from concurrent.futures import ThreadPoolExecutor
+                    with ThreadPoolExecutor(max_workers=2) as pool:
+                        reason_future = pool.submit(
+                            self._run_sentiment_explain_stage,
+                            request=request,
+                            cleaned_text=cleaned_text,
+                            sentiment_result=sentiment_result,
+                        )
+                        summary_future = pool.submit(
+                            self._run_summary_stage,
+                            request=request,
+                            cleaned_text=cleaned_text,
+                            tracker=tracker,
+                        )
+                        sentiment_reason = reason_future.result()
+                        summary_3lines = summary_future.result()
+
                     article_mixed, ticker_mixed = self._run_mixed_detection_stage(
                         request=request,
                         sentiment_result=sentiment_result,
@@ -176,11 +190,11 @@ class EnrichmentOrchestrator:
                         PipelineStageName.MIXED_DETECTION,
                         "Skipped because sentiment analysis did not produce a result.",
                     )
-                summary_3lines = self._run_summary_stage(
-                    request=request,
-                    cleaned_text=cleaned_text,
-                    tracker=tracker,
-                )
+                    summary_3lines = self._run_summary_stage(
+                        request=request,
+                        cleaned_text=cleaned_text,
+                        tracker=tracker,
+                    )
         else:
             self._skip_after_fetch_failure(tracker)
 
