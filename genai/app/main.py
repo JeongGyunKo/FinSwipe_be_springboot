@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.routes.enrichment import router as enrichment_router
 from app.api.routes.health import router as health_router
 from app.api.routes.ingestion import router as ingestion_router
+from app.api.routes.quiz import router as quiz_router
 from app.api.routes.web import router as web_router
 from app.core import get_settings
 from app.core.auth import (
@@ -69,4 +70,5 @@ app.include_router(health_router)
 app.include_router(web_router)
 app.include_router(ingestion_router, prefix="/api/v1")
 app.include_router(enrichment_router, prefix="/api/v1")
+app.include_router(quiz_router, prefix="/api/v1")
 app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")

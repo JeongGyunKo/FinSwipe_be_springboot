@@ -32,7 +32,7 @@ jobs:
             # ── GenAI 패키지 업데이트 및 재시작 ─────────────────────
             cd ~/finswipe/genai
             source venv/bin/activate
-            pip install -r requirements.txt --quiet
+            pip install -e . --quiet
             sudo systemctl restart finswipe-genai
             sleep 5
             sudo systemctl status finswipe-genai --no-pager
