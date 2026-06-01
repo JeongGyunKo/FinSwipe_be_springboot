@@ -119,8 +119,16 @@ def gemini_generate_content(
                 and retry_after_seconds <= settings.gemini_retry_after_max_seconds
                 and attempt + 1 < max_attempts
             )
+            can_retry_server_error = (
+                response.status_code in (500, 502, 503, 529)
+                and attempt + 1 < max_attempts
+            )
             if can_retry_rate_limit:
                 time.sleep(retry_after_seconds)
+                attempt += 1
+                continue
+            if can_retry_server_error:
+                time.sleep(3)
                 attempt += 1
                 continue
             raise exc

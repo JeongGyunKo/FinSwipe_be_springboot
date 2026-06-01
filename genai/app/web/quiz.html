@@ -117,6 +117,10 @@
   <div id="screen-loading" class="loader hidden">
     <div class="spinner"></div>
     <span id="loading-text">문제를 생성하는 중...</span>
+    <div id="loading-error" style="display:none;margin-top:20px;">
+      <p style="color:#ef4444;margin-bottom:12px;">문제 생성에 실패했습니다.</p>
+      <button onclick="retryQuestion()" style="padding:10px 24px;border:none;border-radius:10px;background:#3b82f6;color:#fff;font-size:14px;cursor:pointer;">다시 시도</button>
+    </div>
   </div>
 
   <!-- 퀴즈 -->
@@ -212,10 +216,21 @@ async function startQuiz() {
 async function loadNextQuestion() {
   show('screen-loading');
   document.getElementById('loading-text').textContent = '문제를 생성하는 중...';
-  const q = await api(`/api/v1/quiz/sessions/${sessionId}/next-question`, { method: 'POST' });
-  currentQuestion = q;
-  renderQuestion(q);
-  show('screen-quiz');
+  document.getElementById('loading-error').style.display = 'none';
+  try {
+    const q = await api(`/api/v1/quiz/sessions/${sessionId}/next-question`, { method: 'POST' });
+    if (q.detail || q.error) throw new Error(q.detail || q.error);
+    currentQuestion = q;
+    renderQuestion(q);
+    show('screen-quiz');
+  } catch (e) {
+    document.getElementById('loading-text').textContent = '';
+    document.getElementById('loading-error').style.display = 'block';
+  }
+}
+
+function retryQuestion() {
+  loadNextQuestion();
 }
 
 function renderQuestion(q) {
