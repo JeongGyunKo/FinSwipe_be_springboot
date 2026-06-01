@@ -2,6 +2,9 @@ package com.finswipe.controller;
 
 import com.finswipe.config.AppProperties;
 import com.finswipe.config.CacheConfig;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.finswipe.domain.entity.NewsArticle;
 import com.finswipe.domain.repository.NewsArticleRepository;
 import com.finswipe.dto.request.AnalyzeRequest;
@@ -30,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+@Tag(name = "News", description = "뉴스 피드 조회 · 검색 · 읽음 처리 · 푸시 토큰")
 @RestController
 @RequestMapping("/news")
 @RequiredArgsConstructor
@@ -46,7 +50,7 @@ public class NewsController {
 
     // ===================== Public Endpoints =====================
 
-    /** GET /news/latest — 최신 뉴스 목록 (페이징). userId 전달 시 읽은 기사 제외 */
+    @Operation(summary = "뉴스 피드", description = "분석 완료된 최신 기사 목록. userId 전달 시 읽은 기사 제외 + 관심 티커 필터 적용.")
     @GetMapping("/latest")
     @Cacheable(value = CacheConfig.CACHE_NEWS_LATEST, key = "#limit + ':' + #offset",
                condition = "#userId == null")
@@ -97,7 +101,8 @@ public class NewsController {
         return ResponseEntity.ok(new NewsListResponse(page.getTotalElements(), offset, data));
     }
 
-    /** POST /news/{articleId}/read — 기사 읽음 처리 */
+    @Operation(summary = "읽음 처리", description = "스와이프한 기사를 읽음 처리. 이후 피드에서 제외됨.")
+    @SecurityRequirement(name = "bearerAuth")
     @PostMapping("/{articleId}/read")
     public ResponseEntity<Map<String, Boolean>> markAsRead(
             @PathVariable java.util.UUID articleId,
@@ -118,7 +123,7 @@ public class NewsController {
         }
     }
 
-    /** GET /news/search?q= — 티커/회사명으로 뉴스 검색 */
+    @Operation(summary = "뉴스 검색", description = "티커 심볼 또는 회사명으로 검색 (예: AAPL, Apple)")
     @GetMapping("/search")
     @Cacheable(value = CacheConfig.CACHE_NEWS_SEARCH, key = "#q.toLowerCase() + ':' + #limit + ':' + #offset")
     public ResponseEntity<Map<String, Object>> search(
@@ -149,7 +154,7 @@ public class NewsController {
                 "data", data));
     }
 
-    /** GET /news/tickers — 전체 티커 목록 (자동완성용) */
+    @Operation(summary = "전체 티커 목록", description = "5,500개 미국 주식 티커 + 한국어 회사명. 자동완성에 활용.")
     @GetMapping("/tickers")
     public ResponseEntity<Map<String, Object>> getTickers() {
         List<TickerInfo> tickers = tickerService.getAllTickers();
@@ -164,7 +169,8 @@ public class NewsController {
 
     // ===================== Device Token Endpoints =====================
 
-    /** POST /news/device-token — 디바이스 푸시 알림 토큰 등록 */
+    @Operation(summary = "FCM 토큰 등록", description = "푸시 알림 수신을 위한 FCM 디바이스 토큰 등록. platform: web|ios|android")
+    @SecurityRequirement(name = "bearerAuth")
     @PostMapping("/device-token")
     public ResponseEntity<Map<String, Boolean>> registerDeviceToken(
             @RequestParam String userId,
@@ -195,7 +201,8 @@ public class NewsController {
         }
     }
 
-    /** DELETE /news/device-token — 디바이스 푸시 알림 토큰 삭제 */
+    @Operation(summary = "FCM 토큰 삭제", description = "로그아웃 또는 알림 해제 시 토큰 제거")
+    @SecurityRequirement(name = "bearerAuth")
     @DeleteMapping("/device-token")
     public ResponseEntity<Map<String, Boolean>> deleteDeviceToken(
             @RequestParam String userId,

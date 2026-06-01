@@ -1,5 +1,8 @@
 package com.finswipe.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
@@ -9,6 +12,8 @@ import org.springframework.web.client.RestClient;
 
 import java.nio.charset.StandardCharsets;
 
+@Tag(name = "Quiz", description = "금융 지식 퀴즈 — 레벨 측정(7문제) + 투자 성향 분석(3문제)")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/quiz")
 @Slf4j
@@ -20,26 +25,26 @@ public class QuizController {
         this.genaiClient = genaiClient;
     }
 
-    /** POST /quiz/sessions — 퀴즈 세션 생성 */
+    @Operation(summary = "퀴즈 세션 생성", description = "새 퀴즈 시작. body에 user_id(UUID) 선택 전달.")
     @PostMapping("/sessions")
     public ResponseEntity<String> createSession(
             @RequestBody(required = false) String body) {
         return proxyPost("/api/v1/quiz/sessions", body != null ? body : "{}");
     }
 
-    /** GET /quiz/sessions/{sessionId} — 세션 상태 조회 */
+    @Operation(summary = "세션 상태 조회", description = "현재 진행 상황 (questions_asked, status, final_level 등)")
     @GetMapping("/sessions/{sessionId}")
     public ResponseEntity<String> getSession(@PathVariable String sessionId) {
         return proxyGet("/api/v1/quiz/sessions/" + sessionId);
     }
 
-    /** POST /quiz/sessions/{sessionId}/next-question — Gemini 문제 생성 */
+    @Operation(summary = "다음 문제 요청", description = "Q1~7: Gemini가 금융 지식 문제 생성 / Q8~10: 고정 성향 질문. 응답에 question_type 포함.")
     @PostMapping("/sessions/{sessionId}/next-question")
     public ResponseEntity<String> nextQuestion(@PathVariable String sessionId) {
         return proxyPost("/api/v1/quiz/sessions/" + sessionId + "/next-question", null);
     }
 
-    /** POST /quiz/sessions/{sessionId}/answers — 답변 제출 */
+    @Operation(summary = "답변 제출", description = "answer: A~E (E=잘 모르겠다). 10문제 완료 시 final_level + tendency 반환.")
     @PostMapping("/sessions/{sessionId}/answers")
     public ResponseEntity<String> submitAnswer(
             @PathVariable String sessionId,
