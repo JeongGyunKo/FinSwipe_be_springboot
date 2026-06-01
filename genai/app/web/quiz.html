@@ -3,47 +3,49 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FinSwipe 금융 퀴즈</title>
+  <title>FinSwipe 투자 진단</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { min-height: 100vh; background: #0f1923; display: flex; align-items: center; justify-content: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #e8eaf0; padding: 20px; }
     .card { background: #1a2535; border-radius: 20px; padding: 40px; width: 100%; max-width: 660px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
 
+    /* 진행 바 */
     .progress-bar-wrap { background: #243044; border-radius: 99px; height: 6px; margin-bottom: 10px; overflow: hidden; }
     .progress-bar-fill { height: 100%; border-radius: 99px; transition: width 0.4s ease; }
-    .progress-bar-fill.knowledge { background: linear-gradient(90deg, #3b82f6, #8b5cf6); }
-    .progress-bar-fill.preference { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+    .knowledge-bar { background: linear-gradient(90deg, #3b82f6, #8b5cf6); }
+    .preference-bar { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+    .deep-bar { background: linear-gradient(90deg, #10b981, #3b82f6); }
     .progress-label { text-align: right; font-size: 13px; color: #6b7fa3; margin-bottom: 24px; }
 
     .phase-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 6px; }
     .phase-label.knowledge { color: #3b82f6; }
     .phase-label.preference { color: #f59e0b; }
-    .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px; margin-bottom: 16px; }
-    .badge.knowledge { background: #1e3a5f; color: #60a5fa; }
-    .badge.preference { background: #3d2a00; color: #fbbf24; }
+    .phase-label.deep { color: #10b981; }
+    .area-badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px; margin-bottom: 16px; }
+    .area-badge.knowledge { background: #1e3a5f; color: #60a5fa; }
+    .area-badge.preference { background: #3d2a00; color: #fbbf24; }
+    .area-badge.deep { background: #0d2e22; color: #34d399; }
 
     .question-text { font-size: 17px; line-height: 1.7; color: #d1d9ef; margin-bottom: 24px; min-height: 60px; }
     .choices { display: flex; flex-direction: column; gap: 10px; }
     .choice-btn { background: #243044; border: 2px solid #2d3f5c; border-radius: 12px; padding: 13px 16px; color: #c8d0e8; font-size: 14px; text-align: left; cursor: pointer; transition: all 0.15s; display: flex; gap: 10px; align-items: flex-start; }
-    .choice-btn:hover:not(:disabled) { border-color: #3b82f6; background: #1e3a5f; color: #e8edf8; }
+    .choice-btn:hover:not(:disabled) { border-color: #3b82f6; background: #1e3a5f; }
     .choice-btn .key { font-weight: 700; min-width: 18px; color: #3b82f6; }
     .choice-btn.correct { border-color: #22c55e; background: #14321f; color: #86efac; }
     .choice-btn.correct .key { color: #22c55e; }
     .choice-btn.wrong { border-color: #ef4444; background: #3b1212; color: #fca5a5; }
     .choice-btn.wrong .key { color: #ef4444; }
-    .choice-btn.moram { border-color: #6b7fa3; background: #1e2d44; color: #94a8c8; }
     .choice-btn.selected-pref { border-color: #f59e0b; background: #2d1f00; color: #fde68a; }
-    .choice-btn.selected-pref .key { color: #f59e0b; }
     .choice-btn.e-btn { border-style: dashed; color: #6b7fa3; }
     .choice-btn.e-btn .key { color: #4b5a73; }
     .choice-btn:disabled { cursor: default; }
 
     .explanation { margin-top: 16px; background: #1e2d44; border-left: 3px solid #3b82f6; border-radius: 8px; padding: 14px 16px; font-size: 14px; line-height: 1.6; color: #94a8c8; display: none; }
-    .explanation.moram-hint { border-color: #6b7fa3; }
     .explanation.pref-confirm { border-color: #f59e0b; color: #d4a04a; }
-
-    .next-btn { margin-top: 16px; width: 100%; padding: 13px; border: none; border-radius: 12px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; display: none; transition: opacity 0.15s; }
-    .next-btn.pref-mode { background: linear-gradient(135deg, #f59e0b, #ef4444); }
+    .next-btn { margin-top: 16px; width: 100%; padding: 13px; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; display: none; transition: opacity 0.15s; }
+    .next-btn.knowledge { background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: #fff; }
+    .next-btn.preference { background: linear-gradient(135deg, #f59e0b, #ef4444); color: #fff; }
+    .next-btn.deep { background: linear-gradient(135deg, #10b981, #3b82f6); color: #fff; }
     .next-btn:hover { opacity: 0.88; }
 
     /* 시작 */
@@ -52,12 +54,9 @@
     .start-screen p { color: #6b7fa3; font-size: 14px; line-height: 1.7; margin-bottom: 20px; }
     .phase-desc { display: flex; gap: 12px; margin-bottom: 28px; }
     .phase-box { flex: 1; background: #243044; border-radius: 12px; padding: 16px; text-align: left; }
-    .phase-box .ph-title { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 6px; }
-    .phase-box .ph-body { font-size: 13px; color: #7a90b4; line-height: 1.5; }
-    .ph-title.k { color: #3b82f6; }
-    .ph-title.p { color: #f59e0b; }
+    .ph-title { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 6px; }
+    .ph-body { font-size: 13px; color: #7a90b4; line-height: 1.5; }
     .start-btn { padding: 14px 40px; border: none; border-radius: 12px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; }
-    .start-btn:hover { opacity: 0.88; }
 
     /* 로딩 */
     .loader { text-align: center; padding: 40px 0; color: #6b7fa3; font-size: 15px; }
@@ -66,21 +65,31 @@
 
     /* 결과 */
     .result { text-align: center; padding: 10px 0; }
-    .result-row { display: flex; gap: 16px; margin-bottom: 16px; }
-    .result-box { flex: 1; background: #243044; border-radius: 14px; padding: 20px; text-align: center; }
-    .result-box .rb-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: #4b6a9b; text-transform: uppercase; margin-bottom: 8px; }
-    .result-box .rb-value { font-size: 48px; font-weight: 800; background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1; }
-    .result-box .rb-sub { font-size: 14px; color: #7a90b4; margin-top: 4px; }
-    .result-box .rb-tendency { font-size: 20px; font-weight: 700; color: #fbbf24; line-height: 1.2; }
+    .result-title { font-size: 18px; font-weight: 700; color: #d1d9ef; margin-bottom: 6px; }
+    .result-sub { font-size: 14px; color: #6b7fa3; margin-bottom: 24px; }
+
+    /* 오각형 차트 */
+    .pentagon-wrap { display: flex; justify-content: center; margin-bottom: 20px; }
+    svg.pentagon { overflow: visible; }
+    .pentagon-label { font-size: 12px; fill: #94a8c8; font-family: -apple-system, sans-serif; }
+    .pentagon-score { font-size: 11px; fill: #60a5fa; font-weight: 700; font-family: -apple-system, sans-serif; }
 
     .tendency-card { background: #243044; border-radius: 14px; padding: 20px 22px; margin-bottom: 16px; text-align: left; }
     .tendency-card .tc-title { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: #4b6a9b; text-transform: uppercase; margin-bottom: 8px; }
+    .tendency-card .tc-name { font-size: 20px; font-weight: 700; color: #fbbf24; margin-bottom: 8px; }
     .tendency-card .tc-desc { font-size: 14px; color: #7a90b4; line-height: 1.65; margin-bottom: 10px; }
     .news-hint { background: #1a2535; border-left: 3px solid #f59e0b; border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #d4a04a; line-height: 1.6; }
 
-    .score-row { font-size: 14px; color: #6b7fa3; margin-bottom: 20px; }
-    .restart-btn { padding: 12px 32px; border: none; border-radius: 12px; background: #243044; color: #c8d0e8; font-size: 15px; cursor: pointer; }
-    .restart-btn:hover { background: #2d3f5c; }
+    /* 심층/기본 선택 */
+    .choice-section { margin-bottom: 16px; }
+    .choice-section .choice-title { font-size: 14px; color: #6b7fa3; text-align: center; margin-bottom: 12px; }
+    .choice-row { display: flex; gap: 12px; }
+    .depth-btn { flex: 1; padding: 14px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; border: none; }
+    .depth-btn.basic { background: #243044; color: #c8d0e8; }
+    .depth-btn.basic:hover { background: #2d3f5c; }
+    .depth-btn.deep { background: linear-gradient(135deg, #10b981, #3b82f6); color: #fff; }
+    .depth-btn.deep:hover { opacity: 0.88; }
+
     .hidden { display: none !important; }
   </style>
 </head>
@@ -89,16 +98,16 @@
 
   <!-- 시작 -->
   <div id="screen-start" class="start-screen">
-    <h1>💹 금융 투자 진단</h1>
-    <p>10문제로 나의 금융 레벨과 투자 성향을 분석합니다.</p>
+    <h1>💹 투자 스탯 진단</h1>
+    <p>10문제로 투자 스탯과 투자 성향을 분석합니다.</p>
     <div class="phase-desc">
       <div class="phase-box">
-        <div class="ph-title k">Phase 1 · 지식 7문제</div>
-        <div class="ph-body">정답이 있는 금융 지식 퀴즈<br>난이도 자동 조절 → 레벨 1~5</div>
+        <div class="ph-title" style="color:#3b82f6">지식 7문제</div>
+        <div class="ph-body">5개 영역 금융 지식 측정<br>→ 오각형 스탯</div>
       </div>
       <div class="phase-box">
-        <div class="ph-title p">Phase 2 · 성향 3문제</div>
-        <div class="ph-body">정답 없는 시나리오 선택<br>투자 스타일 · 관심 분야 분석</div>
+        <div class="ph-title" style="color:#f59e0b">성향 3문제</div>
+        <div class="ph-body">정답 없는 시나리오<br>→ 투자 성향 타입</div>
       </div>
     </div>
     <button class="start-btn" onclick="startQuiz()">진단 시작</button>
@@ -116,169 +125,278 @@
       <div class="progress-bar-fill knowledge" id="progress-fill" style="width:0%"></div>
     </div>
     <div class="progress-label" id="progress-label"></div>
-    <div class="phase-label knowledge" id="phase-label">PHASE 1 · 지식</div>
-    <div class="badge knowledge" id="difficulty-badge"></div>
+    <div class="phase-label knowledge" id="phase-label"></div>
+    <div class="area-badge knowledge" id="area-badge"></div>
     <div class="question-text" id="question-text"></div>
     <div class="choices" id="choices"></div>
     <div class="explanation" id="explanation"></div>
-    <button class="next-btn" id="next-btn">다음 문제 →</button>
+    <button class="next-btn knowledge" id="next-btn">다음 문제 →</button>
   </div>
 
   <!-- 결과 -->
   <div id="screen-result" class="result hidden">
-    <div class="result-row">
-      <div class="result-box">
-        <div class="rb-label">금융 레벨</div>
-        <div class="rb-value" id="result-level"></div>
-        <div class="rb-sub" id="result-level-label"></div>
-      </div>
-      <div class="result-box">
-        <div class="rb-label">투자 성향</div>
-        <div class="rb-tendency" id="result-tendency"></div>
-      </div>
+    <div class="result-title" id="result-title"></div>
+    <div class="result-sub" id="result-sub"></div>
+
+    <div class="pentagon-wrap">
+      <svg class="pentagon" id="pentagon-svg" width="280" height="280" viewBox="-140 -140 280 280"></svg>
     </div>
-    <div class="score-row" id="result-score"></div>
+
     <div class="tendency-card">
-      <div class="tc-title">성향 분석</div>
+      <div class="tc-title">투자 성향</div>
+      <div class="tc-name" id="tendency-name"></div>
       <div class="tc-desc" id="tendency-desc"></div>
       <div class="news-hint" id="news-hint"></div>
     </div>
-    <button class="restart-btn" onclick="restartQuiz()">다시 진단하기</button>
+
+    <div class="choice-section" id="depth-choice">
+      <div class="choice-title">더 정밀한 분석을 원하시나요?</div>
+      <div class="choice-row">
+        <button class="depth-btn basic" onclick="proceedBasic()">이대로 시작하기</button>
+        <button class="depth-btn deep" onclick="startDeep()">심층 분석 (+5문제)</button>
+      </div>
+    </div>
+
+    <div id="result-done" class="hidden" style="text-align:center;">
+      <button style="padding:12px 32px;border:none;border-radius:12px;background:#243044;color:#c8d0e8;font-size:15px;cursor:pointer;" onclick="restartQuiz()">다시 진단하기</button>
+    </div>
   </div>
 
 </div>
+
 <script>
-  const BASE = '', AUTH = 'Basic ' + btoa('fin:***REMOVED-GENAI-BASIC-AUTH***');
-  const LEVEL_LABELS = {1:'입문', 2:'기초', 3:'중급', 4:'고급', 5:'전문가'};
-  const DIFF_LABELS  = {1:'입문', 2:'기초', 3:'중급', 4:'고급', 5:'전문가'};
-  let sessionId = null, currentQuestion = null, totalQ = 10, knowledgeQ = 7;
+const BASE = '', AUTH = 'Basic ' + btoa('fin:***REMOVED-GENAI-BASIC-AUTH***');
+const AREAS = ['기본개념', '마켓수급', '매크로', '펀더멘털', '리스크관리'];
+const AREA_COLORS = { '기본개념': '#3b82f6', '마켓수급': '#8b5cf6', '매크로': '#f59e0b', '펀더멘털': '#10b981', '리스크관리': '#ef4444' };
 
-  function api(path, opts={}) {
-    return fetch(BASE+path, {...opts, headers:{'Content-Type':'application/json','Authorization':AUTH,...(opts.headers||{})}}).then(r=>r.json());
+let sessionId = null, currentQuestion = null, totalQ = 10, knowledgeQ = 7;
+let isDeepMode = false;
+
+function api(path, opts = {}) {
+  return fetch(BASE + path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', 'Authorization': AUTH, ...(opts.headers || {}) }
+  }).then(r => r.json());
+}
+
+function show(id) {
+  ['screen-start','screen-loading','screen-quiz','screen-result'].forEach(s => document.getElementById(s).classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+}
+
+async function startQuiz() {
+  show('screen-loading');
+  const s = await api('/api/v1/quiz/sessions', { method: 'POST', body: JSON.stringify({ user_id: null }) });
+  sessionId = s.session_id;
+  totalQ = s.total_questions;
+  knowledgeQ = s.knowledge_questions;
+  await loadNextQuestion();
+}
+
+async function loadNextQuestion() {
+  show('screen-loading');
+  document.getElementById('loading-text').textContent = '문제를 생성하는 중...';
+  const q = await api(`/api/v1/quiz/sessions/${sessionId}/next-question`, { method: 'POST' });
+  currentQuestion = q;
+  renderQuestion(q);
+  show('screen-quiz');
+}
+
+function renderQuestion(q) {
+  const isPref = q.question_type === 'preference';
+  const isDeep = isDeepMode;
+  const fill = document.getElementById('progress-fill');
+  const phaseLbl = document.getElementById('phase-label');
+  const badge = document.getElementById('area-badge');
+
+  let phaseClass, barClass;
+  if (isDeep) { phaseClass = 'deep'; barClass = 'deep-bar'; }
+  else if (isPref) { phaseClass = 'preference'; barClass = 'preference-bar'; }
+  else { phaseClass = 'knowledge'; barClass = 'knowledge-bar'; }
+
+  fill.className = 'progress-bar-fill ' + barClass;
+  phaseLbl.className = 'phase-label ' + phaseClass;
+  badge.className = 'area-badge ' + phaseClass;
+
+  if (isDeep) {
+    phaseLbl.textContent = 'PHASE 3 · 심층 분석';
+    badge.textContent = q.area || '심층';
+  } else if (isPref) {
+    phaseLbl.textContent = 'PHASE 2 · 투자 성향';
+    badge.textContent = `성향 질문 ${q.question_number - knowledgeQ} / 3`;
+  } else {
+    phaseLbl.textContent = 'PHASE 1 · 투자 스탯';
+    badge.textContent = q.area || '지식';
   }
-  function show(id) {
-    ['screen-start','screen-loading','screen-quiz','screen-result'].forEach(s=>document.getElementById(s).classList.add('hidden'));
-    document.getElementById(id).classList.remove('hidden');
-  }
 
-  async function startQuiz() {
-    show('screen-loading');
-    document.getElementById('loading-text').textContent = '준비 중...';
-    const s = await api('/api/v1/quiz/sessions', {method:'POST', body:JSON.stringify({user_id:null})});
-    sessionId = s.session_id; totalQ = s.total_questions; knowledgeQ = s.knowledge_questions;
-    await loadNextQuestion();
-  }
+  const pct = ((q.question_number - 1) / totalQ) * 100;
+  fill.style.width = pct + '%';
+  document.getElementById('progress-label').textContent = `${q.question_number} / ${totalQ}`;
+  document.getElementById('question-text').textContent = q.question_text;
+  document.getElementById('explanation').style.display = 'none';
+  document.getElementById('explanation').className = 'explanation';
+  const nextBtn = document.getElementById('next-btn');
+  nextBtn.style.display = 'none';
+  nextBtn.className = 'next-btn ' + phaseClass;
 
-  async function loadNextQuestion() {
-    show('screen-loading');
-    const isPref = currentQuestion && currentQuestion.question_number >= knowledgeQ;
-    document.getElementById('loading-text').textContent = isPref ? '다음 질문 불러오는 중...' : '문제를 생성하는 중...';
-    const q = await api(`/api/v1/quiz/sessions/${sessionId}/next-question`, {method:'POST'});
-    currentQuestion = q;
-    renderQuestion(q);
-    show('screen-quiz');
-  }
+  const el = document.getElementById('choices');
+  el.innerHTML = '';
+  Object.entries(q.choices).forEach(([key, text]) => {
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn' + (key === 'E' && !isPref ? ' e-btn' : '');
+    btn.innerHTML = `<span class="key">${key}</span><span>${text}</span>`;
+    btn.onclick = () => submitAnswer(key);
+    el.appendChild(btn);
+  });
+}
 
-  function renderQuestion(q) {
-    const isPref = q.question_type === 'preference';
-    const phaseLbl = document.getElementById('phase-label');
-    const badge = document.getElementById('difficulty-badge');
-    const fill = document.getElementById('progress-fill');
+async function submitAnswer(answer) {
+  document.querySelectorAll('.choice-btn').forEach(b => b.disabled = true);
+  const r = await api(`/api/v1/quiz/sessions/${sessionId}/answers`, {
+    method: 'POST', body: JSON.stringify({ question_id: currentQuestion.question_id, answer })
+  });
 
-    phaseLbl.textContent = isPref ? 'PHASE 2 · 성향 분석' : 'PHASE 1 · 지식';
-    phaseLbl.className = 'phase-label ' + (isPref ? 'preference' : 'knowledge');
-    fill.className = 'progress-bar-fill ' + (isPref ? 'preference' : 'knowledge');
+  const btns = document.querySelectorAll('.choice-btn');
+  const keys = Object.keys(currentQuestion.choices);
+  const expEl = document.getElementById('explanation');
 
-    if (isPref) {
-      badge.textContent = `성향 질문 ${q.question_number - knowledgeQ} / 3`;
-      badge.className = 'badge preference';
-    } else {
-      const lvl = Math.max(1, Math.min(5, Math.round(q.difficulty)));
-      badge.textContent = DIFF_LABELS[lvl] + ' Lv.' + lvl;
-      badge.className = 'badge knowledge';
-    }
-
-    const pct = ((q.question_number - 1) / totalQ) * 100;
-    fill.style.width = pct + '%';
-    document.getElementById('progress-label').textContent = `${q.question_number} / ${totalQ}`;
-    document.getElementById('question-text').textContent = q.question_text;
-    document.getElementById('explanation').style.display = 'none';
-    document.getElementById('explanation').className = 'explanation';
-
-    const nextBtn = document.getElementById('next-btn');
-    nextBtn.style.display = 'none';
-    nextBtn.className = 'next-btn' + (isPref ? ' pref-mode' : '');
-
-    const el = document.getElementById('choices');
-    el.innerHTML = '';
-    Object.entries(q.choices).forEach(([key, text]) => {
-      const btn = document.createElement('button');
-      btn.className = 'choice-btn' + (key==='E' && !isPref ? ' e-btn' : '');
-      btn.innerHTML = `<span class="key">${key}</span><span>${text}</span>`;
-      btn.onclick = () => submitAnswer(key);
-      el.appendChild(btn);
+  if (r.is_preference) {
+    btns.forEach((btn, i) => { if (keys[i] === answer) btn.classList.add('selected-pref'); });
+    expEl.textContent = '선택하셨습니다.';
+    expEl.className = 'explanation pref-confirm';
+    expEl.style.display = 'block';
+  } else {
+    btns.forEach((btn, i) => {
+      const k = keys[i];
+      if (k === r.correct_answer) btn.classList.add('correct');
+      else if (k === answer && !r.is_correct) btn.classList.add('wrong');
     });
+    expEl.textContent = r.is_모름 ? `정답은 ${r.correct_answer}번입니다. ${r.explanation}` : r.explanation;
+    expEl.style.display = 'block';
   }
 
-  async function submitAnswer(answer) {
-    document.querySelectorAll('.choice-btn').forEach(b=>b.disabled=true);
-    const r = await api(`/api/v1/quiz/sessions/${sessionId}/answers`, {
-      method:'POST', body:JSON.stringify({question_id:currentQuestion.question_id, answer})
-    });
+  const pct = (r.questions_asked / totalQ) * 100;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = `${r.questions_asked} / ${totalQ}`;
 
-    const btns = document.querySelectorAll('.choice-btn');
-    const keys = Object.keys(currentQuestion.choices);
-    const expEl = document.getElementById('explanation');
+  const nextBtn = document.getElementById('next-btn');
+  nextBtn.style.display = 'block';
+  if (r.session_status === 'completed') {
+    nextBtn.textContent = '결과 보기 →';
+    nextBtn.onclick = () => showResult(r);
+  } else {
+    nextBtn.textContent = r.is_preference ? '다음 질문 →' : '다음 문제 →';
+    nextBtn.onclick = loadNextQuestion;
+  }
+}
 
-    if (r.is_preference) {
-      btns.forEach((btn,i) => { if (keys[i]===answer) btn.classList.add('selected-pref'); });
-      expEl.textContent = '선택하셨습니다. 다음 질문으로 넘어가세요.';
-      expEl.className = 'explanation pref-confirm';
-      expEl.style.display = 'block';
-    } else {
-      btns.forEach((btn,i) => {
-        const k = keys[i];
-        if (k===r.correct_answer) btn.classList.add('correct');
-        else if (k===answer && r.is_모름) btn.classList.add('moram');
-        else if (k===answer && !r.is_correct) btn.classList.add('wrong');
-      });
-      if (r.is_모름) {
-        expEl.textContent = `정답은 ${r.correct_answer}번입니다. ${r.explanation}`;
-        expEl.className = 'explanation moram-hint';
-      } else {
-        expEl.textContent = r.explanation;
-      }
-      expEl.style.display = 'block';
-    }
+function showResult(r) {
+  document.getElementById('result-title').textContent = '투자 스탯 분석 완료';
+  document.getElementById('result-sub').textContent = `${r.correct_count} / ${r.knowledge_questions} 정답`;
+  document.getElementById('tendency-name').textContent = r.tendency || '탐색형';
+  document.getElementById('tendency-desc').textContent = r.tendency_description || '';
+  document.getElementById('news-hint').textContent = r.news_hint || '';
+  drawPentagon(r.area_stats);
+  document.getElementById('depth-choice').classList.remove('hidden');
+  document.getElementById('result-done').classList.add('hidden');
+  show('screen-result');
+}
 
-    const pct = (r.questions_asked / totalQ) * 100;
-    document.getElementById('progress-fill').style.width = pct + '%';
-    document.getElementById('progress-label').textContent = `${r.questions_asked} / ${totalQ}`;
+function drawPentagon(areaStats) {
+  const svg = document.getElementById('pentagon-svg');
+  svg.innerHTML = '';
+  const R = 90, cx = 0, cy = 0;
+  const n = AREAS.length;
 
-    const nextBtn = document.getElementById('next-btn');
-    nextBtn.style.display = 'block';
-    nextBtn.className = 'next-btn' + (r.is_preference ? ' pref-mode' : '');
-    if (r.session_status === 'completed') {
-      nextBtn.textContent = '결과 보기 →';
-      nextBtn.onclick = () => showResult(r);
-    } else {
-      nextBtn.textContent = r.is_preference ? '다음 질문 →' : '다음 문제 →';
-      nextBtn.onclick = loadNextQuestion;
-    }
+  function point(idx, r) {
+    const angle = (idx * 2 * Math.PI / n) - Math.PI / 2;
+    return { x: r * Math.cos(angle), y: r * Math.sin(angle) };
   }
 
-  function showResult(r) {
-    const level = r.final_level;
-    document.getElementById('result-level').textContent = level;
-    document.getElementById('result-level-label').textContent = LEVEL_LABELS[level];
-    document.getElementById('result-tendency').textContent = r.tendency || '탐색형';
-    document.getElementById('result-score').textContent = `지식 문제 ${r.correct_count} / ${r.knowledge_questions} 정답`;
-    document.getElementById('tendency-desc').textContent = r.tendency_description || '';
-    document.getElementById('news-hint').textContent = r.news_hint || '';
-    show('screen-result');
+  // 배경 그리드 (5단계)
+  for (let g = 1; g <= 5; g++) {
+    const r = (g / 5) * R;
+    const pts = AREAS.map((_, i) => point(i, r));
+    const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ') + 'Z';
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', '#2d3f5c');
+    path.setAttribute('stroke-width', '1');
+    svg.appendChild(path);
   }
 
-  function restartQuiz() { sessionId=null; currentQuestion=null; show('screen-start'); }
+  // 축선
+  AREAS.forEach((_, i) => {
+    const p = point(i, R);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', '0'); line.setAttribute('y1', '0');
+    line.setAttribute('x2', p.x.toFixed(1)); line.setAttribute('y2', p.y.toFixed(1));
+    line.setAttribute('stroke', '#2d3f5c'); line.setAttribute('stroke-width', '1');
+    svg.appendChild(line);
+  });
+
+  // 스탯 채움
+  const scores = AREAS.map(a => {
+    if (!areaStats || !areaStats[a]) return 0;
+    return areaStats[a].score ?? 0;
+  });
+  const statPts = AREAS.map((_, i) => point(i, (scores[i] / 5) * R));
+  const statD = statPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ') + 'Z';
+  const statPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  statPath.setAttribute('d', statD);
+  statPath.setAttribute('fill', 'rgba(59,130,246,0.25)');
+  statPath.setAttribute('stroke', '#3b82f6');
+  statPath.setAttribute('stroke-width', '2');
+  svg.appendChild(statPath);
+
+  // 점
+  AREAS.forEach((_, i) => {
+    const p = statPts[i];
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', p.x.toFixed(1)); circle.setAttribute('cy', p.y.toFixed(1));
+    circle.setAttribute('r', '4'); circle.setAttribute('fill', '#3b82f6');
+    svg.appendChild(circle);
+  });
+
+  // 라벨
+  AREAS.forEach((area, i) => {
+    const p = point(i, R + 24);
+    const score = areaStats && areaStats[area] ? (areaStats[area].score ?? '?') : '?';
+
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', p.x.toFixed(1)); text.setAttribute('y', p.y.toFixed(1));
+    text.setAttribute('text-anchor', 'middle'); text.setAttribute('dominant-baseline', 'middle');
+    text.setAttribute('class', 'pentagon-label');
+    text.textContent = area;
+    svg.appendChild(text);
+
+    const scoreText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    scoreText.setAttribute('x', p.x.toFixed(1)); scoreText.setAttribute('y', (parseFloat(p.y) + 14).toFixed(1));
+    scoreText.setAttribute('text-anchor', 'middle'); scoreText.setAttribute('dominant-baseline', 'middle');
+    scoreText.setAttribute('class', 'pentagon-score');
+    scoreText.textContent = score !== '?' ? `${score}/5` : '-';
+    svg.appendChild(scoreText);
+  });
+}
+
+async function startDeep() {
+  document.getElementById('depth-choice').classList.add('hidden');
+  await api(`/api/v1/quiz/sessions/${sessionId}/deep`, { method: 'POST' });
+  isDeepMode = true;
+  totalQ = 10 + 5;
+  await loadNextQuestion();
+}
+
+function proceedBasic() {
+  document.getElementById('depth-choice').classList.add('hidden');
+  document.getElementById('result-done').classList.remove('hidden');
+}
+
+function restartQuiz() {
+  sessionId = null; currentQuestion = null; isDeepMode = false; totalQ = 10;
+  show('screen-start');
+}
 </script>
 </body>
 </html>

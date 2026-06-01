@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from app.schemas.quiz import (
     AnswerResultResponse,
     CreateSessionRequest,
+    DeepAnalysisResponse,
     QuestionResponse,
     SessionResponse,
     SubmitAnswerRequest,
@@ -48,11 +49,18 @@ async def next_question(session_id: str) -> QuestionResponse:
 async def submit_answer(session_id: str, body: SubmitAnswerRequest) -> AnswerResultResponse:
     try:
         result = await asyncio.to_thread(
-            quiz_service.submit_answer,
-            session_id,
-            body.question_id,
-            body.answer,
+            quiz_service.submit_answer, session_id, body.question_id, body.answer,
         )
         return AnswerResultResponse(**result)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/sessions/{session_id}/deep", response_model=DeepAnalysisResponse)
+async def start_deep_analysis(session_id: str) -> DeepAnalysisResponse:
+    """기본 퀴즈 완료 후 심층 분석 시작."""
+    try:
+        result = await asyncio.to_thread(quiz_service.start_deep_analysis, session_id)
+        return DeepAnalysisResponse(**result)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
