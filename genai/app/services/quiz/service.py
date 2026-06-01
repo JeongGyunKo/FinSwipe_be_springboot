@@ -172,6 +172,19 @@ _KNOWLEDGE_SYSTEM_PROMPT = """당신은 금융 투자 교육 전문가입니다.
 E번은 항상 "잘 모르겠다"로 고정. correct_answer는 절대 E 불가."""
 
 
+def _shuffle_choices(choices: dict, correct_answer: str) -> tuple[dict, str]:
+    """A~D 선택지를 랜덤으로 섞고, 정답 키를 새 위치로 업데이트."""
+    import random
+    keys = ["A", "B", "C", "D"]
+    texts = [choices[k] for k in keys]
+    random.shuffle(texts)
+    shuffled = {k: t for k, t in zip(keys, texts)}
+    shuffled["E"] = "잘 모르겠다"
+    original_text = choices[correct_answer]
+    new_correct = next(k for k, t in shuffled.items() if t == original_text)
+    return shuffled, new_correct
+
+
 def _build_knowledge_prompt(difficulty: float, used_topics: list[str]) -> str:
     level = max(1, min(5, round(difficulty)))
     label = _DIFFICULTY_LABELS[level]
@@ -345,11 +358,13 @@ def _get_knowledge_question(session_id: str, question_number: int, difficulty: f
     choices = parsed["choices"]
     if not isinstance(choices, dict) or not {"A", "B", "C", "D"}.issubset(choices.keys()):
         raise RuntimeError("Gemini가 올바른 선택지 형식을 반환하지 않았습니다.")
-    choices["E"] = "잘 모르겠다"
 
     correct_answer = parsed["correct_answer"].strip().upper()
     if correct_answer not in {"A", "B", "C", "D"}:
         raise RuntimeError("Gemini가 올바른 정답을 반환하지 않았습니다.")
+
+    # 정답 위치 편향 제거 (LLM이 A에 정답을 몰아주는 경향)
+    choices, correct_answer = _shuffle_choices(choices, correct_answer)
 
     category = parsed.get("category", "").strip()
     topic = parsed.get("topic", "").strip()
