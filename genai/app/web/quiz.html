@@ -142,6 +142,15 @@
       <svg class="pentagon" id="pentagon-svg" width="280" height="280" viewBox="-140 -140 280 280"></svg>
     </div>
 
+    <!-- 강한/보완 영역 요약 -->
+    <div id="area-summary" style="display:flex;gap:10px;margin-bottom:16px;"></div>
+
+    <!-- 영역 설명 -->
+    <div id="area-desc-section" style="background:#243044;border-radius:14px;padding:16px 20px;margin-bottom:16px;">
+      <div style="font-size:11px;font-weight:600;letter-spacing:.08em;color:#4b6a9b;text-transform:uppercase;margin-bottom:12px;">영역 설명</div>
+      <div id="area-descs"></div>
+    </div>
+
     <div class="tendency-card">
       <div class="tc-title">투자 성향</div>
       <div class="tc-name" id="tendency-name"></div>
@@ -168,6 +177,13 @@
 const BASE = '', AUTH = 'Basic ' + btoa('fin:***REMOVED-GENAI-BASIC-AUTH***');
 const AREAS = ['기본개념', '마켓수급', '매크로', '펀더멘털', '리스크관리'];
 const AREA_COLORS = { '기본개념': '#3b82f6', '마켓수급': '#8b5cf6', '매크로': '#f59e0b', '펀더멘털': '#10b981', '리스크관리': '#ef4444' };
+const AREA_DESCS = {
+  '기본개념': '주식·채권·ETF의 의미, 주주 개념, 시장 구조 등 투자의 첫 걸음이 되는 기초 지식',
+  '마켓수급': '거래량·수급 흐름, RSI·MACD 등 기술적 신호, 어닝 서프라이즈와 선반영 원리',
+  '매크로':   '기준금리·환율·GDP·인플레이션 등 거시경제 변수가 주가에 미치는 영향',
+  '펀더멘털': 'PER·PBR·ROE·EPS 등 재무지표로 기업 내재가치를 분석하는 능력',
+  '리스크관리': '베타계수·변동성·포트폴리오 분산·손절·헤징 등 손실 방어 전략',
+};
 
 let sessionId = null, currentQuestion = null, totalQ = 10, knowledgeQ = 7;
 let isDeepMode = false;
@@ -297,6 +313,8 @@ function showResult(r) {
   document.getElementById('tendency-desc').textContent = r.tendency_description || '';
   document.getElementById('news-hint').textContent = r.news_hint || '';
   drawPentagon(r.area_stats);
+  drawAreaSummary(r.area_stats);
+  drawAreaDescs(r.area_stats);
   document.getElementById('depth-choice').classList.remove('hidden');
   document.getElementById('result-done').classList.add('hidden');
   show('screen-result');
@@ -378,6 +396,46 @@ function drawPentagon(areaStats) {
     scoreText.textContent = score !== '?' ? `${score}/5` : '-';
     svg.appendChild(scoreText);
   });
+}
+
+function drawAreaSummary(areaStats) {
+  if (!areaStats) return;
+  const strong = AREAS.filter(a => areaStats[a]?.score != null && areaStats[a].score >= 3.5);
+  const weak   = AREAS.filter(a => areaStats[a]?.score != null && areaStats[a].score < 2.5);
+  const el = document.getElementById('area-summary');
+  el.innerHTML = '';
+  if (strong.length) {
+    el.innerHTML += `<div style="flex:1;background:#0d2418;border-radius:10px;padding:12px 14px;">
+      <div style="font-size:11px;color:#34d399;font-weight:600;margin-bottom:6px;">💪 강한 영역</div>
+      <div style="font-size:13px;color:#86efac;">${strong.join(' · ')}</div>
+    </div>`;
+  }
+  if (weak.length) {
+    el.innerHTML += `<div style="flex:1;background:#2d1212;border-radius:10px;padding:12px 14px;">
+      <div style="font-size:11px;color:#f87171;font-weight:600;margin-bottom:6px;">📈 보완하면 좋은 영역</div>
+      <div style="font-size:13px;color:#fca5a5;">${weak.join(' · ')}</div>
+    </div>`;
+  }
+}
+
+function drawAreaDescs(areaStats) {
+  const el = document.getElementById('area-descs');
+  el.innerHTML = AREAS.map(a => {
+    const s = areaStats?.[a];
+    const score = s?.score != null ? s.score : null;
+    const bar = score != null ? Math.round((score / 5) * 100) : 0;
+    const color = AREA_COLORS[a];
+    return `<div style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <span style="font-size:13px;font-weight:600;color:${color}">${a}</span>
+        <span style="font-size:12px;color:#6b7fa3">${score != null ? score + '/5' : '-'}</span>
+      </div>
+      <div style="background:#1a2535;border-radius:99px;height:4px;margin-bottom:5px;">
+        <div style="background:${color};width:${bar}%;height:4px;border-radius:99px;transition:width .4s"></div>
+      </div>
+      <div style="font-size:12px;color:#6b7fa3;line-height:1.5">${AREA_DESCS[a]}</div>
+    </div>`;
+  }).join('');
 }
 
 async function startDeep() {
