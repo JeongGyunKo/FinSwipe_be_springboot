@@ -102,12 +102,12 @@
     <p>10문제로 투자 스탯과 투자 성향을 분석합니다.</p>
     <div class="phase-desc">
       <div class="phase-box">
-        <div class="ph-title" style="color:#3b82f6">지식 7문제</div>
-        <div class="ph-body">5개 영역 금융 지식 측정<br>→ 오각형 스탯</div>
+        <div class="ph-title" style="color:#3b82f6">10문제 · 5개 영역</div>
+        <div class="ph-body">기본개념·마켓수급·매크로<br>펀더멘털·리스크관리</div>
       </div>
       <div class="phase-box">
-        <div class="ph-title" style="color:#f59e0b">성향 3문제</div>
-        <div class="ph-body">정답 없는 시나리오<br>→ 투자 성향 타입</div>
+        <div class="ph-title" style="color:#10b981">오각형 스탯 + 성향</div>
+        <div class="ph-body">영역별 점수 시각화<br>→ 맞춤 분석 제공</div>
       </div>
     </div>
     <button class="start-btn" onclick="startQuiz()">진단 시작</button>
@@ -139,29 +139,34 @@
 
   <!-- 결과 -->
   <div id="screen-result" class="result hidden">
-    <div class="result-title" id="result-title"></div>
-    <div class="result-sub" id="result-sub"></div>
 
+    <!-- 타이틀 -->
+    <div style="text-align:center;margin-bottom:20px;">
+      <div style="font-size:13px;color:#6b7fa3;margin-bottom:4px;">나의 투자 스탯을 분석했어요</div>
+      <div id="tendency-headline" style="font-size:20px;font-weight:700;color:#e8eaf0;"></div>
+    </div>
+
+    <!-- 오각형 차트 -->
     <div class="pentagon-wrap">
       <svg class="pentagon" id="pentagon-svg" width="280" height="280" viewBox="-140 -140 280 280"></svg>
     </div>
 
-    <!-- 강한/보완 영역 요약 -->
+    <!-- 강한/보완 영역 -->
     <div id="area-summary" style="display:flex;gap:10px;margin-bottom:16px;"></div>
 
-    <!-- 영역 설명 -->
-    <div id="area-desc-section" style="background:#243044;border-radius:14px;padding:16px 20px;margin-bottom:16px;">
-      <div style="font-size:11px;font-weight:600;letter-spacing:.08em;color:#4b6a9b;text-transform:uppercase;margin-bottom:12px;">영역 설명</div>
+    <!-- 영역별 설명 -->
+    <div style="background:#243044;border-radius:14px;padding:16px 20px;margin-bottom:16px;">
+      <div style="font-size:11px;font-weight:600;letter-spacing:.08em;color:#4b6a9b;text-transform:uppercase;margin-bottom:12px;">영역별 분석</div>
       <div id="area-descs"></div>
     </div>
 
-    <div class="tendency-card">
-      <div class="tc-title">투자 성향</div>
-      <div class="tc-name" id="tendency-name"></div>
-      <div class="tc-desc" id="tendency-desc"></div>
-      <div class="news-hint" id="news-hint"></div>
+    <!-- 맞춤 분석 안내 -->
+    <div style="background:#1e2d44;border-left:3px solid #3b82f6;border-radius:10px;padding:16px 18px;margin-bottom:16px;">
+      <div style="font-size:11px;font-weight:600;letter-spacing:.08em;color:#3b82f6;text-transform:uppercase;margin-bottom:10px;">이런 분석을 제공해드려요</div>
+      <div id="analysis-hints"></div>
     </div>
 
+    <!-- 심층/완료 선택 -->
     <div class="choice-section" id="depth-choice">
       <div class="choice-title">더 정밀한 분석을 원하시나요?</div>
       <div class="choice-row">
@@ -240,25 +245,12 @@ function renderQuestion(q) {
   const phaseLbl = document.getElementById('phase-label');
   const badge = document.getElementById('area-badge');
 
-  let phaseClass, barClass;
-  if (isDeep) { phaseClass = 'deep'; barClass = 'deep-bar'; }
-  else if (isPref) { phaseClass = 'preference'; barClass = 'preference-bar'; }
-  else { phaseClass = 'knowledge'; barClass = 'knowledge-bar'; }
-
-  fill.className = 'progress-bar-fill ' + barClass;
+  let phaseClass = isDeepMode ? 'deep' : 'knowledge';
+  fill.className = 'progress-bar-fill ' + (isDeepMode ? 'deep-bar' : 'knowledge-bar');
   phaseLbl.className = 'phase-label ' + phaseClass;
   badge.className = 'area-badge ' + phaseClass;
-
-  if (isDeep) {
-    phaseLbl.textContent = 'PHASE 3 · 심층 분석';
-    badge.textContent = q.area || '심층';
-  } else if (isPref) {
-    phaseLbl.textContent = 'PHASE 2 · 투자 성향';
-    badge.textContent = `성향 질문 ${q.question_number - knowledgeQ} / 3`;
-  } else {
-    phaseLbl.textContent = 'PHASE 1 · 투자 스탯';
-    badge.textContent = q.area || '지식';
-  }
+  phaseLbl.textContent = isDeepMode ? 'PHASE 2 · 심층 분석' : 'PHASE 1 · 투자 스탯';
+  badge.textContent = q.area || '지식';
 
   const pct = ((q.question_number - 1) / totalQ) * 100;
   fill.style.width = pct + '%';
@@ -291,20 +283,13 @@ async function submitAnswer(answer) {
   const keys = Object.keys(currentQuestion.choices);
   const expEl = document.getElementById('explanation');
 
-  if (r.is_preference) {
-    btns.forEach((btn, i) => { if (keys[i] === answer) btn.classList.add('selected-pref'); });
-    expEl.textContent = '선택하셨습니다.';
-    expEl.className = 'explanation pref-confirm';
-    expEl.style.display = 'block';
-  } else {
-    btns.forEach((btn, i) => {
-      const k = keys[i];
-      if (k === r.correct_answer) btn.classList.add('correct');
-      else if (k === answer && !r.is_correct) btn.classList.add('wrong');
-    });
-    expEl.textContent = r.is_모름 ? `정답은 ${r.correct_answer}번입니다. ${r.explanation}` : r.explanation;
-    expEl.style.display = 'block';
-  }
+  btns.forEach((btn, i) => {
+    const k = keys[i];
+    if (k === r.correct_answer) btn.classList.add('correct');
+    else if (k === answer && !r.is_correct) btn.classList.add('wrong');
+  });
+  expEl.textContent = r.is_모름 ? `정답은 ${r.correct_answer}번입니다. ${r.explanation}` : r.explanation;
+  expEl.style.display = 'block';
 
   const pct = (r.questions_asked / totalQ) * 100;
   document.getElementById('progress-fill').style.width = pct + '%';
@@ -322,14 +307,19 @@ async function submitAnswer(answer) {
 }
 
 function showResult(r) {
-  document.getElementById('result-title').textContent = '투자 스탯 분석 완료';
-  document.getElementById('result-sub').textContent = `${r.correct_count} / ${r.knowledge_questions} 정답`;
-  document.getElementById('tendency-name').textContent = r.tendency || '탐색형';
-  document.getElementById('tendency-desc').textContent = r.tendency_description || '';
-  document.getElementById('news-hint').textContent = r.news_hint || '';
+  const emoji = r.tendency_emoji || '📊';
+  const label = r.tendency || '탐색형 투자자';
+  document.getElementById('tendency-headline').textContent = `${emoji} ${label}`;
   drawPentagon(r.area_stats);
   drawAreaSummary(r.area_stats);
   drawAreaDescs(r.area_stats);
+  // 맞춤 분석 힌트
+  const hintsEl = document.getElementById('analysis-hints');
+  const hints = r.analysis_hints || [];
+  hintsEl.innerHTML = hints.map(h => `<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;">
+    <span style="color:#60a5fa;font-size:12px;margin-top:2px;">•</span>
+    <span style="font-size:13px;color:#94a8c8;line-height:1.5">${h}</span>
+  </div>`).join('');
   document.getElementById('depth-choice').classList.remove('hidden');
   document.getElementById('result-done').classList.add('hidden');
   show('screen-result');

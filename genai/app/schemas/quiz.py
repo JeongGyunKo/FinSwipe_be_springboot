@@ -24,7 +24,7 @@ class SessionResponse(BaseModel):
 class QuestionResponse(BaseModel):
     question_id: str
     question_number: int
-    question_type: str          # "knowledge" | "preference"
+    question_type: str
     area: Optional[str] = None
     question_text: str
     choices: dict[str, str]
@@ -40,7 +40,7 @@ class SubmitAnswerRequest(BaseModel):
     def answer_must_be_valid(cls, v: str) -> str:
         normalized = v.strip().upper()
         if normalized not in {"A", "B", "C", "D", "E"}:
-            raise ValueError("답은 A, B, C, D, E 중 하나여야 합니다.")
+            raise ValueError("답은 A~E 중 하나여야 합니다.")
         return normalized
 
 
@@ -55,11 +55,12 @@ class AnswerResultResponse(BaseModel):
     correct_count: int
     total_questions: int
     knowledge_questions: int
-    # 완료 시
     area_stats: Optional[dict[str, Any]] = None
     tendency: Optional[str] = None
+    tendency_emoji: Optional[str] = None
     tendency_description: Optional[str] = None
-    news_hint: Optional[str] = None
+    analysis_hints: Optional[list[str]] = None
+    strongest_area: Optional[str] = None
 
 
 class DeepAnalysisResponse(BaseModel):
