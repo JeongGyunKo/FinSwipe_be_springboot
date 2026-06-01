@@ -185,14 +185,34 @@ def _shuffle_choices(choices: dict, correct_answer: str) -> tuple[dict, str]:
     return shuffled, new_correct
 
 
+_QUESTION_TYPES = [
+    "개념 계산 (예: PER이 20이고 EPS가 5달러일 때 주가는?)",
+    "인과관계 (예: 기준금리 상승 시 채권 가격 변화는?)",
+    "지표 해석 (예: RSI가 80일 때 의미하는 신호는?)",
+    "차이점 비교 (예: ETF와 일반 펀드의 가장 큰 차이는?)",
+    "사실 확인 (예: 코스피200에 포함된 종목 수는?)",
+]
+
 def _build_knowledge_prompt(difficulty: float, used_topics: list[str]) -> str:
+    import random
     level = max(1, min(5, round(difficulty)))
     label = _DIFFICULTY_LABELS[level]
-    topics_str = ", ".join(used_topics) if used_topics else "없음"
+    question_type = random.choice(_QUESTION_TYPES)
+
+    if used_topics:
+        prev_str = "\n".join(f"- {q}" for q in used_topics[:20])
+        dedup_instruction = f"""
+아래는 이미 출제된 문제들입니다. 이와 동일하거나 매우 유사한 내용을 묻는 문제는 절대 생성하지 마세요:
+{prev_str}
+"""
+    else:
+        dedup_instruction = ""
+
     return (
         f"난이도 {level}/5 ({label}) 수준의 금융 지식 문제 1개를 생성해주세요.\n"
-        f"이미 출제된 주제 (동일하거나 유사한 주제 중복 금지): {topics_str}\n"
-        f"위 주제들과 다른 카테고리에서 출제하세요."
+        f"문제 유형: {question_type}\n"
+        f"{dedup_instruction}"
+        f"완전히 다른 개념과 다른 유형의 문제를 출제하세요."
     )
 
 
@@ -338,9 +358,9 @@ def _get_knowledge_question(session_id: str, question_number: int, difficulty: f
 
     with connect_postgres(settings.postgres_dsn) as conn:
         with conn.cursor() as cur:
-            # 현재 세션 + 같은 user_id의 최근 50개 문제 주제까지 추적 (중복 방지)
+            # 현재 세션 + 같은 user_id의 최근 40개 질문 텍스트 수집
             cur.execute("""
-                SELECT qq.topic
+                SELECT qq.question_text
                 FROM quiz_questions qq
                 JOIN quiz_sessions qs ON qs.id = qq.session_id
                 WHERE qq.question_type = 'multiple_choice'
@@ -352,11 +372,10 @@ def _get_knowledge_question(session_id: str, question_number: int, difficulty: f
                     )
                   )
                 ORDER BY qq.created_at DESC
-                LIMIT 50
+                LIMIT 40
             """, (session_id, session_id))
-            raw_topics = [r["topic"] for r in cur.fetchall() if r["topic"]]
-            # "카테고리|주제" → "주제"만 추출해서 Gemini에 전달
-            used_topics = [t.split("|")[-1] if "|" in t else t for t in raw_topics]
+            # 앞 30자만 추출해서 전달 (Gemini가 유사 문제 피하도록)
+            used_topics = [r["question_text"][:30] for r in cur.fetchall() if r["question_text"]]
 
     raw = gemini_generate_content(
         system_prompt=_KNOWLEDGE_SYSTEM_PROMPT,
