@@ -146,12 +146,12 @@ _KNOWLEDGE_SYSTEM_PROMPT = """당신은 금융 투자 교육 전문가입니다.
 - 기술적분석: RSI, MACD, 이동평균선, 볼린저밴드
 - 리스크지표: 베타계수, 표준편차, 샤프지수, VaR
 
-【난이도 기준】
-- 1 (입문): 주식이란, 시장 종류, 기초 용어 정의
-- 2 (기초): PER 계산, 배당수익률, 금리와 채권 관계
-- 3 (중급): EBITDA, 베타계수, MACD 해석
-- 4 (고급): DCF 모델, 옵션 그릭스, 포트폴리오 분산
-- 5 (전문가): 블랙숄즈, 차익거래, 파생상품 구조
+【난이도 기준 — 반드시 해당 수준에 맞는 문제를 출제하세요】
+- 1 (입문): 매우 기초. 예) "주식 1주는 무엇을 의미하나요?", "코스피와 코스닥의 차이는?"
+- 2 (기초): 기본 지식. 예) "PER이 10이면 주가는 EPS의 몇 배?", "배당수익률 계산법은?"
+- 3 (중급): 실전 개념. 예) "베타계수 1.5인 주식의 의미는?", "MACD 골든크로스 신호는?"
+- 4 (고급): 심화 분석. 예) "DCF 모델에서 할인율이 높아지면 기업가치는?", "옵션 델타값 0.7의 의미는?"
+- 5 (전문가): 전문가 수준. 예) "블랙숄즈 모델에서 변동성이 높아지면 콜옵션 가치는?", "차익거래 전략에서 무위험 수익 조건은?"
 
 반드시 다음 JSON 형식으로만 응답하세요. JSON 외 텍스트 금지:
 {
@@ -190,29 +190,47 @@ _QUESTION_TYPES = [
     "인과관계 (예: 기준금리 상승 시 채권 가격 변화는?)",
     "지표 해석 (예: RSI가 80일 때 의미하는 신호는?)",
     "차이점 비교 (예: ETF와 일반 펀드의 가장 큰 차이는?)",
-    "사실 확인 (예: 코스피200에 포함된 종목 수는?)",
+    "심화 개념 (예: 베타계수 1.5인 주식의 시장 대비 변동성은?)",
 ]
 
-def _build_knowledge_prompt(difficulty: float, used_topics: list[str]) -> str:
+def _build_knowledge_prompt(
+    difficulty: float,
+    used_questions: list[str],
+    last_category: str | None = None,
+    last_correct: bool | None = None,
+) -> str:
     import random
     level = max(1, min(5, round(difficulty)))
     label = _DIFFICULTY_LABELS[level]
     question_type = random.choice(_QUESTION_TYPES)
 
-    if used_topics:
-        prev_str = "\n".join(f"- {q}" for q in used_topics[:20])
-        dedup_instruction = f"""
-아래는 이미 출제된 문제들입니다. 이와 동일하거나 매우 유사한 내용을 묻는 문제는 절대 생성하지 마세요:
-{prev_str}
-"""
+    # 분기 지침
+    if last_category and last_correct is True:
+        branch = (
+            f"직전 문제를 맞혔습니다. [{last_category}] 카테고리에서 "
+            f"더 심화된 개념이나 응용 문제를 출제하세요."
+        )
+    elif last_category and last_correct is False:
+        branch = (
+            f"직전 문제를 틀렸습니다. [{last_category}]와 다른 카테고리에서 "
+            f"새로운 개념을 출제하세요."
+        )
     else:
-        dedup_instruction = ""
+        branch = "기업재무 카테고리의 기초 용어로 시작하세요."
+
+    # 중복 방지
+    if used_questions:
+        prev_str = "\n".join(f"- {q}" for q in used_questions[:20])
+        dedup = f"\n아래 문제들과 동일하거나 유사한 내용 금지:\n{prev_str}\n"
+    else:
+        dedup = ""
 
     return (
         f"난이도 {level}/5 ({label}) 수준의 금융 지식 문제 1개를 생성해주세요.\n"
         f"문제 유형: {question_type}\n"
-        f"{dedup_instruction}"
-        f"완전히 다른 개념과 다른 유형의 문제를 출제하세요."
+        f"분기 지침: {branch}\n"
+        f"{dedup}"
+        f"위 지침을 반드시 따르세요."
     )
 
 
@@ -226,9 +244,9 @@ def _parse_gemini_response(raw_text: str) -> dict:
 
 def _adjust_difficulty(current: float, is_correct: bool, is_모름: bool = False) -> float:
     if is_correct:
-        return min(5.0, round(current + 0.4, 2))
+        return min(5.0, round(current + 0.5, 2))
     else:
-        return max(1.0, round(current - 0.3, 2))
+        return max(1.0, round(current - 0.4, 2))
 
 
 def _compute_final_level(difficulty: float) -> int:
@@ -285,7 +303,7 @@ def create_session(user_id: str | None) -> dict:
                 """
                 INSERT INTO quiz_sessions
                     (id, user_id, current_difficulty, questions_asked, correct_count, status, started_at, created_at)
-                VALUES (%s, %s, 1.0, 0, 0, 'in_progress', %s, %s)
+                VALUES (%s, %s, 2.0, 0, 0, 'in_progress', %s, %s)
                 RETURNING id, current_difficulty, questions_asked, correct_count, status, final_level
                 """,
                 (session_id, user_id, now, now),
@@ -358,9 +376,9 @@ def _get_knowledge_question(session_id: str, question_number: int, difficulty: f
 
     with connect_postgres(settings.postgres_dsn) as conn:
         with conn.cursor() as cur:
-            # 현재 세션 + 같은 user_id의 최근 40개 질문 텍스트 수집
+            # 현재 세션 내 이전 문제들 (카테고리 + 정답 여부 + 질문 텍스트)
             cur.execute("""
-                SELECT qq.question_text
+                SELECT qq.topic, qq.is_correct, qq.question_text
                 FROM quiz_questions qq
                 JOIN quiz_sessions qs ON qs.id = qq.session_id
                 WHERE qq.question_type = 'multiple_choice'
@@ -374,12 +392,26 @@ def _get_knowledge_question(session_id: str, question_number: int, difficulty: f
                 ORDER BY qq.created_at DESC
                 LIMIT 40
             """, (session_id, session_id))
-            # 앞 30자만 추출해서 전달 (Gemini가 유사 문제 피하도록)
-            used_topics = [r["question_text"][:30] for r in cur.fetchall() if r["question_text"]]
+            rows = cur.fetchall()
+
+    used_questions = [r["question_text"][:30] for r in rows if r["question_text"]]
+
+    # 직전 문제 기반 분기 컨텍스트
+    last_category = None
+    last_correct = None
+    if rows:
+        last = rows[0]
+        raw_topic = last["topic"] or ""
+        last_category = raw_topic.split("|")[0] if "|" in raw_topic else None
+        last_correct = last["is_correct"]
 
     raw = gemini_generate_content(
         system_prompt=_KNOWLEDGE_SYSTEM_PROMPT,
-        user_prompt=_build_knowledge_prompt(difficulty, used_topics),
+        user_prompt=_build_knowledge_prompt(
+            difficulty, used_questions,
+            last_category=last_category,
+            last_correct=last_correct,
+        ),
         model=settings.gemini_summary_model,
         temperature=0.9,
         request_label="quiz_knowledge",
