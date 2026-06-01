@@ -338,17 +338,31 @@ def _get_knowledge_question(session_id: str, question_number: int, difficulty: f
 
     with connect_postgres(settings.postgres_dsn) as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT topic FROM quiz_questions WHERE session_id = %s AND question_type = 'multiple_choice' ORDER BY question_number ASC",
-                (session_id,),
-            )
-            used_topics = [r["topic"] for r in cur.fetchall() if r["topic"]]
+            # 현재 세션 + 같은 user_id의 최근 50개 문제 주제까지 추적 (중복 방지)
+            cur.execute("""
+                SELECT qq.topic
+                FROM quiz_questions qq
+                JOIN quiz_sessions qs ON qs.id = qq.session_id
+                WHERE qq.question_type = 'multiple_choice'
+                  AND (
+                    qq.session_id = %s
+                    OR (
+                      qs.user_id = (SELECT user_id FROM quiz_sessions WHERE id = %s)
+                      AND qs.user_id IS NOT NULL
+                    )
+                  )
+                ORDER BY qq.created_at DESC
+                LIMIT 50
+            """, (session_id, session_id))
+            raw_topics = [r["topic"] for r in cur.fetchall() if r["topic"]]
+            # "카테고리|주제" → "주제"만 추출해서 Gemini에 전달
+            used_topics = [t.split("|")[-1] if "|" in t else t for t in raw_topics]
 
     raw = gemini_generate_content(
         system_prompt=_KNOWLEDGE_SYSTEM_PROMPT,
         user_prompt=_build_knowledge_prompt(difficulty, used_topics),
         model=settings.gemini_summary_model,
-        temperature=0.8,
+        temperature=0.9,
         request_label="quiz_knowledge",
     )
     parsed = _parse_gemini_response(raw)
