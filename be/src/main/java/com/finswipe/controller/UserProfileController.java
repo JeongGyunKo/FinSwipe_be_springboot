@@ -1,6 +1,9 @@
 package com.finswipe.controller;
 
 import com.finswipe.service.NewsCollectorService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +17,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+@Tag(name = "User", description = "사용자 프로필 · 관심 티커 · 투자 레벨 관리")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/user")
 @RequiredArgsConstructor
@@ -23,7 +28,7 @@ public class UserProfileController {
     private final JdbcTemplate jdbc;
     private final NewsCollectorService collectorService;
 
-    /** GET /user/profile?userId= — 티커 + 레벨 조회 */
+    @Operation(summary = "프로필 조회", description = "관심 티커 목록과 퀴즈로 측정된 투자 레벨 반환 (레벨 0 = 미측정)")
     @GetMapping("/profile")
     public ResponseEntity<Map<String, Object>> getProfile(@RequestParam String userId) {
         if (!isValidUuid(userId)) {
@@ -51,7 +56,7 @@ public class UserProfileController {
         }
     }
 
-    /** PUT /user/tickers?userId= — 티커 목록 업데이트 + 신규 티커 소급 분석 트리거 */
+    @Operation(summary = "관심 티커 업데이트", description = "티커 목록 전체 교체. 신규 추가된 티커는 최근 7일치 뉴스 소급 분석 자동 실행.")
     @PutMapping("/tickers")
     public ResponseEntity<Map<String, Object>> updateTickers(
             @RequestParam String userId,
@@ -102,7 +107,7 @@ public class UserProfileController {
         }
     }
 
-    /** POST /user/level?userId= — 퀴즈 완료 후 레벨 저장 */
+    @Operation(summary = "투자 레벨 저장", description = "퀴즈 완료 후 산출된 레벨(1~5) 저장")
     @PostMapping("/level")
     public ResponseEntity<Map<String, Object>> updateLevel(
             @RequestParam String userId,

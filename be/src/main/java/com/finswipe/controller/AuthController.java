@@ -2,6 +2,8 @@ package com.finswipe.controller;
 
 import com.finswipe.dto.request.*;
 import com.finswipe.service.AuthService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+@Tag(name = "Auth", description = "회원가입 · 로그인 · 비밀번호 재설정")
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
@@ -25,6 +28,7 @@ public class AuthController {
 
     // ── 회원가입 ──────────────────────────────────────────────────────────────
 
+    @Operation(summary = "이메일 회원가입", description = "가입 후 인증 메일 발송. 메일 링크 클릭 후 로그인 가능.")
     @PostMapping("/register")
     public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest body) {
         try {
@@ -37,6 +41,7 @@ public class AuthController {
 
     // ── 로그인 ────────────────────────────────────────────────────────────────
 
+    @Operation(summary = "이메일 로그인", description = "성공 시 access_token 반환 (유효기간 1년)")
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginRequest body) {
         try {
@@ -50,6 +55,7 @@ public class AuthController {
 
     // ── Google 로그인 ─────────────────────────────────────────────────────────
 
+    @Operation(summary = "Google 로그인", description = "FE에서 Google Sign-In SDK로 받은 idToken 전달. 신규 사용자는 자동 가입.")
     @PostMapping("/google")
     public ResponseEntity<Map<String, Object>> googleLogin(@Valid @RequestBody GoogleAuthRequest body) {
         try {
@@ -61,6 +67,7 @@ public class AuthController {
 
     // ── 이메일 인증 ───────────────────────────────────────────────────────────
 
+    @Operation(summary = "이메일 인증 확인", description = "인증 메일의 링크에 포함된 token으로 계정 활성화")
     @GetMapping("/verify-email")
     public ResponseEntity<Map<String, Object>> verifyEmail(@RequestParam String token) {
         try {
@@ -73,12 +80,14 @@ public class AuthController {
 
     // ── 비밀번호 재설정 ───────────────────────────────────────────────────────
 
+    @Operation(summary = "비밀번호 재설정 요청", description = "이메일로 재설정 링크 발송 (1시간 유효). 존재하지 않는 이메일도 동일 응답.")
     @PostMapping("/forgot-password")
     public ResponseEntity<Map<String, Object>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest body) {
         authService.forgotPassword(body.email());
         return ResponseEntity.ok(Map.of("message", "비밀번호 재설정 링크를 이메일로 발송했습니다."));
     }
 
+    @Operation(summary = "비밀번호 재설정", description = "재설정 메일의 token과 새 비밀번호(8자 이상) 전달")
     @PostMapping("/reset-password")
     public ResponseEntity<Map<String, Object>> resetPassword(@Valid @RequestBody ResetPasswordRequest body) {
         try {
