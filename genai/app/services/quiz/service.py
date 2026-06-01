@@ -163,13 +163,18 @@ def _build_knowledge_prompt(
     target_area: str,
     used_questions: list[str],
     last_correct: bool | None = None,
+    area_score: float | None = None,
 ) -> str:
     import random
     level = max(1, min(5, round(difficulty)))
     label = _DIFFICULTY_LABELS[level]
     question_type = random.choice(_QUESTION_TYPES)
 
-    if last_correct is True:
+    if area_score is not None and area_score >= 4.0:
+        depth_hint = f"[심층 확인] 이 영역 점수가 {area_score}/5으로 높습니다. 일반적으로 알려지지 않은 심화 개념이나 응용 계산 문제로 실제 이해 깊이를 확인하세요."
+    elif area_score is not None and area_score < 2.0:
+        depth_hint = f"[기초 확인] 이 영역 점수가 {area_score}/5으로 낮습니다. 아주 기초적인 개념 문제부터 다시 시작해 어느 수준까지 아는지 파악하세요."
+    elif last_correct is True:
         depth_hint = "직전 문제를 맞혔습니다. 같은 영역에서 더 심화된 내용을 출제하세요."
     elif last_correct is False:
         depth_hint = "직전 문제를 틀렸습니다. 같은 영역의 다른 개념을 출제하세요."
@@ -263,12 +268,27 @@ def _compute_tendency(session_id: str, settings) -> dict:
     return {"tendency": name, "tendency_description": description, "news_hint": news_hint}
 
 
-def _weakest_areas(area_stats: dict) -> list[str]:
-    """점수 낮은 순으로 영역 반환 (심층 분석용)."""
-    tested = [(a, v["score"]) for a, v in area_stats.items() if v["score"] is not None]
-    untested = [a for a, v in area_stats.items() if v["score"] is None]
-    tested.sort(key=lambda x: x[1])
-    return untested + [a for a, _ in tested]
+def _deep_analysis_order(area_stats: dict) -> list[str]:
+    """심층 분석 순서: 만점/고득점 영역(심화 확인) → 저득점 영역(기초 확인) 순."""
+    high = [(a, v["score"]) for a, v in area_stats.items() if v["score"] is not None and v["score"] >= 4.0]
+    low  = [(a, v["score"]) for a, v in area_stats.items() if v["score"] is not None and v["score"] < 2.5]
+    mid  = [(a, v["score"]) for a, v in area_stats.items() if v["score"] is not None and 2.5 <= v["score"] < 4.0]
+    none = [a for a, v in area_stats.items() if v["score"] is None]
+    high.sort(key=lambda x: -x[1])
+    low.sort(key=lambda x: x[1])
+    ordered = [a for a, _ in high] + none + [a for a, _ in low] + [a for a, _ in mid]
+    return ordered if ordered else AREAS
+
+
+def _deep_difficulty(base: float, area_score: float | None) -> float:
+    """영역 점수에 따라 심층 문제 난이도 결정."""
+    if area_score is None:
+        return max(1.0, base)
+    if area_score >= 4.0:
+        return min(5.0, round(area_score + 0.5, 1))  # 고득점 → 더 어려운 문제
+    if area_score < 2.0:
+        return max(1.0, round(area_score, 1))          # 저득점 → 쉬운 문제로 바닥 확인
+    return round(area_score, 1)                         # 중간 → 해당 점수 수준
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
@@ -366,18 +386,29 @@ def generate_next_question(session_id: str) -> dict:
             a: {"score": v.get("score"), "correct": v.get("correct", 0), "total": v.get("total", 0)}
             for a, v in area_stats.items()
         } if area_stats else {a: {"score": None, "correct": 0, "total": 0} for a in AREAS}
-        weak = _weakest_areas(parsed_stats)
-        target_area = weak[question_number % len(weak)] if weak else AREAS[0]
+
+        # 심층 문제 인덱스 (0~4): 강한→심화, 약한→기초 확인 순서
+        deep_idx = question_number - TOTAL_QUESTIONS - 1
+        ordered = _deep_analysis_order(parsed_stats)
+        target_area = ordered[deep_idx % len(ordered)]
+        area_score = parsed_stats.get(target_area, {}).get("score")
+        deep_difficulty = _deep_difficulty(session["current_difficulty"], area_score)
     else:
         target_area = _AREA_CYCLE[(question_number - 1) % len(_AREA_CYCLE)]
+        deep_difficulty = None
+        area_score = None
 
     return _get_knowledge_question(
-        session_id, question_number, session["current_difficulty"], target_area, settings
+        session_id, question_number,
+        deep_difficulty if deep_difficulty is not None else session["current_difficulty"],
+        target_area, settings,
+        area_score=area_score,
     )
 
 
 def _get_knowledge_question(
-    session_id: str, question_number: int, difficulty: float, target_area: str, settings
+    session_id: str, question_number: int, difficulty: float, target_area: str, settings,
+    area_score: float | None = None,
 ) -> dict:
     from app.services.gemini.client import gemini_generate_content
     from psycopg.types.json import Jsonb
@@ -403,7 +434,7 @@ def _get_knowledge_question(
 
     raw = gemini_generate_content(
         system_prompt=_KNOWLEDGE_SYSTEM_PROMPT,
-        user_prompt=_build_knowledge_prompt(difficulty, target_area, used_questions, last_correct),
+        user_prompt=_build_knowledge_prompt(difficulty, target_area, used_questions, last_correct, area_score=area_score),
         model=settings.gemini_summary_model,
         temperature=0.9,
         request_label="quiz_knowledge",
