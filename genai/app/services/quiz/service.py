@@ -207,8 +207,6 @@ def _parse_gemini_response(raw_text: str) -> dict:
 def _adjust_difficulty(current: float, is_correct: bool, is_모름: bool = False) -> float:
     if is_correct:
         return min(5.0, round(current + 0.4, 2))
-    elif is_모름:
-        return max(1.0, round(current - 0.15, 2))
     else:
         return max(1.0, round(current - 0.3, 2))
 
