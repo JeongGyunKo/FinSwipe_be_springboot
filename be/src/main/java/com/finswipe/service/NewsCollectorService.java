@@ -153,15 +153,20 @@ public class NewsCollectorService {
         log.info("[Finlight] transcript 필터 제외: {}개", skippedTranscript);
         log.info("[Finlight] ticker 필터 통과: {}개 / {}개", withTickers.size(), byUrl.size());
 
-        // DB 중복 제거
+        // DB 중복 제거 (URL 기준)
         List<String> links = withTickers.stream().map(a -> (String) a.get("link")).toList();
         Set<String> newLinks = filterNewLinks(links);
         List<Map<String, Object>> newArticles = withTickers.stream()
                 .filter(a -> newLinks.contains((String) a.get("link")))
                 .toList();
-        log.info("[Finlight] 새 기사 {}개", newArticles.size());
+        log.info("[Finlight] URL 중복 제거 후 {}개", newArticles.size());
 
-        return newArticles.stream().map(this::toEntity).filter(Objects::nonNull).toList();
+        // 내용 유사도 중복 탐지 (다른 매체 동일 기사)
+        List<Map<String, Object>> deduplicated = deduplicateSimilar(newArticles);
+        int dupRemoved = newArticles.size() - deduplicated.size();
+        if (dupRemoved > 0) log.info("[중복탐지] 유사 기사 {}개 제거됨", dupRemoved);
+
+        return deduplicated.stream().map(this::toEntity).filter(Objects::nonNull).toList();
     }
 
     /** Python: _fetch_single_query() */
@@ -258,7 +263,7 @@ public class NewsCollectorService {
         if (link == null || title == null) return null;
 
         String content = ((String) a.getOrDefault("content", "")).strip();
-        if (content.isEmpty()) return null;
+        if (content.length() < 300) return null; // 3줄 요약 불가능한 너무 짧은 기사 제외
 
         String summary = ((String) a.getOrDefault("summary", "")).strip();
         List<?> images = (List<?>) a.getOrDefault("images", List.of());
@@ -297,6 +302,76 @@ public class NewsCollectorService {
             try { article.setPublishedAt(OffsetDateTime.parse(publishDate)); } catch (Exception ignored) {}
         }
         return article;
+    }
+
+    /**
+     * 제목 70% + 본문 앞 200자 60% 유사도 조건을 동시에 만족하면 중복으로 판단.
+     * 배치 내 중복 + 최근 12시간 DB 기사와 비교.
+     */
+    private List<Map<String, Object>> deduplicateSimilar(List<Map<String, Object>> articles) {
+        // DB에서 최근 12시간 제목 목록 조회
+        List<String> recentTitles = new ArrayList<>();
+        List<String> recentContents = new ArrayList<>();
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT headline, content_preview FROM news_articles WHERE created_at > NOW() - INTERVAL '12 hours'");
+            rows.forEach(r -> {
+                if (r.get("headline") != null) recentTitles.add(r.get("headline").toString());
+                if (r.get("content_preview") != null) recentContents.add(r.get("content_preview").toString());
+            });
+        } catch (Exception e) {
+            log.warn("[중복탐지] DB 조회 실패 → 배치 내 중복만 체크: {}", e.getMessage());
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        List<String> acceptedTitles = new ArrayList<>(recentTitles);
+        List<String> acceptedContents = new ArrayList<>(recentContents);
+
+        for (Map<String, Object> article : articles) {
+            String title = ((String) article.getOrDefault("title", "")).toLowerCase();
+            String content = ((String) article.getOrDefault("content", ""));
+            String contentSnippet = content.substring(0, Math.min(200, content.length())).toLowerCase();
+
+            boolean isDup = false;
+            for (int i = 0; i < acceptedTitles.size(); i++) {
+                double titleSim = jaccardSimilarity(tokenize(title), tokenize(acceptedTitles.get(i).toLowerCase()));
+                if (titleSim >= 0.70) {
+                    String existing = i < acceptedContents.size() ? acceptedContents.get(i) : "";
+                    double contentSim = jaccardSimilarity(
+                            tokenize(contentSnippet),
+                            tokenize(existing.substring(0, Math.min(200, existing.length())).toLowerCase()));
+                    if (contentSim >= 0.60) {
+                        isDup = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!isDup) {
+                result.add(article);
+                acceptedTitles.add(title);
+                acceptedContents.add(contentSnippet);
+            }
+        }
+        return result;
+    }
+
+    private Set<String> tokenize(String text) {
+        Set<String> words = new java.util.HashSet<>();
+        for (String w : text.split("[\\W_]+")) {
+            if (w.length() > 2) words.add(w); // 3자 이상 단어만
+        }
+        return words;
+    }
+
+    private double jaccardSimilarity(Set<String> a, Set<String> b) {
+        if (a.isEmpty() && b.isEmpty()) return 1.0;
+        if (a.isEmpty() || b.isEmpty()) return 0.0;
+        Set<String> intersection = new java.util.HashSet<>(a);
+        intersection.retainAll(b);
+        Set<String> union = new java.util.HashSet<>(a);
+        union.addAll(b);
+        return (double) intersection.size() / union.size();
     }
 
     /** Python: _filter_tickers() */
