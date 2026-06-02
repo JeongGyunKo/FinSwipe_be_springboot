@@ -102,11 +102,13 @@ public class AuthService {
         // Google tokeninfo는 email_verified를 문자열 "true"로 반환
         Object evRaw = googleUser.get("email_verified");
         boolean emailVerified = Boolean.TRUE.equals(evRaw) || "true".equalsIgnoreCase(String.valueOf(evRaw));
+        log.info("[Google] email_verified raw={} parsed={}", evRaw, emailVerified);
 
         if (!emailVerified) {
             throw new IllegalArgumentException("Google 계정 이메일이 인증되지 않았습니다.");
         }
 
+        log.info("[Google] 유저 조회 시작: email={} sub={}", email, sub);
         // 기존 유저 조회 (google_sub 또는 email)
         var existing = jdbc.query("""
                 SELECT id, display_name FROM user_profiles
