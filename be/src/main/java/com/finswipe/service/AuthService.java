@@ -99,7 +99,9 @@ public class AuthService {
         String email = (String) googleUser.get("email");
         String sub = (String) googleUser.get("sub");
         String name = (String) googleUser.getOrDefault("name", email);
-        boolean emailVerified = Boolean.TRUE.equals(googleUser.get("email_verified"));
+        // Google tokeninfo는 email_verified를 문자열 "true"로 반환
+        Object evRaw = googleUser.get("email_verified");
+        boolean emailVerified = Boolean.TRUE.equals(evRaw) || "true".equalsIgnoreCase(String.valueOf(evRaw));
 
         if (!emailVerified) {
             throw new IllegalArgumentException("Google 계정 이메일이 인증되지 않았습니다.");
