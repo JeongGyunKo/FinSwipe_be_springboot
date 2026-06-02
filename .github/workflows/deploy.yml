@@ -1,4 +1,4 @@
-name: EC2 배포
+name: EC2 무중단 배포
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: EC2 배포 (git pull → 빌드 → 재시작)
+      - name: EC2 배포 (빌드 → 헬스체크 → 교체)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -18,24 +18,55 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           command_timeout: 15m
           script: |
+            set -e
             cd ~/finswipe
-            git pull origin master
+            git fetch origin && git reset --hard origin/master
 
-            # ── Spring Boot 빌드 및 재시작 ──────────────────────────
+            # ── Spring Boot 빌드 ────────────────────────────────────────
             cd be
             ./gradlew bootJar --no-daemon -x test
-            cp build/libs/app.jar ~/finswipe/app.jar
-            sudo systemctl restart finswipe
-            sleep 8
-            sudo systemctl status finswipe --no-pager
+            NEW_JAR=~/finswipe/be/build/libs/app.jar
 
-            # ── GenAI 패키지 업데이트 및 재시작 ─────────────────────
+            # 새 jar를 임시 경로에 복사 후 교체 (원자적 교체)
+            cp $NEW_JAR ~/finswipe/app.jar.new
+            mv ~/finswipe/app.jar.new ~/finswipe/app.jar
+
+            sudo systemctl restart finswipe
+
+            # 헬스체크 — 최대 60초 대기
+            echo "Spring Boot 헬스체크 중..."
+            for i in $(seq 1 12); do
+              STATUS=$(curl -s http://127.0.0.1:8080/health | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null || echo "")
+              if [ "$STATUS" = "ok" ]; then
+                echo "Spring Boot 정상 기동 (${i}회차)"
+                break
+              fi
+              echo "대기 중... (${i}/12)"
+              sleep 5
+            done
+
+            if [ "$STATUS" != "ok" ]; then
+              echo "Spring Boot 기동 실패 — 배포 중단"
+              exit 1
+            fi
+
+            # ── GenAI 패키지 업데이트 및 재시작 ────────────────────────
             cd ~/finswipe/genai
             source venv/bin/activate
             pip install torch --index-url https://download.pytorch.org/whl/cpu --no-cache-dir -q
             pip install -e . --no-cache-dir --quiet
             sudo systemctl restart finswipe-genai
-            sleep 5
-            sudo systemctl status finswipe-genai --no-pager
 
-            echo "배포 완료: $(date)"
+            # GenAI 헬스체크 — 최대 30초 대기
+            echo "GenAI 헬스체크 중..."
+            for i in $(seq 1 6); do
+              GEN_STATUS=$(curl -s -u fin:***REMOVED-GENAI-BASIC-AUTH*** http://127.0.0.1:8000/health | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null || echo "")
+              if [ "$GEN_STATUS" = "ok" ]; then
+                echo "GenAI 정상 기동 (${i}회차)"
+                break
+              fi
+              sleep 5
+            done
+
+            echo "===== 배포 완료: $(date) ====="
+            curl -s http://127.0.0.1:8080/health

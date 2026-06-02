@@ -36,6 +36,7 @@ public class SecurityConfig {
                 // 어드민 (X-Admin-Key 별도 검증)
                 .requestMatchers("/news/collect", "/news/reanalyze", "/news/analyze/**",
                         "/news/diagnose", "/news/test", "/news/jobs/**").permitAll()
+                .requestMatchers("/admin/**").permitAll()
                 // 인증 필요
                 .requestMatchers("/user/**").authenticated()
                 .requestMatchers("/quiz/**").authenticated()
