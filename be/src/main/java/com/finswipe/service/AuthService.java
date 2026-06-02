@@ -187,6 +187,7 @@ public class AuthService {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> verifyGoogleToken(String idToken) {
+        log.info("[Google] 토큰 검증 시작 (길이={})", idToken != null ? idToken.length() : 0);
         try {
             var client = RestClient.create();
             Map<String, Object> payload = client.get()
@@ -194,11 +195,14 @@ public class AuthService {
                     .retrieve()
                     .body(Map.class);
 
+            log.info("[Google] tokeninfo 응답: email={} aud={}", payload.get("email"), payload.get("aud"));
+
             // Client ID 검증 — 우리 앱용 토큰인지 확인
             String clientId = props.getAuth().getGoogleClientId();
             if (clientId != null && !clientId.isBlank()) {
                 String aud = (String) payload.get("aud");
                 if (!clientId.equals(aud)) {
+                    log.warn("[Google] aud 불일치: expected={} actual={}", clientId, aud);
                     throw new IllegalArgumentException("유효하지 않은 Google 토큰입니다.");
                 }
             }
@@ -206,6 +210,7 @@ public class AuthService {
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
+            log.error("[Google] tokeninfo 호출 실패: {}: {}", e.getClass().getSimpleName(), e.getMessage());
             throw new IllegalArgumentException("유효하지 않은 Google 토큰입니다.");
         }
     }
