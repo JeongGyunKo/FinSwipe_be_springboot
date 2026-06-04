@@ -491,6 +491,10 @@ class ArticleEnrichmentResponse(SchemaModel):
         default=None,
         description="Compatibility field for localized.xai.",
     )
+    sentiment_reason: str | None = Field(
+        default=None,
+        description="Natural language Korean explanation of why this article received its sentiment score.",
+    )
     mixed_flags: MixedConflictPayload | None = Field(
         default=None,
         description="Mixed/conflict analysis output.",
