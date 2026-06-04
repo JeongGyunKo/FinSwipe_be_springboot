@@ -379,7 +379,6 @@ public class NewsCollectorService {
         return result;
     }
 
-    @SuppressWarnings("unchecked")
     private Set<String> extractTickers(Map<String, Object> article) {
         Set<String> result = new java.util.HashSet<>();
         Object companies = article.get("companies");
