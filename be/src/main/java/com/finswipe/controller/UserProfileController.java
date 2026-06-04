@@ -42,21 +42,48 @@ public class UserProfileController {
         }
         try {
             return jdbc.queryForObject(
-                    "SELECT tickers, level FROM user_profiles WHERE id = CAST(? AS UUID)",
+                    "SELECT tickers, level, email, display_name FROM user_profiles WHERE id = CAST(? AS UUID)",
                     (rs, row) -> {
                         List<String> tickers = parseTickers(rs.getString("tickers"));
                         Integer level = (Integer) rs.getObject("level");
-                        return ResponseEntity.ok(Map.<String, Object>of(
-                                "userId", uid,
-                                "tickers", tickers,
-                                "level", level != null ? level : 0
-                        ));
+                        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+                        body.put("userId", uid);
+                        body.put("email", rs.getString("email"));
+                        body.put("displayName", rs.getString("display_name"));
+                        body.put("tickers", tickers);
+                        body.put("level", level != null ? level : 0);
+                        return ResponseEntity.ok(body);
                     }, uid);
         } catch (EmptyResultDataAccessException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "사용자를 찾을 수 없습니다"));
         } catch (Exception e) {
             log.error("[프로필] 조회 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "서버 오류"));
+        }
+    }
+
+    @Operation(summary = "관심 티커 조회", description = "사용자의 관심 티커 목록 반환")
+    @GetMapping("/tickers")
+    public ResponseEntity<Map<String, Object>> getTickers(
+            Authentication auth,
+            @RequestParam(required = false) String userId) {
+        final String uid = resolveUserId(auth, userId);
+        if (uid == null) return ResponseEntity.badRequest().body(Map.of("error", "userId 필요"));
+        if (!isValidUuid(uid)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "유효하지 않은 userId"));
+        }
+        try {
+            String raw = jdbc.queryForObject(
+                    "SELECT tickers FROM user_profiles WHERE id = CAST(? AS UUID)",
+                    String.class, uid);
+            return ResponseEntity.ok(Map.of("tickers", parseTickers(raw)));
+        } catch (EmptyResultDataAccessException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "사용자를 찾을 수 없습니다"));
+        } catch (Exception e) {
+            log.error("[티커] 조회 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "서버 오류"));
         }
