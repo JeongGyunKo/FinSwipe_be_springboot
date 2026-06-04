@@ -39,6 +39,8 @@ public class UserProfileController {
               "userId": "550e8400-e29b-41d4-a716-446655440000",
               "email": "user@gmail.com",
               "displayName": "홍길동",
+              "loginId": "user123",
+              "authProvider": "google",
               "tickers": ["AAPL", "TSLA", "NVDA"],
               "level": 3,
               "newsSort": "time"
@@ -55,7 +57,7 @@ public class UserProfileController {
         }
         try {
             return jdbc.queryForObject(
-                    "SELECT tickers, level, email, display_name, news_sort FROM user_profiles WHERE id = CAST(? AS UUID)",
+                    "SELECT tickers, level, email, display_name, login_id, auth_provider, news_sort FROM user_profiles WHERE id = CAST(? AS UUID)",
                     (rs, row) -> {
                         List<String> tickers = parseTickers(rs.getString("tickers"));
                         Integer level = (Integer) rs.getObject("level");
@@ -63,6 +65,8 @@ public class UserProfileController {
                         body.put("userId", uid);
                         body.put("email", rs.getString("email"));
                         body.put("displayName", rs.getString("display_name"));
+                        body.put("loginId", rs.getString("login_id"));
+                        body.put("authProvider", rs.getString("auth_provider"));
                         body.put("tickers", tickers);
                         body.put("level", level != null ? level : 0);
                         body.put("newsSort", rs.getString("news_sort") != null ? rs.getString("news_sort") : "time");
@@ -75,6 +79,62 @@ public class UserProfileController {
             log.error("[프로필] 조회 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "서버 오류"));
+        }
+    }
+
+    @Operation(summary = "내정보 수정", description = "displayName(닉네임), loginId(아이디), password(비밀번호) 중 포함된 필드만 수정. 비밀번호 변경은 email 가입자만 가능.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            { "ok": true }
+            """)))
+    @PatchMapping("/profile")
+    public ResponseEntity<Map<String, Object>> updateProfile(
+            Authentication auth,
+            @RequestParam(required = false) String userId,
+            @RequestBody Map<String, String> body) {
+        final String uid = resolveUserId(auth, userId);
+        if (uid == null) return ResponseEntity.badRequest().body(Map.of("error", "userId 필요"));
+        if (!isValidUuid(uid)) return ResponseEntity.badRequest().body(Map.of("error", "유효하지 않은 userId"));
+
+        String displayName = body.get("displayName");
+        String loginId = body.get("loginId");
+        String password = body.get("password");
+
+        if (displayName == null && loginId == null && password == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "수정할 항목이 없습니다"));
+        }
+
+        try {
+            if (displayName != null && !displayName.isBlank()) {
+                jdbc.update("UPDATE user_profiles SET display_name = ?, updated_at = NOW() WHERE id = CAST(? AS UUID)",
+                        displayName.strip(), uid);
+            }
+            if (loginId != null && !loginId.isBlank()) {
+                Integer exists = jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM user_profiles WHERE login_id = ? AND id != CAST(? AS UUID)",
+                        Integer.class, loginId.strip(), uid);
+                if (exists != null && exists > 0) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "이미 사용 중인 아이디입니다"));
+                }
+                jdbc.update("UPDATE user_profiles SET login_id = ?, updated_at = NOW() WHERE id = CAST(? AS UUID)",
+                        loginId.strip(), uid);
+            }
+            if (password != null && !password.isBlank()) {
+                String provider = jdbc.queryForObject(
+                        "SELECT auth_provider FROM user_profiles WHERE id = CAST(? AS UUID)", String.class, uid);
+                if (!"email".equals(provider)) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "소셜 로그인 계정은 비밀번호를 변경할 수 없습니다"));
+                }
+                if (password.length() < 8) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "비밀번호는 8자 이상이어야 합니다"));
+                }
+                String hashed = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode(password);
+                jdbc.update("UPDATE user_profiles SET password_hash = ?, updated_at = NOW() WHERE id = CAST(? AS UUID)",
+                        hashed, uid);
+            }
+            return ResponseEntity.ok(Map.of("ok", true));
+        } catch (Exception e) {
+            log.error("[프로필 수정] 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "서버 오류"));
         }
     }
 
