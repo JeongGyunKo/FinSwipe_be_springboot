@@ -177,6 +177,7 @@ def build_api_enrichment_response(
             else []
         ),
         xai_ko=localized.xai if localized is not None else None,
+        sentiment_reason=payload.sentiment_reason,
         mixed_flags=_build_mixed_flags(mixed_result),
         status=_map_overall_status(payload.analysis_status, payload.analysis_outcome),
         outcome=payload.analysis_outcome.value,
