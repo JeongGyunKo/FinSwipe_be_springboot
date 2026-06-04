@@ -54,7 +54,7 @@ public class NewsController {
 
     // ===================== Public Endpoints =====================
 
-    @Operation(summary = "뉴스 피드", description = "분석 완료된 최신 기사 목록. JWT 있으면 읽은 기사 제외 + 관심 티커 필터 적용.")
+    @Operation(summary = "뉴스 피드", description = "분석 완료된 기사 목록. sort=time(시간순,기본값) | sort=power(감성강도순). JWT 있으면 읽은 기사 제외 + 관심 티커 필터 적용.")
     @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
             {
               "total": 1200,

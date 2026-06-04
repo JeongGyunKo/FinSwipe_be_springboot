@@ -40,7 +40,8 @@ public class UserProfileController {
               "email": "user@gmail.com",
               "displayName": "홍길동",
               "tickers": ["AAPL", "TSLA", "NVDA"],
-              "level": 3
+              "level": 3,
+              "newsSort": "time"
             }
             """)))
     @GetMapping("/profile")
@@ -163,6 +164,9 @@ public class UserProfileController {
     }
 
     @Operation(summary = "뉴스 정렬 저장", description = "메인 뉴스 정렬 기준 저장. sort: time(시간순) | power(파워순)")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            { "ok": true, "newsSort": "power" }
+            """)))
     @PutMapping("/news-sort")
     public ResponseEntity<Map<String, Object>> updateNewsSort(
             Authentication auth,
