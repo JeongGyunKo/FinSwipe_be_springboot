@@ -18,6 +18,7 @@ import com.finswipe.service.TickerService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -55,11 +56,16 @@ public class NewsController {
     @Cacheable(value = CacheConfig.CACHE_NEWS_LATEST, key = "#limit + ':' + #offset",
                condition = "#userId == null")
     public ResponseEntity<NewsListResponse> getLatest(
+            Authentication auth,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit,
             @RequestParam(defaultValue = "0") @Min(0) int offset,
             @RequestParam(required = false) String userId) {
 
-        if (userId != null && isValidUuid(userId)) {
+        // JWT가 있으면 JWT의 userId를 우선 사용 (파라미터 조작 방지)
+        final String resolvedUserId = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
+                ? auth.getPrincipal().toString() : userId;
+
+        if (resolvedUserId != null && isValidUuid(resolvedUserId)) {
             final int pageNum = offset / limit;
             // 3개 DB 쿼리 병렬 실행 — 순차 350ms → 병렬 200ms
             var pageFuture = new java.util.concurrent.CompletableFuture<Page<NewsArticle>>();
@@ -67,15 +73,15 @@ public class NewsController {
             var tickersFuture = new java.util.concurrent.CompletableFuture<List<String>>();
 
             Thread.ofVirtual().start(() -> {
-                try { pageFuture.complete(newsRepo.findUnreadByUser(userId, PageRequest.of(pageNum, limit))); }
+                try { pageFuture.complete(newsRepo.findUnreadByUser(resolvedUserId, PageRequest.of(pageNum, limit))); }
                 catch (Exception e) { pageFuture.completeExceptionally(e); }
             });
             Thread.ofVirtual().start(() -> {
-                try { readFuture.complete(newsRepo.findRecentReadArticles(userId, 10)); }
+                try { readFuture.complete(newsRepo.findRecentReadArticles(resolvedUserId, 10)); }
                 catch (Exception e) { readFuture.completeExceptionally(e); }
             });
             Thread.ofVirtual().start(() -> {
-                try { tickersFuture.complete(getUserTickers(userId)); }
+                try { tickersFuture.complete(getUserTickers(resolvedUserId)); }
                 catch (Exception e) { tickersFuture.completeExceptionally(e); }
             });
 

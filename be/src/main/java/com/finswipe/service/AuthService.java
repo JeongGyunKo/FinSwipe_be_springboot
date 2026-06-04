@@ -45,7 +45,7 @@ public class AuthService {
                 """, userId, normalized, displayName, hash, verifyToken);
 
         emailService.sendVerificationEmail(normalized, verifyToken);
-        log.info("[Auth] 회원가입: email={}", normalized);
+        log.info("[Auth] 회원가입 완료");
 
         return Map.of(
                 "message", "회원가입 완료. 이메일 인증 후 로그인해주세요.",
@@ -89,7 +89,7 @@ public class AuthService {
         }
 
         String token = jwtService.generateAccessToken(userId, normalized);
-        log.info("[Auth] 로그인: email={}", normalized);
+        log.info("[Auth] 로그인 완료");
         return buildAuthResponse(token, userId, normalized, displayName);
     }
 
@@ -133,7 +133,7 @@ public class AuthService {
                         (id, email, display_name, auth_provider, email_verified, google_sub, created_at, updated_at)
                     VALUES (?, ?, ?, 'google', true, ?, NOW(), NOW())
                     """, userId, email, name, sub);
-            log.info("[Auth] Google 신규 가입: email={}", email);
+            log.info("[Auth] Google 신규 가입 완료");
         }
 
         String token = jwtService.generateAccessToken(userId, email);
@@ -191,7 +191,6 @@ public class AuthService {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> verifyGoogleToken(String idToken) {
-        log.info("[Google] 토큰 검증 시작 (길이={})", idToken != null ? idToken.length() : 0);
         try {
             var client = RestClient.create();
             Map<String, Object> payload = client.get()
@@ -199,22 +198,35 @@ public class AuthService {
                     .retrieve()
                     .body(Map.class);
 
-            log.info("[Google] tokeninfo 응답: email={} aud={}", payload.get("email"), payload.get("aud"));
-
-            // Client ID 검증 — 우리 앱용 토큰인지 확인
+            // aud 검증
             String clientId = props.getAuth().getGoogleClientId();
             if (clientId != null && !clientId.isBlank()) {
                 String aud = (String) payload.get("aud");
                 if (!clientId.equals(aud)) {
-                    log.warn("[Google] aud 불일치: expected={} actual={}", clientId, aud);
                     throw new IllegalArgumentException("유효하지 않은 Google 토큰입니다.");
                 }
             }
+
+            // iss 검증 — Google이 발행한 토큰인지 확인
+            String iss = (String) payload.get("iss");
+            if (!"https://accounts.google.com".equals(iss) && !"accounts.google.com".equals(iss)) {
+                throw new IllegalArgumentException("유효하지 않은 Google 토큰입니다.");
+            }
+
+            // exp 검증 — 만료 여부 확인
+            Object expRaw = payload.get("exp");
+            if (expRaw != null) {
+                long exp = Long.parseLong(expRaw.toString());
+                if (exp < System.currentTimeMillis() / 1000) {
+                    throw new IllegalArgumentException("만료된 Google 토큰입니다.");
+                }
+            }
+
             return payload;
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
-            log.error("[Google] tokeninfo 호출 실패: {}: {}", e.getClass().getSimpleName(), e.getMessage());
+            log.error("[Google] tokeninfo 호출 실패: {}", e.getClass().getSimpleName());
             throw new IllegalArgumentException("유효하지 않은 Google 토큰입니다.");
         }
     }
