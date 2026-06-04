@@ -314,19 +314,22 @@ public class NewsCollectorService {
     }
 
     /**
-     * 제목 70% + 본문 앞 200자 60% 유사도 조건을 동시에 만족하면 중복으로 판단.
-     * 배치 내 중복 + 최근 12시간 DB 기사와 비교.
+     * 중복 탐지: 같은 티커를 다루는 기사끼리만 비교.
+     * 다른 종목 기사는 제목이 비슷해도 중복으로 처리하지 않음 (오탐 방지).
+     * 같은 티커면 제목 75% + 본문 앞 300자 65% 유사도 동시 충족 시 중복 판단.
      */
     private List<Map<String, Object>> deduplicateSimilar(List<Map<String, Object>> articles) {
-        // DB에서 최근 12시간 제목 목록 조회
+        // DB에서 최근 12시간 기사 제목 + 티커 조회
         List<String> recentTitles = new ArrayList<>();
         List<String> recentContents = new ArrayList<>();
+        List<Set<String>> recentTickers = new ArrayList<>();
         try {
             List<Map<String, Object>> rows = jdbc.queryForList(
-                    "SELECT headline, content_preview FROM news_articles WHERE created_at > NOW() - INTERVAL '12 hours'");
+                    "SELECT headline, content_preview, tickers::text as tickers_text FROM news_articles WHERE created_at > NOW() - INTERVAL '12 hours'");
             rows.forEach(r -> {
-                if (r.get("headline") != null) recentTitles.add(r.get("headline").toString());
-                if (r.get("content_preview") != null) recentContents.add(r.get("content_preview").toString());
+                recentTitles.add(r.get("headline") != null ? r.get("headline").toString() : "");
+                recentContents.add(r.get("content_preview") != null ? r.get("content_preview").toString() : "");
+                recentTickers.add(parsePgArray(r.get("tickers_text")));
             });
         } catch (Exception e) {
             log.warn("[중복탐지] DB 조회 실패 → 배치 내 중복만 체크: {}", e.getMessage());
@@ -335,21 +338,31 @@ public class NewsCollectorService {
         List<Map<String, Object>> result = new ArrayList<>();
         List<String> acceptedTitles = new ArrayList<>(recentTitles);
         List<String> acceptedContents = new ArrayList<>(recentContents);
+        List<Set<String>> acceptedTickers = new ArrayList<>(recentTickers);
 
         for (Map<String, Object> article : articles) {
             String title = ((String) article.getOrDefault("title", "")).toLowerCase();
             String content = ((String) article.getOrDefault("content", ""));
-            String contentSnippet = content.substring(0, Math.min(200, content.length())).toLowerCase();
+            String contentSnippet = content.substring(0, Math.min(300, content.length())).toLowerCase();
+            Set<String> tickers = extractTickers(article);
 
             boolean isDup = false;
             for (int i = 0; i < acceptedTitles.size(); i++) {
+                // 티커가 둘 다 있고 겹치지 않으면 → 다른 종목 기사, 중복 아님
+                Set<String> existingTickers = acceptedTickers.get(i);
+                if (!tickers.isEmpty() && !existingTickers.isEmpty()) {
+                    Set<String> intersection = new java.util.HashSet<>(tickers);
+                    intersection.retainAll(existingTickers);
+                    if (intersection.isEmpty()) continue;
+                }
+
                 double titleSim = jaccardSimilarity(tokenize(title), tokenize(acceptedTitles.get(i).toLowerCase()));
-                if (titleSim >= 0.70) {
+                if (titleSim >= 0.75) {
                     String existing = i < acceptedContents.size() ? acceptedContents.get(i) : "";
                     double contentSim = jaccardSimilarity(
                             tokenize(contentSnippet),
-                            tokenize(existing.substring(0, Math.min(200, existing.length())).toLowerCase()));
-                    if (contentSim >= 0.60) {
+                            tokenize(existing.substring(0, Math.min(300, existing.length())).toLowerCase()));
+                    if (contentSim >= 0.65) {
                         isDup = true;
                         break;
                     }
@@ -360,7 +373,36 @@ public class NewsCollectorService {
                 result.add(article);
                 acceptedTitles.add(title);
                 acceptedContents.add(contentSnippet);
+                acceptedTickers.add(tickers);
             }
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Set<String> extractTickers(Map<String, Object> article) {
+        Set<String> result = new java.util.HashSet<>();
+        Object companies = article.get("companies");
+        if (companies instanceof List) {
+            for (Object c : (List<?>) companies) {
+                if (c instanceof Map) {
+                    Object ticker = ((Map<?, ?>) c).get("ticker");
+                    if (ticker != null && !ticker.toString().isBlank()) {
+                        result.add(ticker.toString().toUpperCase());
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    private Set<String> parsePgArray(Object pgArray) {
+        Set<String> result = new java.util.HashSet<>();
+        if (pgArray == null) return result;
+        String raw = pgArray.toString().replaceAll("[{}]", "").trim();
+        if (raw.isBlank()) return result;
+        for (String t : raw.split(",")) {
+            if (!t.isBlank()) result.add(t.trim().toUpperCase());
         }
         return result;
     }
