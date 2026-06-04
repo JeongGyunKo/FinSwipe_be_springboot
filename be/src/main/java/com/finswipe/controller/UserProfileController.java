@@ -2,6 +2,9 @@ package com.finswipe.controller;
 
 import com.finswipe.service.NewsCollectorService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -31,6 +34,15 @@ public class UserProfileController {
     private final NewsCollectorService collectorService;
 
     @Operation(summary = "프로필 조회", description = "관심 티커 목록과 퀴즈로 측정된 투자 레벨 반환 (레벨 0 = 미측정)")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            {
+              "userId": "550e8400-e29b-41d4-a716-446655440000",
+              "email": "user@gmail.com",
+              "displayName": "홍길동",
+              "tickers": ["AAPL", "TSLA", "NVDA"],
+              "level": 3
+            }
+            """)))
     @GetMapping("/profile")
     public ResponseEntity<Map<String, Object>> getProfile(
             Authentication auth,
@@ -65,6 +77,11 @@ public class UserProfileController {
     }
 
     @Operation(summary = "관심 티커 조회", description = "사용자의 관심 티커 목록 반환")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            {
+              "tickers": ["AAPL", "TSLA", "NVDA"]
+            }
+            """)))
     @GetMapping("/tickers")
     public ResponseEntity<Map<String, Object>> getTickers(
             Authentication auth,
