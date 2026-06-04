@@ -86,7 +86,7 @@ public class NewsController {
             @RequestParam(defaultValue = "0") @Min(0) int offset,
             @RequestParam(required = false) String userId,
             @RequestParam(defaultValue = "time") String sort,
-            @RequestParam(defaultValue = "all") String period) {
+            @RequestParam(defaultValue = "today") String period) {
 
         // JWT가 있으면 JWT의 userId를 우선 사용 (파라미터 조작 방지)
         final String resolvedUserId = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
