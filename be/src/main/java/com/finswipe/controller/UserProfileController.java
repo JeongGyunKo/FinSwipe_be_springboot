@@ -12,10 +12,12 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Tag(name = "User", description = "사용자 프로필 · 관심 티커 · 투자 레벨 관리")
 @SecurityRequirement(name = "bearerAuth")
@@ -30,8 +32,12 @@ public class UserProfileController {
 
     @Operation(summary = "프로필 조회", description = "관심 티커 목록과 퀴즈로 측정된 투자 레벨 반환 (레벨 0 = 미측정)")
     @GetMapping("/profile")
-    public ResponseEntity<Map<String, Object>> getProfile(@RequestParam String userId) {
-        if (!isValidUuid(userId)) {
+    public ResponseEntity<Map<String, Object>> getProfile(
+            Authentication auth,
+            @RequestParam(required = false) String userId) {
+        final String uid = resolveUserId(auth, userId);
+        if (uid == null) return ResponseEntity.badRequest().body(Map.of("error", "userId 필요"));
+        if (!isValidUuid(uid)) {
             return ResponseEntity.badRequest().body(Map.of("error", "유효하지 않은 userId"));
         }
         try {
@@ -41,11 +47,11 @@ public class UserProfileController {
                         List<String> tickers = parseTickers(rs.getString("tickers"));
                         Integer level = (Integer) rs.getObject("level");
                         return ResponseEntity.ok(Map.<String, Object>of(
-                                "userId", userId,
+                                "userId", uid,
                                 "tickers", tickers,
                                 "level", level != null ? level : 0
                         ));
-                    }, userId);
+                    }, uid);
         } catch (EmptyResultDataAccessException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "사용자를 찾을 수 없습니다"));
@@ -59,11 +65,15 @@ public class UserProfileController {
     @Operation(summary = "관심 티커 업데이트", description = "티커 목록 전체 교체. 신규 추가된 티커는 최근 7일치 뉴스 소급 분석 자동 실행.")
     @PutMapping("/tickers")
     public ResponseEntity<Map<String, Object>> updateTickers(
-            @RequestParam String userId,
+            Authentication auth,
+            @RequestParam(required = false) String userId,
             @Valid @RequestBody TickersRequest body) {
-        if (!isValidUuid(userId)) {
+        final String uid = resolveUserId(auth, userId);
+        if (uid == null) return ResponseEntity.badRequest().body(Map.of("error", "userId 필요"));
+        if (!isValidUuid(uid)) {
             return ResponseEntity.badRequest().body(Map.of("error", "유효하지 않은 userId"));
         }
+        userId = uid;
         try {
             // 기존 티커 조회 — 새로 추가된 것만 소급 분석
             String rawOld;
@@ -110,11 +120,15 @@ public class UserProfileController {
     @Operation(summary = "투자 레벨 저장", description = "퀴즈 완료 후 산출된 레벨(1~5) 저장")
     @PostMapping("/level")
     public ResponseEntity<Map<String, Object>> updateLevel(
-            @RequestParam String userId,
+            Authentication auth,
+            @RequestParam(required = false) String userId,
             @Valid @RequestBody LevelRequest body) {
-        if (!isValidUuid(userId)) {
+        final String uid = resolveUserId(auth, userId);
+        if (uid == null) return ResponseEntity.badRequest().body(Map.of("error", "userId 필요"));
+        if (!isValidUuid(uid)) {
             return ResponseEntity.badRequest().body(Map.of("error", "유효하지 않은 userId"));
         }
+        userId = uid;
         try {
             int updated = jdbc.update(
                     "UPDATE user_profiles SET level = ?, updated_at = NOW() WHERE id = CAST(? AS UUID)",
@@ -133,6 +147,14 @@ public class UserProfileController {
     }
 
     // ── 내부 유틸 ──────────────────────────────────────────────────────────────
+
+    /** JWT에서 userId 추출, 없으면 쿼리 파라미터 사용 */
+    private String resolveUserId(Authentication auth, String queryParam) {
+        if (auth != null && auth.getPrincipal() instanceof UUID) {
+            return auth.getPrincipal().toString();
+        }
+        return queryParam;
+    }
 
     private List<String> parseTickers(String raw) {
         if (raw == null || raw.equals("{}") || raw.isBlank()) return List.of();
