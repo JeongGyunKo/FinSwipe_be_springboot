@@ -17,7 +17,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
 
     Optional<NewsArticle> findBySourceUrl(String sourceUrl);
 
-    // 최신 기사 페이징 — 한국어 완성 + sentiment_reason 있는 기사만 노출
+    // 최신 기사 페이징 — 시간순
     @Query(value = """
             SELECT * FROM news_articles
             WHERE headline_ko IS NOT NULL
@@ -33,6 +33,23 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             """,
             nativeQuery = true)
     Page<NewsArticle> findByXaiKoIsNotNullOrderByPublishedAtDesc(Pageable pageable);
+
+    // 파워순 — 감성 강도(절대값) 높은 기사 우선
+    @Query(value = """
+            SELECT * FROM news_articles
+            WHERE headline_ko IS NOT NULL
+              AND summary_3lines_ko IS NOT NULL
+              AND sentiment_reason IS NOT NULL
+            ORDER BY ABS(sentiment_score) DESC NULLS LAST, published_at DESC
+            """,
+            countQuery = """
+            SELECT COUNT(*) FROM news_articles
+            WHERE headline_ko IS NOT NULL
+              AND summary_3lines_ko IS NOT NULL
+              AND sentiment_reason IS NOT NULL
+            """,
+            nativeQuery = true)
+    Page<NewsArticle> findByXaiKoIsNotNullOrderByPowerDesc(Pageable pageable);
 
     // userId 기준 읽지 않은 기사 조회
     @Query(value = """

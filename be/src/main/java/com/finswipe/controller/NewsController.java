@@ -78,13 +78,14 @@ public class NewsController {
             }
             """)))
     @GetMapping("/latest")
-    @Cacheable(value = CacheConfig.CACHE_NEWS_LATEST, key = "#limit + ':' + #offset",
+    @Cacheable(value = CacheConfig.CACHE_NEWS_LATEST, key = "#sort + ':' + #limit + ':' + #offset",
                condition = "#userId == null")
     public ResponseEntity<NewsListResponse> getLatest(
             Authentication auth,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit,
             @RequestParam(defaultValue = "0") @Min(0) int offset,
-            @RequestParam(required = false) String userId) {
+            @RequestParam(required = false) String userId,
+            @RequestParam(defaultValue = "time") String sort) {
 
         // JWT가 있으면 JWT의 userId를 우선 사용 (파라미터 조작 방지)
         final String resolvedUserId = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
@@ -124,8 +125,9 @@ public class NewsController {
             return ResponseEntity.ok(new NewsListResponse(page.getTotalElements(), offset, data, userTickers));
         }
 
-        Page<NewsArticle> page = newsRepo.findByXaiKoIsNotNullOrderByPublishedAtDesc(
-                PageRequest.of(offset / limit, limit));
+        Page<NewsArticle> page = "power".equals(sort)
+                ? newsRepo.findByXaiKoIsNotNullOrderByPowerDesc(PageRequest.of(offset / limit, limit))
+                : newsRepo.findByXaiKoIsNotNullOrderByPublishedAtDesc(PageRequest.of(offset / limit, limit));
         List<NewsArticleResponse> data = page.getContent().stream()
                 .map(a -> new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers())))
                 .toList();
