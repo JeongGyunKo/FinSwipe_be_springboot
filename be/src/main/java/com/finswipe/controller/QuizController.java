@@ -29,13 +29,38 @@ public class QuizController {
     }
 
     @Operation(summary = "퀴즈 세션 생성", description = "새 퀴즈 시작. body에 user_id(UUID) 선택 전달.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            {
+              "session_id": "uuid",
+              "status": "in_progress",
+              "current_difficulty": 1.0,
+              "questions_asked": 0,
+              "correct_count": 0,
+              "total_questions": 10,
+              "knowledge_questions": 10
+            }
+            """)))
     @PostMapping("/sessions")
     public ResponseEntity<String> createSession(
             @RequestBody(required = false) String body) {
         return proxyPost("/api/v1/quiz/sessions", body != null ? body : "{}");
     }
 
-    @Operation(summary = "세션 상태 조회", description = "현재 진행 상황 (questions_asked, status, final_level 등)")
+    @Operation(summary = "세션 상태 조회", description = "현재 진행 상황 (questions_asked, status, area_stats 등)")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            {
+              "session_id": "uuid",
+              "status": "completed",
+              "questions_asked": 10,
+              "correct_count": 7,
+              "total_questions": 10,
+              "area_stats": {
+                "기본개념": { "score": 5.0, "correct": 2, "total": 2 },
+                "매크로": { "score": 4.0, "correct": 2, "total": 2 },
+                "펀더멘털": { "score": 2.5, "correct": 1, "total": 2 }
+              }
+            }
+            """)))
     @GetMapping("/sessions/{sessionId}")
     public ResponseEntity<String> getSession(@PathVariable String sessionId) {
         return proxyGet("/api/v1/quiz/sessions/" + sessionId);

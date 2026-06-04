@@ -169,6 +169,9 @@ public class UserProfileController {
     }
 
     @Operation(summary = "관심 티커 업데이트", description = "티커 목록 전체 교체. 신규 추가된 티커는 최근 7일치 뉴스 소급 분석 자동 실행.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            { "ok": true, "tickers": ["AAPL", "TSLA"], "triggered_analysis_for": ["TSLA"] }
+            """)))
     @PutMapping("/tickers")
     public ResponseEntity<Map<String, Object>> updateTickers(
             Authentication auth,
@@ -250,6 +253,9 @@ public class UserProfileController {
     }
 
     @Operation(summary = "투자 레벨 저장", description = "퀴즈 완료 후 산출된 레벨(1~5) 저장")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            { "ok": true, "level": 3 }
+            """)))
     @PostMapping("/level")
     public ResponseEntity<Map<String, Object>> updateLevel(
             Authentication auth,
