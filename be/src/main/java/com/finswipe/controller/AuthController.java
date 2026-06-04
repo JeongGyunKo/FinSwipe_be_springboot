@@ -113,20 +113,13 @@ public class AuthController {
             List<String> rows = jdbc.queryForList(
                     "SELECT email FROM user_profiles WHERE login_id = ?",
                     String.class, body.loginId().strip());
-            if (rows.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(Map.of("detail", "해당 아이디로 가입된 계정을 찾을 수 없습니다."));
-            }
-            String email = rows.get(0);
-            if (email == null || email.isBlank()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(Map.of("detail", "이메일 정보가 없습니다."));
-            }
-            return ResponseEntity.ok(Map.of("masked_email", maskEmail(email)));
+            String email = rows.isEmpty() ? null : rows.get(0);
+            // 계정 존재 여부를 노출하지 않고 항상 동일한 응답 반환 (열거 공격 방지)
+            return ResponseEntity.ok(Map.of(
+                    "masked_email", (email != null && !email.isBlank()) ? maskEmail(email) : ""));
         } catch (Exception e) {
-            log.error("[이메일 찾기] 오류: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("detail", "서버 오류가 발생했습니다."));
+            log.error("[이메일 찾기] 오류");
+            return ResponseEntity.ok(Map.of("masked_email", ""));
         }
     }
 

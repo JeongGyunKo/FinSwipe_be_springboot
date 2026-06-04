@@ -102,6 +102,7 @@ public class AppProperties {
     @Setter
     public static class Auth {
         @NotBlank
+        @Size(min = 32, message = "JWT 시크릿은 최소 32자 이상이어야 합니다")
         private String jwtSecret;
         private long accessTokenExpiryMs = 604800000L; // 7일
         private String googleClientId = "";

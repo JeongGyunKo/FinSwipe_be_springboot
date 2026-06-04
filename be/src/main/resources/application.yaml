@@ -48,6 +48,12 @@ spring:
     virtual:
       enabled: true
 
+springdoc:
+  api-docs:
+    enabled: ${ENABLE_SWAGGER:false}
+  swagger-ui:
+    enabled: ${ENABLE_SWAGGER:false}
+
 server:
   port: 8080
   compression:
