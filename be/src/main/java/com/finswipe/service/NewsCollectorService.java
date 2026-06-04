@@ -25,15 +25,24 @@ import java.util.stream.Collectors;
 @Slf4j
 public class NewsCollectorService {
 
-    // Python: COLLECTION_QUERIES
+    // Python: COLLECTION_QUERIES — 섹터 다양성 확보 (14개, 일 약 1,344 API 콜 / 월 40,320)
     private static final List<String> COLLECTION_QUERIES = List.of(
-            "stock earnings",
-            "stock market shares",
-            "analyst rating stocks",
-            "merger acquisition dividend",
-            "Federal Reserve inflation rate",
+            // 기존 — 시장 전반
+            "stock earnings results guidance",
+            "stock market shares price",
+            "analyst rating upgrade downgrade target",
+            "merger acquisition dividend buyback",
+            "Federal Reserve inflation interest rate",
             "semiconductor technology stocks",
-            "energy oil bank stocks"
+            "energy oil gas stocks",
+            // 신규 — 섹터 다양화
+            "AI artificial intelligence stocks",
+            "Apple Google Amazon Meta Microsoft stock",
+            "healthcare biotech pharma drug stocks",
+            "financial banking insurance stocks",
+            "consumer retail e-commerce stocks",
+            "EV electric vehicle battery stocks",
+            "stock earnings beat miss surprise"
     );
 
     // Python: CRYPTO_TICKERS
