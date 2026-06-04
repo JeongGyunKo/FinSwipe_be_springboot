@@ -217,26 +217,26 @@ public class NewsController {
     @SecurityRequirement(name = "bearerAuth")
     @PostMapping("/device-token")
     public ResponseEntity<Map<String, Boolean>> registerDeviceToken(
-            @RequestParam String userId,
+            Authentication auth,
+            @RequestParam(required = false) String userId,
             @Valid @RequestBody DeviceTokenRequest body) {
-        if (!isValidUuid(userId)) {
-            log.warn("[알림] 유효하지 않은 userId: {}", userId);
+        final String uid = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
+                ? auth.getPrincipal().toString() : userId;
+        if (uid == null || !isValidUuid(uid)) {
             return ResponseEntity.badRequest().body(Map.of("ok", false));
         }
         try {
-            // 사용자당 최대 10개 토큰 제한 (기기 무제한 등록 방지)
             Integer count = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM device_tokens WHERE user_id = CAST(? AS UUID)",
-                    Integer.class, userId);
+                    Integer.class, uid);
             if (count != null && count >= 10) {
-                log.warn("[알림] 토큰 한도 초과: userId={}", userId);
                 return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of("ok", false));
             }
             jdbc.update("""
                     INSERT INTO device_tokens (user_id, token, platform)
                     VALUES (CAST(? AS UUID), ?, ?)
                     ON CONFLICT (user_id, token) DO NOTHING
-                    """, userId, body.token(), body.platform());
+                    """, uid, body.token(), body.platform());
             return ResponseEntity.ok(Map.of("ok", true));
         } catch (Exception e) {
             log.error("[알림] 토큰 등록 실패: {}", e.getMessage());
@@ -249,14 +249,17 @@ public class NewsController {
     @SecurityRequirement(name = "bearerAuth")
     @DeleteMapping("/device-token")
     public ResponseEntity<Map<String, Boolean>> deleteDeviceToken(
-            @RequestParam String userId,
+            Authentication auth,
+            @RequestParam(required = false) String userId,
             @Valid @RequestBody DeviceTokenDeleteRequest body) {
-        if (!isValidUuid(userId)) {
+        final String uid = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
+                ? auth.getPrincipal().toString() : userId;
+        if (uid == null || !isValidUuid(uid)) {
             return ResponseEntity.badRequest().body(Map.of("ok", false));
         }
         try {
             jdbc.update("DELETE FROM device_tokens WHERE user_id = CAST(? AS UUID) AND token = ?",
-                    userId, body.token());
+                    uid, body.token());
             return ResponseEntity.ok(Map.of("ok", true));
         } catch (Exception e) {
             log.error("[알림] 토큰 삭제 실패: {}", e.getMessage());
