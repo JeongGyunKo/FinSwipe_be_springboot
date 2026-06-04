@@ -1,6 +1,9 @@
 package com.finswipe.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
@@ -38,13 +41,50 @@ public class QuizController {
         return proxyGet("/api/v1/quiz/sessions/" + sessionId);
     }
 
-    @Operation(summary = "다음 문제 요청", description = "Q1~7: Gemini가 금융 지식 문제 생성 / Q8~10: 고정 성향 질문. 응답에 question_type 포함.")
+    @Operation(summary = "다음 문제 요청", description = "Q1~7: Gemini가 금융 지식 문제 생성. 응답에 question_type 포함.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            {
+              "question_id": "uuid",
+              "question_number": 1,
+              "question_type": "knowledge",
+              "area": "기본개념",
+              "question_text": "주식 1주를 보유하면 그 회사의 무엇이 되나요?",
+              "choices": {
+                "A": "채권자",
+                "B": "주주 (지분 소유자)",
+                "C": "임직원",
+                "D": "고객",
+                "E": "잘 모르겠다"
+              },
+              "difficulty": 1.0
+            }
+            """)))
     @PostMapping("/sessions/{sessionId}/next-question")
     public ResponseEntity<String> nextQuestion(@PathVariable String sessionId) {
         return proxyPost("/api/v1/quiz/sessions/" + sessionId + "/next-question", null);
     }
 
-    @Operation(summary = "답변 제출", description = "answer: A~E (E=잘 모르겠다). 10문제 완료 시 final_level + tendency 반환.")
+    @Operation(summary = "답변 제출", description = "answer: A~E. 10문제 완료 시 area_stats(오각형 스탯) + tendency(투자 성향) 반환.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            {
+              "is_correct": true,
+              "is_모름": false,
+              "is_preference": false,
+              "correct_answer": "B",
+              "explanation": "주식 1주는 해당 기업의 아주 작은 지분(소유권)을 의미합니다.",
+              "session_status": "in_progress",
+              "questions_asked": 1,
+              "correct_count": 1,
+              "total_questions": 10,
+              "knowledge_questions": 10,
+              "area_stats": null,
+              "tendency": null,
+              "tendency_emoji": null,
+              "tendency_description": null,
+              "analysis_hints": null,
+              "strongest_area": null
+            }
+            """)))
     @PostMapping("/sessions/{sessionId}/answers")
     public ResponseEntity<String> submitAnswer(
             @PathVariable String sessionId,
