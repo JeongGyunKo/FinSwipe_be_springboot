@@ -126,17 +126,14 @@ public class NewsController {
             return ResponseEntity.ok(new NewsListResponse(page.getTotalElements(), offset, data, userTickers));
         }
 
-        // ET 기준 장 사이클: 전날 4PM ET ~ 오늘 4PM ET
+        // ET 기준 장 사이클: 4PM ET 기준 (DST는 America/New_York 타임존이 자동 처리)
         java.time.OffsetDateTime etMidnight = null;
         if ("today".equals(period)) {
             java.time.ZoneId et = java.time.ZoneId.of("America/New_York");
             java.time.ZonedDateTime nowET = java.time.ZonedDateTime.now(et);
             java.time.ZonedDateTime closeToday = nowET.toLocalDate().atTime(16, 0).atZone(et);
-            // 현재 시각이 4PM 이전이면 → 어제 4PM부터, 이후면 → 오늘 4PM부터
-            java.time.ZonedDateTime cycleStart = nowET.isBefore(closeToday)
-                    ? closeToday.minusDays(1)
-                    : closeToday;
-            etMidnight = cycleStart.toOffsetDateTime();
+            etMidnight = (nowET.isBefore(closeToday) ? closeToday.minusDays(1) : closeToday)
+                    .toOffsetDateTime();
         }
 
         final java.time.OffsetDateTime since = etMidnight;
