@@ -136,9 +136,12 @@ public class NewsController {
     @SecurityRequirement(name = "bearerAuth")
     @PostMapping("/{articleId}/read")
     public ResponseEntity<Map<String, Boolean>> markAsRead(
+            Authentication auth,
             @PathVariable java.util.UUID articleId,
-            @RequestParam String userId) {
-        if (!isValidUuid(userId)) {
+            @RequestParam(required = false) String userId) {
+        final String uid = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
+                ? auth.getPrincipal().toString() : userId;
+        if (uid == null || !isValidUuid(uid)) {
             return ResponseEntity.badRequest().body(Map.of("ok", false));
         }
         try {
@@ -146,7 +149,7 @@ public class NewsController {
                     INSERT INTO user_read_articles (user_id, article_id)
                     VALUES (CAST(? AS UUID), ?)
                     ON CONFLICT (user_id, article_id) DO NOTHING
-                    """, userId, articleId);
+                    """, uid, articleId);
             return ResponseEntity.ok(Map.of("ok", true));
         } catch (Exception e) {
             log.error("[읽음] 저장 실패: {}", e.getMessage());
