@@ -92,15 +92,25 @@ public class NewsController {
         final String resolvedUserId = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
                 ? auth.getPrincipal().toString() : userId;
 
+        // ET 장 사이클 계산 (항상 적용 — FE 파라미터 불필요)
+        java.time.ZoneId et = java.time.ZoneId.of("America/New_York");
+        java.time.ZonedDateTime nowET = java.time.ZonedDateTime.now(et);
+        java.time.ZonedDateTime closeToday = nowET.toLocalDate().atTime(16, 0).atZone(et);
+        final java.time.OffsetDateTime since = ("all".equals(period)) ? null
+                : (nowET.isBefore(closeToday) ? closeToday.minusDays(1) : closeToday).toOffsetDateTime();
+
         if (resolvedUserId != null && isValidUuid(resolvedUserId)) {
             final int pageNum = offset / limit;
-            // 3개 DB 쿼리 병렬 실행 — 순차 350ms → 병렬 200ms
             var pageFuture = new java.util.concurrent.CompletableFuture<Page<NewsArticle>>();
             var readFuture = new java.util.concurrent.CompletableFuture<List<NewsArticle>>();
             var tickersFuture = new java.util.concurrent.CompletableFuture<List<String>>();
 
             Thread.ofVirtual().start(() -> {
-                try { pageFuture.complete(newsRepo.findUnreadByUser(resolvedUserId, PageRequest.of(pageNum, limit))); }
+                try {
+                    java.time.OffsetDateTime effectiveSince = since != null ? since
+                            : java.time.OffsetDateTime.now().minusYears(10);
+                    pageFuture.complete(newsRepo.findUnreadByUser(resolvedUserId, effectiveSince, PageRequest.of(pageNum, limit)));
+                }
                 catch (Exception e) { pageFuture.completeExceptionally(e); }
             });
             Thread.ofVirtual().start(() -> {
@@ -126,17 +136,6 @@ public class NewsController {
             return ResponseEntity.ok(new NewsListResponse(page.getTotalElements(), offset, data, userTickers));
         }
 
-        // ET 기준 장 사이클: 4PM ET 기준 (DST는 America/New_York 타임존이 자동 처리)
-        java.time.OffsetDateTime etMidnight = null;
-        if ("today".equals(period)) {
-            java.time.ZoneId et = java.time.ZoneId.of("America/New_York");
-            java.time.ZonedDateTime nowET = java.time.ZonedDateTime.now(et);
-            java.time.ZonedDateTime closeToday = nowET.toLocalDate().atTime(16, 0).atZone(et);
-            etMidnight = (nowET.isBefore(closeToday) ? closeToday.minusDays(1) : closeToday)
-                    .toOffsetDateTime();
-        }
-
-        final java.time.OffsetDateTime since = etMidnight;
         org.springframework.data.domain.PageRequest pageReq = PageRequest.of(offset / limit, limit);
 
         Page<NewsArticle> page = "power".equals(sort)

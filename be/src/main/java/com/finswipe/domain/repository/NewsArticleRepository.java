@@ -89,12 +89,13 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             nativeQuery = true)
     Page<NewsArticle> findByXaiKoIsNotNullOrderByPowerDesc(Pageable pageable);
 
-    // userId 기준 읽지 않은 기사 조회
+    // userId 기준 읽지 않은 기사 조회 (ET 장 사이클 필터 포함)
     @Query(value = """
             SELECT * FROM news_articles na
-            WHERE na.headline_ko IS NOT NULL AND na.headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
-              AND na.summary_3lines_ko IS NOT NULL AND na.summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+            WHERE na.headline_ko IS NOT NULL
+              AND na.summary_3lines_ko IS NOT NULL
               AND na.sentiment_reason IS NOT NULL
+              AND na.published_at >= :since
               AND na.tickers && (
                 SELECT COALESCE(tickers, '{}') FROM user_profiles WHERE id = CAST(:userId AS uuid)
               )
@@ -106,9 +107,10 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             """,
             countQuery = """
             SELECT COUNT(*) FROM news_articles na
-            WHERE na.headline_ko IS NOT NULL AND na.headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
-              AND na.summary_3lines_ko IS NOT NULL AND na.summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+            WHERE na.headline_ko IS NOT NULL
+              AND na.summary_3lines_ko IS NOT NULL
               AND na.sentiment_reason IS NOT NULL
+              AND na.published_at >= :since
               AND na.tickers && (
                 SELECT COALESCE(tickers, '{}') FROM user_profiles WHERE id = CAST(:userId AS uuid)
               )
@@ -118,7 +120,9 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
               )
             """,
             nativeQuery = true)
-    Page<NewsArticle> findUnreadByUser(@Param("userId") String userId, Pageable pageable);
+    Page<NewsArticle> findUnreadByUser(@Param("userId") String userId,
+                                       @Param("since") java.time.OffsetDateTime since,
+                                       Pageable pageable);
 
     // 특정 티커 기사
     @Query(value = """
