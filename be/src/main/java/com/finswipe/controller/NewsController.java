@@ -3,6 +3,9 @@ package com.finswipe.controller;
 import com.finswipe.config.AppProperties;
 import com.finswipe.config.CacheConfig;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.finswipe.domain.entity.NewsArticle;
@@ -51,7 +54,29 @@ public class NewsController {
 
     // ===================== Public Endpoints =====================
 
-    @Operation(summary = "뉴스 피드", description = "분석 완료된 최신 기사 목록. userId 전달 시 읽은 기사 제외 + 관심 티커 필터 적용.")
+    @Operation(summary = "뉴스 피드", description = "분석 완료된 최신 기사 목록. JWT 있으면 읽은 기사 제외 + 관심 티커 필터 적용.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            {
+              "total": 1200,
+              "offset": 0,
+              "data": [
+                {
+                  "id": "uuid",
+                  "headline": "Apple beats earnings estimates",
+                  "headlineKo": "애플, 실적 예상치 초과 달성",
+                  "summary3linesKo": ["첫 번째 요약", "두 번째 요약", "세 번째 요약"],
+                  "sentimentLabel": "positive",
+                  "sentimentScore": 7.2,
+                  "sentimentReason": "매출 15% 증가와 가이던스 상향이 주요 원인입니다.",
+                  "tickers": ["AAPL"],
+                  "imageUrl": "https://...",
+                  "publishedAt": "2026-06-04T10:00:00Z",
+                  "is_read": false
+                }
+              ],
+              "userTickers": ["AAPL", "TSLA"]
+            }
+            """)))
     @GetMapping("/latest")
     @Cacheable(value = CacheConfig.CACHE_NEWS_LATEST, key = "#limit + ':' + #offset",
                condition = "#userId == null")
@@ -161,6 +186,16 @@ public class NewsController {
     }
 
     @Operation(summary = "전체 티커 목록", description = "5,500개 미국 주식 티커 + 한국어 회사명. 자동완성에 활용.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            {
+              "count": 5543,
+              "data": [
+                { "ticker": "AAPL", "corp": "Apple Inc.", "ko": "애플" },
+                { "ticker": "TSLA", "corp": "Tesla Inc.", "ko": "테슬라" },
+                { "ticker": "NVDA", "corp": "NVIDIA Corporation", "ko": "엔비디아" }
+              ]
+            }
+            """)))
     @GetMapping("/tickers")
     public ResponseEntity<Map<String, Object>> getTickers() {
         List<TickerInfo> tickers = tickerService.getAllTickers();
