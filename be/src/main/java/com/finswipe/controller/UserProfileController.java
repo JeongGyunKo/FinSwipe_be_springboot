@@ -54,7 +54,7 @@ public class UserProfileController {
         }
         try {
             return jdbc.queryForObject(
-                    "SELECT tickers, level, email, display_name FROM user_profiles WHERE id = CAST(? AS UUID)",
+                    "SELECT tickers, level, email, display_name, news_sort FROM user_profiles WHERE id = CAST(? AS UUID)",
                     (rs, row) -> {
                         List<String> tickers = parseTickers(rs.getString("tickers"));
                         Integer level = (Integer) rs.getObject("level");
@@ -64,6 +64,7 @@ public class UserProfileController {
                         body.put("displayName", rs.getString("display_name"));
                         body.put("tickers", tickers);
                         body.put("level", level != null ? level : 0);
+                        body.put("newsSort", rs.getString("news_sort") != null ? rs.getString("news_sort") : "time");
                         return ResponseEntity.ok(body);
                     }, uid);
         } catch (EmptyResultDataAccessException e) {
@@ -158,6 +159,29 @@ public class UserProfileController {
             log.error("[티커] 업데이트 실패: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "서버 오류"));
+        }
+    }
+
+    @Operation(summary = "뉴스 정렬 저장", description = "메인 뉴스 정렬 기준 저장. sort: time(시간순) | power(파워순)")
+    @PutMapping("/news-sort")
+    public ResponseEntity<Map<String, Object>> updateNewsSort(
+            Authentication auth,
+            @RequestParam(required = false) String userId,
+            @RequestBody Map<String, String> body) {
+        final String uid = resolveUserId(auth, userId);
+        if (uid == null) return ResponseEntity.badRequest().body(Map.of("error", "userId 필요"));
+        if (!isValidUuid(uid)) return ResponseEntity.badRequest().body(Map.of("error", "유효하지 않은 userId"));
+        String sort = body.getOrDefault("sort", "time");
+        if (!sort.equals("time") && !sort.equals("power")) {
+            return ResponseEntity.badRequest().body(Map.of("error", "sort는 time 또는 power여야 합니다"));
+        }
+        try {
+            jdbc.update("UPDATE user_profiles SET news_sort = ?, updated_at = NOW() WHERE id = CAST(? AS UUID)",
+                    sort, uid);
+            return ResponseEntity.ok(Map.of("ok", true, "newsSort", sort));
+        } catch (Exception e) {
+            log.error("[뉴스정렬] 저장 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "서버 오류"));
         }
     }
 
