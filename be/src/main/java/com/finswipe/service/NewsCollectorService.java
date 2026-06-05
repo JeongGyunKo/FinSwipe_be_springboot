@@ -25,26 +25,30 @@ import java.util.stream.Collectors;
 @Slf4j
 public class NewsCollectorService {
 
-    // 텍스트 검색 (12개) + 티커 직접 조회 (5개) = 총 17개
+    // 텍스트 검색 10개 + 티커 배치 7개 = 총 17콜/사이클
     // 일 콜: 17 × 96 = 1,632 / 월: 48,960 (한도 50,000의 98%)
     private static final List<String> COLLECTION_QUERIES = List.of(
             "stock earnings results guidance",
             "stock market shares price",
             "analyst rating upgrade downgrade target",
-            "merger acquisition dividend buyback",
             "Federal Reserve inflation interest rate",
             "semiconductor technology stocks",
-            "energy oil gas stocks",
             "AI artificial intelligence stocks",
             "healthcare biotech pharma drug stocks",
             "financial banking insurance stocks",
-            "consumer retail e-commerce stocks",
-            "EV electric vehicle battery stocks"
+            "EV electric vehicle battery stocks",
+            "stock earnings beat miss surprise"
     );
 
-    // 한국 투자자 관심 빅테크 — 티커 직접 조회 (텍스트 검색 미흡 보완)
-    private static final List<String> TICKER_QUERIES = List.of(
-            "AAPL", "TSLA", "AMZN", "META", "NFLX"
+    // 티커 배치 7개 × 5종목 = 35개 종목 직접 보장
+    private static final List<List<String>> TICKER_BATCHES = List.of(
+            List.of("AAPL", "TSLA", "AMZN", "META", "NFLX"),   // 소비자 빅테크
+            List.of("NVDA", "MSFT", "GOOGL", "AMD", "INTC"),    // AI/반도체
+            List.of("JPM", "BAC", "V", "MA", "GS"),             // 금융
+            List.of("JNJ", "PFE", "MRNA", "LLY", "UNH"),        // 헬스케어
+            List.of("XOM", "CVX", "WMT", "COST", "TGT"),        // 에너지/리테일
+            List.of("UBER", "ABNB", "SNAP", "PINS", "RBLX"),    // 플랫폼
+            List.of("PLTR", "SNOW", "ARM", "CRWD", "PANW")      // 사이버/클라우드
     );
 
     // Python: CRYPTO_TICKERS
@@ -134,9 +138,9 @@ public class NewsCollectorService {
             allRaw.addAll(articles);
             try { Thread.sleep(2000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
         }
-        // 빅테크 종목 ticker 직접 조회 (텍스트 검색 보완)
-        for (String ticker : TICKER_QUERIES) {
-            List<Map<String, Object>> articles = fetchByTicker(ticker);
+        // 35개 종목 티커 배치 직접 조회 (텍스트 검색 보완)
+        for (List<String> batch : TICKER_BATCHES) {
+            List<Map<String, Object>> articles = fetchByTickers(batch);
             allRaw.addAll(articles);
             try { Thread.sleep(1000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
         }
@@ -188,9 +192,9 @@ public class NewsCollectorService {
 
     /** 특정 티커 직접 조회 — 텍스트 검색으로 누락되는 주요 종목 보완 */
     @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> fetchByTicker(String ticker) {
+    private List<Map<String, Object>> fetchByTickers(List<String> tickers) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("tickers", List.of(ticker));
+        payload.put("tickers", tickers);
         payload.put("language", "en");
         payload.put("pageSize", 30);
         payload.put("includeContent", true);
@@ -211,10 +215,10 @@ public class NewsCollectorService {
             if (!articlesNode.isArray()) return List.of();
             List<Map<String, Object>> result = new ArrayList<>();
             articlesNode.forEach(node -> result.add(objectMapper.convertValue(node, Map.class)));
-            log.info("[Finlight] ticker='{}' → {}개", ticker, result.size());
+            log.info("[Finlight] tickers={} → {}개", tickers, result.size());
             return result;
         } catch (Exception e) {
-            log.error("[Finlight] ticker 조회 실패 ({}): {}", ticker, e.getMessage());
+            log.error("[Finlight] ticker 조회 실패 ({}): {}", tickers, e.getMessage());
             return List.of();
         }
     }
