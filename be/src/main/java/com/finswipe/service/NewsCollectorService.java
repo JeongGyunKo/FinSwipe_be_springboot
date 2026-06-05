@@ -580,13 +580,16 @@ public class NewsCollectorService {
                     newsRepo.save(article);
                     log.debug("[DB] 저장: {}", truncate(link));
                 }
-                // 3개 필드 모두 한국어로 있을 때만 알림
+                // 강한 감성(|score| >= 0.7) 기사만 알림 — 포트폴리오 알림 에이전트
+                Double score = result.getSentimentScore();
+                boolean isSignificant = score != null && Math.abs(score) >= 0.7;
                 if (sendFcm
+                        && isSignificant
                         && headlineKo != null
                         && summaryKo != null
                         && result.getSentimentReason() != null) {
                     List<String> tickers = original.getTickers();
-                    String headline = original.getHeadline();
+                    String headline = headlineKo; // 한국어 헤드라인으로 알림
                     if (tickers != null && !tickers.isEmpty() && headline != null
                             && fcmJson != null && !fcmJson.isBlank()) {
                         Thread.ofVirtual().start(() ->
