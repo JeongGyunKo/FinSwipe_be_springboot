@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClient;
 
@@ -55,6 +56,70 @@ public class AnalysisController {
         try {
             return genaiClient.post()
                     .uri("/api/v1/analysis/personalized")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .exchange((req, res) -> {
+                        byte[] bytes = res.getBody().readAllBytes();
+                        String raw = bytes.length > 0 ? new String(bytes, StandardCharsets.UTF_8) : "{}";
+                        return ResponseEntity.status(res.getStatusCode())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body(raw);
+                    });
+        } catch (Exception e) {
+            log.error("[에이전트 프록시] 실패: {}", e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body("{\"error\":\"분석 서버에 연결할 수 없습니다\"}");
+        }
+    }
+
+    @Operation(summary = "뉴스 큐레이션", description = "관심 티커·투자 성향 기반 오늘의 중요 뉴스 3개 선별")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            {
+              "articles": [
+                { "rank": 1, "article_id": "uuid", "headline_ko": "엔비디아 실적 어닝서프라이즈",
+                  "reason": "보유 종목의 강한 상승 시그널로 즉각적인 확인이 필요합니다.",
+                  "sentiment": "positive", "sentiment_score": 0.87, "tickers": ["NVDA"] }
+              ],
+              "tickers": ["NVDA", "AAPL"],
+              "tendency": "모멘텀형"
+            }
+            """)))
+    @PostMapping("/curate")
+    public ResponseEntity<String> curate(Authentication auth, @RequestParam(required = false) String userId) {
+        final String uid = resolveUserId(auth, userId);
+        if (uid == null) return ResponseEntity.badRequest()
+                .contentType(MediaType.APPLICATION_JSON).body("{\"error\":\"userId 필요\"}");
+        return proxy("/api/v1/analysis/curate", "{\"user_id\":\"" + uid + "\"}");
+    }
+
+    @Operation(summary = "학습 코치", description = "퀴즈 영역별 점수 분석 → 강점·약점 파악 및 맞춤 학습 방향 제시")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            {
+              "coaching": "기본개념과 매크로 영역에서 탁월한 실력을 보여주셨습니다!...",
+              "area_stats": { "기본개념": { "score": 5.0, "correct": 2, "total": 2 } },
+              "weak_areas": ["리스크관리", "펀더멘털"],
+              "tendency": "가치투자형",
+              "sessions_analyzed": 2
+            }
+            """)))
+    @PostMapping("/coach")
+    public ResponseEntity<String> coach(Authentication auth, @RequestParam(required = false) String userId) {
+        final String uid = resolveUserId(auth, userId);
+        if (uid == null) return ResponseEntity.badRequest()
+                .contentType(MediaType.APPLICATION_JSON).body("{\"error\":\"userId 필요\"}");
+        return proxy("/api/v1/analysis/coach", "{\"user_id\":\"" + uid + "\"}");
+    }
+
+    private String resolveUserId(Authentication auth, String userId) {
+        if (auth != null && auth.getPrincipal() instanceof java.util.UUID) return auth.getPrincipal().toString();
+        return userId;
+    }
+
+    private ResponseEntity<String> proxy(String path, String body) {
+        try {
+            return genaiClient.post()
+                    .uri(path)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .exchange((req, res) -> {

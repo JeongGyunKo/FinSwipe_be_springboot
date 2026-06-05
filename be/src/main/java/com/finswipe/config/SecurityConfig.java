@@ -41,7 +41,7 @@ public class SecurityConfig {
                 .requestMatchers("/admin/**").permitAll()
                 // 인증 필요
                 .requestMatchers("/user/**").authenticated()
-                .requestMatchers("/quiz/**").authenticated()
+                .requestMatchers("/quiz/**").permitAll()
                 .requestMatchers("/analysis/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/news/*/read").authenticated()
                 .requestMatchers(HttpMethod.POST, "/news/device-token").authenticated()
