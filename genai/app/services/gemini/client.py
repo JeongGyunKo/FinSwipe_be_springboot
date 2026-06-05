@@ -79,7 +79,7 @@ def gemini_generate_content(
     )
 
     attempt = 0
-    max_attempts = 2
+    max_attempts = 4
     while True:
         response = requests.post(
             url,
@@ -115,8 +115,6 @@ def gemini_generate_content(
             )
             can_retry_rate_limit = (
                 response.status_code == 429
-                and retry_after_seconds is not None
-                and retry_after_seconds <= settings.gemini_retry_after_max_seconds
                 and attempt + 1 < max_attempts
             )
             can_retry_server_error = (
@@ -124,7 +122,14 @@ def gemini_generate_content(
                 and attempt + 1 < max_attempts
             )
             if can_retry_rate_limit:
-                time.sleep(retry_after_seconds)
+                # retry_after 헤더 있으면 그 시간, 없으면 지수 백오프 (10s, 20s, 40s)
+                wait = retry_after_seconds if (
+                    retry_after_seconds is not None
+                    and retry_after_seconds <= settings.gemini_retry_after_max_seconds
+                ) else min(10 * (2 ** attempt), 60)
+                log_event(logger, logging.INFO, "gemini_rate_limit_retry",
+                          request_label=label, wait_seconds=wait, attempt=attempt + 1)
+                time.sleep(wait)
                 attempt += 1
                 continue
             if can_retry_server_error:
