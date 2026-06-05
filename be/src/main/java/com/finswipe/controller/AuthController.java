@@ -109,6 +109,30 @@ public class AuthController {
         }
     }
 
+    // ── 아이디 중복 확인 ──────────────────────────────────────────────────────
+
+    @Operation(summary = "아이디 중복 확인", description = "사용 가능 여부 확인. available=true면 사용 가능.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            { "available": true }
+            """)))
+    @GetMapping("/check-login-id")
+    public ResponseEntity<Map<String, Object>> checkLoginId(@RequestParam String loginId) {
+        if (loginId == null || loginId.isBlank() || loginId.length() < 2 || loginId.length() > 20) {
+            return ResponseEntity.badRequest().body(Map.of("error", "아이디는 2~20자여야 합니다"));
+        }
+        try {
+            Integer count = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM user_profiles WHERE login_id = ?",
+                    Integer.class, loginId.strip());
+            boolean available = count == null || count == 0;
+            return ResponseEntity.ok(Map.of("available", available, "loginId", loginId.strip()));
+        } catch (Exception e) {
+            log.error("[아이디 중복확인] 오류: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "서버 오류"));
+        }
+    }
+
     // ── 비밀번호 재설정 ───────────────────────────────────────────────────────
 
     @Operation(summary = "비밀번호 재설정 요청", description = "이메일로 재설정 링크 발송 (1시간 유효). 존재하지 않는 이메일도 동일 응답.")
