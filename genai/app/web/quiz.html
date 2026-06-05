@@ -200,7 +200,7 @@ let isDeepMode = false;
 function api(path, opts = {}) {
   return fetch(BASE + path, {
     ...opts,
-    headers: { 'Content-Type': 'application/json', 'Authorization': AUTH, ...(opts.headers || {}) }
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) }
   }).then(r => r.json());
 }
 
