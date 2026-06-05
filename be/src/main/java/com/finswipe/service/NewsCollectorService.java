@@ -25,8 +25,8 @@ import java.util.stream.Collectors;
 public class NewsCollectorService {
 
     // 전체 뉴스 스캔 — 최대 페이지 수 (15분 주기, 페이지당 100개)
-    // 1콜 = 100기사, 8페이지 × 96사이클 = 768콜/일 (한도 50,000의 46%)
-    private static final int MAX_SCAN_PAGES = 8;
+    // 1콜 = 100기사, 15페이지 × 96사이클 = 1,440콜/일 (한도 50,000의 86%)
+    private static final int MAX_SCAN_PAGES = 15;
 
     // Python: CRYPTO_TICKERS
     private static final Set<String> CRYPTO_TICKERS = Set.of(
