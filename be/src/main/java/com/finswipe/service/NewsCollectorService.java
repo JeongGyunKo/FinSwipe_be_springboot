@@ -25,9 +25,8 @@ import java.util.stream.Collectors;
 @Slf4j
 public class NewsCollectorService {
 
-    // Python: COLLECTION_QUERIES — 섹터 다양성 확보 (14개, 일 약 1,344 API 콜 / 월 40,320)
+    // Python: COLLECTION_QUERIES — 텍스트 검색 (13개)
     private static final List<String> COLLECTION_QUERIES = List.of(
-            // 기존 — 시장 전반
             "stock earnings results guidance",
             "stock market shares price",
             "analyst rating upgrade downgrade target",
@@ -35,14 +34,17 @@ public class NewsCollectorService {
             "Federal Reserve inflation interest rate",
             "semiconductor technology stocks",
             "energy oil gas stocks",
-            // 신규 — 섹터 다양화
             "AI artificial intelligence stocks",
-            "Apple Google Amazon Meta Microsoft stock",
             "healthcare biotech pharma drug stocks",
             "financial banking insurance stocks",
             "consumer retail e-commerce stocks",
             "EV electric vehicle battery stocks",
             "stock earnings beat miss surprise"
+    );
+
+    // 한국 투자자 관심 빅테크 — 티커 직접 조회 (텍스트 검색 미흡 보완)
+    private static final List<String> TICKER_QUERIES = List.of(
+            "AAPL", "TSLA", "AMZN", "META", "NFLX"
     );
 
     // Python: CRYPTO_TICKERS
@@ -132,6 +134,12 @@ public class NewsCollectorService {
             allRaw.addAll(articles);
             try { Thread.sleep(2000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
         }
+        // 빅테크 종목 ticker 직접 조회 (텍스트 검색 보완)
+        for (String ticker : TICKER_QUERIES) {
+            List<Map<String, Object>> articles = fetchByTicker(ticker);
+            allRaw.addAll(articles);
+            try { Thread.sleep(1000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+        }
 
         // URL 중복 제거 + URL 정규화
         Map<String, Map<String, Object>> byUrl = new LinkedHashMap<>();
@@ -176,6 +184,39 @@ public class NewsCollectorService {
         if (dupRemoved > 0) log.info("[중복탐지] 유사 기사 {}개 제거됨", dupRemoved);
 
         return deduplicated.stream().map(this::toEntity).filter(Objects::nonNull).toList();
+    }
+
+    /** 특정 티커 직접 조회 — 텍스트 검색으로 누락되는 주요 종목 보완 */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> fetchByTicker(String ticker) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("tickers", List.of(ticker));
+        payload.put("language", "en");
+        payload.put("pageSize", 30);
+        payload.put("includeContent", true);
+        payload.put("includeEntities", true);
+        payload.put("excludeEmptyContent", true);
+        payload.put("orderBy", "publishDate");
+        payload.put("order", "DESC");
+
+        try {
+            String raw = finlightClient.post()
+                    .uri("/v2/articles")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(payload)
+                    .retrieve()
+                    .body(String.class);
+            JsonNode root = objectMapper.readTree(raw);
+            JsonNode articlesNode = root.path("articles");
+            if (!articlesNode.isArray()) return List.of();
+            List<Map<String, Object>> result = new ArrayList<>();
+            articlesNode.forEach(node -> result.add(objectMapper.convertValue(node, Map.class)));
+            log.info("[Finlight] ticker='{}' → {}개", ticker, result.size());
+            return result;
+        } catch (Exception e) {
+            log.error("[Finlight] ticker 조회 실패 ({}): {}", ticker, e.getMessage());
+            return List.of();
+        }
     }
 
     /** Python: _fetch_single_query() */
