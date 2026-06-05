@@ -211,7 +211,7 @@ function show(id) {
 
 async function startQuiz() {
   show('screen-loading');
-  const s = await api('/api/v1/quiz/sessions', { method: 'POST', body: JSON.stringify({ user_id: null }) });
+  const s = await api('/quiz/sessions', { method: 'POST', body: JSON.stringify({ user_id: null }) });
   sessionId = s.session_id;
   totalQ = s.total_questions;
   knowledgeQ = s.knowledge_questions;
@@ -223,7 +223,7 @@ async function loadNextQuestion() {
   document.getElementById('loading-text').textContent = '문제를 생성하는 중...';
   document.getElementById('loading-error').style.display = 'none';
   try {
-    const q = await api(`/api/v1/quiz/sessions/${sessionId}/next-question`, { method: 'POST' });
+    const q = await api(`/quiz/sessions/${sessionId}/next-question`, { method: 'POST' });
     if (q.detail || q.error) throw new Error(q.detail || q.error);
     currentQuestion = q;
     renderQuestion(q);
@@ -275,7 +275,7 @@ function renderQuestion(q) {
 
 async function submitAnswer(answer) {
   document.querySelectorAll('.choice-btn').forEach(b => b.disabled = true);
-  const r = await api(`/api/v1/quiz/sessions/${sessionId}/answers`, {
+  const r = await api(`/quiz/sessions/${sessionId}/answers`, {
     method: 'POST', body: JSON.stringify({ question_id: currentQuestion.question_id, answer })
   });
 
@@ -445,7 +445,7 @@ function drawAreaDescs(areaStats) {
 
 async function startDeep() {
   document.getElementById('depth-choice').classList.add('hidden');
-  await api(`/api/v1/quiz/sessions/${sessionId}/deep`, { method: 'POST' });
+  await api(`/quiz/sessions/${sessionId}/deep`, { method: 'POST' });
   isDeepMode = true;
   totalQ = 10 + 5;
   await loadNextQuestion();
