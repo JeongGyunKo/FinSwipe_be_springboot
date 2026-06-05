@@ -115,13 +115,14 @@ public class NewsCollectorService {
             List<Map<String, Object>> articles = fetchPage(page);
             if (articles.isEmpty()) break;
 
-            // 가장 오래된 기사가 30분 이전이면 중단 (이미 수집된 구간)
-            Object lastDate = articles.get(articles.size() - 1).get("publishDate");
+            // createdAt 기준 30분 이전이면 중단 (publishDate는 과거 날짜일 수 있음)
+            Object lastDate = articles.get(articles.size() - 1).get("createdAt");
+            if (lastDate == null) lastDate = articles.get(articles.size() - 1).get("publishDate");
             if (lastDate instanceof String dateStr) {
-                java.time.Instant published = java.time.Instant.parse(dateStr);
-                if (published.isBefore(java.time.Instant.now().minusSeconds(1800))) {
+                java.time.Instant ingested = java.time.Instant.parse(dateStr);
+                if (ingested.isBefore(java.time.Instant.now().minusSeconds(1800))) {
                     allRaw.addAll(articles);
-                    log.info("[Finlight] 페이지 {} — 30분 이전 기사 도달, 스캔 종료", page);
+                    log.info("[Finlight] 페이지 {} — 30분 이전 수집 기사 도달, 스캔 종료", page);
                     break;
                 }
             }
@@ -217,7 +218,7 @@ public class NewsCollectorService {
         payload.put("includeContent", true);
         payload.put("includeEntities", true);
         payload.put("excludeEmptyContent", true);
-        payload.put("orderBy", "publishDate");
+        payload.put("orderBy", "createdAt");
         payload.put("order", "DESC");
 
         try {
