@@ -86,18 +86,20 @@ public class NewsController {
             @RequestParam(defaultValue = "0") @Min(0) int offset,
             @RequestParam(required = false) String userId,
             @RequestParam(defaultValue = "time") String sort,
-            @RequestParam(defaultValue = "today") String period) {
+            @RequestParam(defaultValue = "week") String period) {
 
         // JWT가 있으면 JWT의 userId를 우선 사용 (파라미터 조작 방지)
         final String resolvedUserId = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
                 ? auth.getPrincipal().toString() : userId;
 
-        // ET 장 사이클 계산 (항상 적용 — FE 파라미터 불필요)
+        // ET 장 사이클 계산 — 기본 5일치
         java.time.ZoneId et = java.time.ZoneId.of("America/New_York");
         java.time.ZonedDateTime nowET = java.time.ZonedDateTime.now(et);
         java.time.ZonedDateTime closeToday = nowET.toLocalDate().atTime(16, 0).atZone(et);
-        final java.time.OffsetDateTime since = ("all".equals(period)) ? null
-                : (nowET.isBefore(closeToday) ? closeToday.minusDays(1) : closeToday).toOffsetDateTime();
+        java.time.ZonedDateTime lastClose = nowET.isBefore(closeToday) ? closeToday.minusDays(1) : closeToday;
+        int days = "today".equals(period) ? 1 : "all".equals(period) ? 0 : 5;
+        final java.time.OffsetDateTime since = (days == 0) ? null
+                : lastClose.minusDays(days - 1).toOffsetDateTime();
 
         if (resolvedUserId != null && isValidUuid(resolvedUserId)) {
             final int pageNum = offset / limit;
