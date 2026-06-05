@@ -25,31 +25,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class NewsCollectorService {
 
-    // 텍스트 검색 10개 + 티커 배치 7개 = 총 17콜/사이클
-    // 일 콜: 17 × 96 = 1,632 / 월: 48,960 (한도 50,000의 98%)
-    private static final List<String> COLLECTION_QUERIES = List.of(
-            "stock earnings results guidance",
-            "stock market shares price",
-            "analyst rating upgrade downgrade target",
-            "Federal Reserve inflation interest rate",
-            "semiconductor technology stocks",
-            "AI artificial intelligence stocks",
-            "healthcare biotech pharma drug stocks",
-            "financial banking insurance stocks",
-            "EV electric vehicle battery stocks",
-            "stock earnings beat miss surprise"
-    );
-
-    // 티커 배치 7개 × 5종목 = 35개 종목 직접 보장
-    private static final List<List<String>> TICKER_BATCHES = List.of(
-            List.of("AAPL", "TSLA", "AMZN", "META", "NFLX"),   // 소비자 빅테크
-            List.of("NVDA", "MSFT", "GOOGL", "AMD", "INTC"),    // AI/반도체
-            List.of("JPM", "BAC", "V", "MA", "GS"),             // 금융
-            List.of("JNJ", "PFE", "MRNA", "LLY", "UNH"),        // 헬스케어
-            List.of("XOM", "CVX", "WMT", "COST", "TGT"),        // 에너지/리테일
-            List.of("UBER", "ABNB", "SNAP", "PINS", "RBLX"),    // 플랫폼
-            List.of("PLTR", "SNOW", "ARM", "CRWD", "PANW")      // 사이버/클라우드
-    );
+    // 전체 뉴스 스캔 — 최대 페이지 수 (15분 주기, 페이지당 100개)
+    // 1콜 = 100기사, 8페이지 × 96사이클 = 768콜/일 (한도 50,000의 46%)
+    private static final int MAX_SCAN_PAGES = 8;
 
     // Python: CRYPTO_TICKERS
     private static final Set<String> CRYPTO_TICKERS = Set.of(
@@ -129,20 +107,33 @@ public class NewsCollectorService {
                 "analyzing", result.get("saved"));
     }
 
-    /** Python: fetch_news_from_finlight() */
+    /** 전체 뉴스 스캔 — 필터 없이 가져와서 미국 티커로 자체 필터링 */
     List<NewsArticle> fetchFromFinlight() {
+        Set<String> usTickers = loadUsTickers();
         List<Map<String, Object>> allRaw = new ArrayList<>();
 
-        for (String query : COLLECTION_QUERIES) {
-            List<Map<String, Object>> articles = fetchSingleQuery(query);
+        for (int page = 1; page <= MAX_SCAN_PAGES; page++) {
+            List<Map<String, Object>> articles = fetchPage(page);
+            if (articles.isEmpty()) break;
+
+            // 가장 오래된 기사가 30분 이전이면 중단 (이미 수집된 구간)
+            Object lastDate = articles.get(articles.size() - 1).get("publishDate");
+            if (lastDate instanceof String dateStr) {
+                java.time.Instant published = java.time.Instant.parse(dateStr);
+                if (published.isBefore(java.time.Instant.now().minusSeconds(1800))) {
+                    allRaw.addAll(articles);
+                    log.info("[Finlight] 페이지 {} — 30분 이전 기사 도달, 스캔 종료", page);
+                    break;
+                }
+            }
             allRaw.addAll(articles);
-            try { Thread.sleep(2000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+            log.info("[Finlight] 페이지 {}/{} — {}개", page, MAX_SCAN_PAGES, articles.size());
+            try { Thread.sleep(500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
         }
-        // 35개 종목 티커 배치 직접 조회 (텍스트 검색 보완)
-        for (List<String> batch : TICKER_BATCHES) {
-            List<Map<String, Object>> articles = fetchByTickers(batch);
-            allRaw.addAll(articles);
-            try { Thread.sleep(1000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+
+        // 미국 티커만 남기고 기타 거래소 티커 제거
+        for (Map<String, Object> article : allRaw) {
+            filterToUsTickers(article, usTickers);
         }
 
         // URL 중복 제거 + URL 정규화
@@ -191,6 +182,64 @@ public class NewsCollectorService {
     }
 
     /** 특정 티커 직접 조회 — 텍스트 검색으로 누락되는 주요 종목 보완 */
+    /** 미국 티커 목록 로드 (DB의 ticker_info 테이블 기준) */
+    private Set<String> loadUsTickers() {
+        try {
+            List<String> list = jdbc.queryForList("SELECT ticker FROM ticker_info", String.class);
+            return new java.util.HashSet<>(list);
+        } catch (Exception e) {
+            log.warn("[티커] ticker_info 로드 실패, VALID_US_TICKER 패턴으로 대체: {}", e.getMessage());
+            return Set.of(); // 빈 셋 → 아래 filterToUsTickers에서 패턴 fallback
+        }
+    }
+
+    /** 기사의 companies 리스트에서 미국 상장 티커만 남김 */
+    @SuppressWarnings("unchecked")
+    private void filterToUsTickers(Map<String, Object> article, Set<String> usTickers) {
+        List<Map<String, Object>> companies = (List<Map<String, Object>>) article.getOrDefault("companies", List.of());
+        if (companies.isEmpty()) return;
+        List<Map<String, Object>> filtered = companies.stream()
+                .filter(c -> {
+                    String t = String.valueOf(c.getOrDefault("ticker", ""));
+                    if (usTickers.isEmpty()) return VALID_US_TICKER.matcher(t).matches() && !CRYPTO_TICKERS.contains(t);
+                    return usTickers.contains(t);
+                })
+                .toList();
+        article.put("companies", filtered);
+    }
+
+    /** 필터 없이 Finlight 전체 뉴스 페이지 단위 조회 */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> fetchPage(int page) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("language", "en");
+        payload.put("pageSize", 100);
+        payload.put("page", page);
+        payload.put("includeContent", true);
+        payload.put("includeEntities", true);
+        payload.put("excludeEmptyContent", true);
+        payload.put("orderBy", "publishDate");
+        payload.put("order", "DESC");
+
+        try {
+            String raw = finlightClient.post()
+                    .uri("/v2/articles")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(payload)
+                    .retrieve()
+                    .body(String.class);
+            JsonNode root = objectMapper.readTree(raw);
+            JsonNode articlesNode = root.path("articles");
+            if (!articlesNode.isArray()) return List.of();
+            List<Map<String, Object>> result = new ArrayList<>();
+            articlesNode.forEach(node -> result.add(objectMapper.convertValue(node, Map.class)));
+            return result;
+        } catch (Exception e) {
+            log.error("[Finlight] 페이지 {} 조회 실패: {}", page, e.getMessage());
+            return List.of();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> fetchByTickers(List<String> tickers) {
         Map<String, Object> payload = new LinkedHashMap<>();

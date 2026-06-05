@@ -86,7 +86,8 @@ public class NewsController {
             @RequestParam(defaultValue = "0") @Min(0) int offset,
             @RequestParam(required = false) String userId,
             @RequestParam(defaultValue = "time") String sort,
-            @RequestParam(defaultValue = "week") String period) {
+            @RequestParam(defaultValue = "week") String period,
+            @RequestParam(required = false) String ticker) {
 
         // JWT가 있으면 JWT의 userId를 우선 사용 (파라미터 조작 방지)
         final String resolvedUserId = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
@@ -107,11 +108,21 @@ public class NewsController {
             var readFuture = new java.util.concurrent.CompletableFuture<List<NewsArticle>>();
             var tickersFuture = new java.util.concurrent.CompletableFuture<List<String>>();
 
+            final String tickerFilter = (ticker != null && !ticker.isBlank()) ? ticker.strip().toUpperCase() : null;
             Thread.ofVirtual().start(() -> {
                 try {
                     java.time.OffsetDateTime effectiveSince = since != null ? since
                             : java.time.OffsetDateTime.now().minusYears(10);
-                    pageFuture.complete(newsRepo.findUnreadByUser(resolvedUserId, effectiveSince, PageRequest.of(pageNum, limit)));
+                    Page<NewsArticle> result;
+                    if (tickerFilter != null) {
+                        result = newsRepo.findUnreadByUserAndTicker(resolvedUserId, effectiveSince, tickerFilter, PageRequest.of(pageNum, limit));
+                    } else {
+                        List<String> tickers = getUserTickers(resolvedUserId);
+                        int tickerCount = Math.max(tickers.size(), 1);
+                        int perTicker = Math.max(limit / tickerCount, 10);
+                        result = newsRepo.findUnreadByUser(resolvedUserId, effectiveSince, perTicker, PageRequest.of(pageNum, limit));
+                    }
+                    pageFuture.complete(result);
                 }
                 catch (Exception e) { pageFuture.completeExceptionally(e); }
             });

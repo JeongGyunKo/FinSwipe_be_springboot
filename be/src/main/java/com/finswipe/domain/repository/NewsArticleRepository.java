@@ -89,13 +89,14 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             nativeQuery = true)
     Page<NewsArticle> findByXaiKoIsNotNullOrderByPowerDesc(Pageable pageable);
 
-    // userId 기준 읽지 않은 기사 조회 (ET 장 사이클 필터 포함)
+    // userId + 특정 티커 필터 읽지 않은 기사
     @Query(value = """
             SELECT * FROM news_articles na
             WHERE na.headline_ko IS NOT NULL
               AND na.summary_3lines_ko IS NOT NULL
               AND na.sentiment_reason IS NOT NULL
               AND na.published_at >= :since
+              AND :ticker = ANY(na.tickers)
               AND na.tickers && (
                 SELECT COALESCE(tickers, '{}') FROM user_profiles WHERE id = CAST(:userId AS uuid)
               )
@@ -104,6 +105,63 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
                 WHERE user_id = CAST(:userId AS uuid) AND article_id = na.id
               )
             ORDER BY na.published_at DESC
+            """,
+            countQuery = """
+            SELECT COUNT(*) FROM news_articles na
+            WHERE na.headline_ko IS NOT NULL
+              AND na.summary_3lines_ko IS NOT NULL
+              AND na.sentiment_reason IS NOT NULL
+              AND na.published_at >= :since
+              AND :ticker = ANY(na.tickers)
+              AND na.tickers && (
+                SELECT COALESCE(tickers, '{}') FROM user_profiles WHERE id = CAST(:userId AS uuid)
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM user_read_articles
+                WHERE user_id = CAST(:userId AS uuid) AND article_id = na.id
+              )
+            """,
+            nativeQuery = true)
+    Page<NewsArticle> findUnreadByUserAndTicker(@Param("userId") String userId,
+                                                @Param("since") java.time.OffsetDateTime since,
+                                                @Param("ticker") String ticker,
+                                                Pageable pageable);
+
+    // userId 기준 읽지 않은 기사 — 티커별 균등 배분
+    @Query(value = """
+            WITH user_tickers AS (
+              SELECT unnest(COALESCE(tickers, '{}')) AS ticker
+              FROM user_profiles WHERE id = CAST(:userId AS uuid)
+            ),
+            ticker_count AS (
+              SELECT COUNT(*) AS cnt FROM user_tickers
+            ),
+            ranked AS (
+              SELECT na.*,
+                ROW_NUMBER() OVER (
+                  PARTITION BY (
+                    SELECT t.ticker FROM user_tickers t WHERE t.ticker = ANY(na.tickers) LIMIT 1
+                  )
+                  ORDER BY na.published_at DESC
+                ) AS rn,
+                (SELECT cnt FROM ticker_count) AS total_tickers
+              FROM news_articles na
+              WHERE na.headline_ko IS NOT NULL
+                AND na.summary_3lines_ko IS NOT NULL
+                AND na.sentiment_reason IS NOT NULL
+                AND na.published_at >= :since
+                AND na.tickers && (SELECT array_agg(ticker) FROM user_tickers)
+                AND NOT EXISTS (
+                  SELECT 1 FROM user_read_articles
+                  WHERE user_id = CAST(:userId AS uuid) AND article_id = na.id
+                )
+            )
+            SELECT id, source_url, headline, headline_ko, summary_3lines_ko, content,
+                   sentiment_label, sentiment_score, sentiment_reason, tickers,
+                   published_at, created_at, updated_at, retry_count
+            FROM ranked
+            WHERE rn <= GREATEST(:perTicker, 10)
+            ORDER BY published_at DESC
             """,
             countQuery = """
             SELECT COUNT(*) FROM news_articles na
@@ -122,6 +180,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             nativeQuery = true)
     Page<NewsArticle> findUnreadByUser(@Param("userId") String userId,
                                        @Param("since") java.time.OffsetDateTime since,
+                                       @Param("perTicker") int perTicker,
                                        Pageable pageable);
 
     // 특정 티커 기사
