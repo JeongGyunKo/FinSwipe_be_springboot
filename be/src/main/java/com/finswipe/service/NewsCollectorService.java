@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientResponseException;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -238,95 +237,6 @@ public class NewsCollectorService {
             log.error("[Finlight] 페이지 {} 조회 실패: {}", page, e.getMessage());
             return List.of();
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> fetchByTickers(List<String> tickers) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("tickers", tickers);
-        payload.put("language", "en");
-        payload.put("pageSize", 30);
-        payload.put("includeContent", true);
-        payload.put("includeEntities", true);
-        payload.put("excludeEmptyContent", true);
-        payload.put("orderBy", "publishDate");
-        payload.put("order", "DESC");
-
-        try {
-            String raw = finlightClient.post()
-                    .uri("/v2/articles")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(payload)
-                    .retrieve()
-                    .body(String.class);
-            JsonNode root = objectMapper.readTree(raw);
-            JsonNode articlesNode = root.path("articles");
-            if (!articlesNode.isArray()) return List.of();
-            List<Map<String, Object>> result = new ArrayList<>();
-            articlesNode.forEach(node -> result.add(objectMapper.convertValue(node, Map.class)));
-            log.info("[Finlight] tickers={} → {}개", tickers, result.size());
-            return result;
-        } catch (Exception e) {
-            log.error("[Finlight] ticker 조회 실패 ({}): {}", tickers, e.getMessage());
-            return List.of();
-        }
-    }
-
-    /** Python: _fetch_single_query() */
-    @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> fetchSingleQuery(String query) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("query", query);
-        payload.put("language", "en");
-        payload.put("pageSize", 100);
-        payload.put("includeContent", true);
-        payload.put("includeEntities", true);
-        payload.put("excludeEmptyContent", true);
-        payload.put("orderBy", "publishDate");
-        payload.put("order", "DESC");
-
-        for (int attempt = 0; attempt < 4; attempt++) {
-            try {
-                String raw = finlightClient.post()
-                        .uri("/v2/articles")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(payload)
-                        .retrieve()
-                        .body(String.class);
-
-                JsonNode root = objectMapper.readTree(raw);
-                JsonNode articlesNode = root.path("articles");
-                if (!articlesNode.isArray()) return List.of();
-
-                List<Map<String, Object>> result = new ArrayList<>();
-                articlesNode.forEach(node -> result.add(objectMapper.convertValue(node, Map.class)));
-
-                if (!result.isEmpty()) {
-                    Object pd = ((Map<?,?>) result.get(0)).get("publishDate");
-                    String newest = pd != null ? pd.toString() : "";
-                    log.info("[Finlight] '{}' → {}개 (최신: {})", query.length() > 40 ? query.substring(0, 40) : query,
-                            result.size(), newest.length() >= 10 ? newest.substring(0, 10) : newest);
-                } else {
-                    log.info("[Finlight] '{}' → 0개", query);
-                }
-                return result;
-
-            } catch (RestClientResponseException e) {
-                if (e.getStatusCode().value() == 429) {
-                    int wait = 15 * (attempt + 1);
-                    log.warn("[Finlight] 429 → {}초 대기 후 재시도 ({}/4)", wait, attempt + 1);
-                    try { Thread.sleep(wait * 1000L); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); return List.of(); }
-                    continue;
-                }
-                log.error("[Finlight] HTTP {}: {}", e.getStatusCode().value(), query);
-                return List.of();
-            } catch (Exception e) {
-                log.error("[Finlight] {}: {}", e.getClass().getSimpleName(), query);
-                return List.of();
-            }
-        }
-        log.error("[Finlight] 4회 재시도 후 실패: {}", query);
-        return List.of();
     }
 
     /** Python: _normalize_url() */
