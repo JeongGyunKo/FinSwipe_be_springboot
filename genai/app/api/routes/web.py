@@ -17,3 +17,8 @@ async def web_app() -> FileResponse:
 @router.head("/", include_in_schema=False)
 async def web_app_head() -> Response:
     return Response(status_code=200)
+
+
+@router.get("/quiz.html", include_in_schema=False)
+async def quiz_page() -> FileResponse:
+    return FileResponse(WEB_DIR / "quiz.html")
