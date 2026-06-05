@@ -8,12 +8,17 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from urllib.parse import quote
 
+import threading
+
 import requests
 
 from app.core import get_settings
 from app.core.logging import log_event
 
 logger = logging.getLogger(__name__)
+
+# Gemini API 동시 호출 수 제한 — 뉴스분석+퀴즈 합산 최대 5개
+_GEMINI_SEMAPHORE = threading.Semaphore(5)
 
 _RETRY_AFTER_PATTERN = re.compile(r"Please try again in ([0-9]+(?:\.[0-9]+)?)s", re.IGNORECASE)
 _gemini_log_context: ContextVar[dict[str, object]] = ContextVar(
@@ -80,63 +85,63 @@ def gemini_generate_content(
 
     attempt = 0
     max_attempts = 4
-    while True:
-        response = requests.post(
-            url,
-            headers={
-                "x-goog-api-key": settings.gemini_api_key,
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=settings.gemini_timeout_seconds,
-        )
-        try:
-            response.raise_for_status()
-            break
-        except requests.HTTPError as exc:
-            retry_after_seconds = _extract_retry_after_seconds(response)
-            error_payload = _safe_json(response)
-            error_message = (
-                ((error_payload.get("error") or {}).get("message"))
-                if isinstance(error_payload, dict)
-                else None
+    with _GEMINI_SEMAPHORE:  # 동시 호출 수 제한 (최대 5개)
+        while True:
+            response = requests.post(
+                url,
+                headers={
+                    "x-goog-api-key": settings.gemini_api_key,
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=settings.gemini_timeout_seconds,
             )
-            log_event(
-                logger,
-                logging.WARNING,
-                "gemini_request_failed",
-                **_gemini_context_fields(),
-                request_label=label,
-                model=model,
-                status_code=response.status_code,
-                retry_after_seconds=retry_after_seconds,
-                error_message=error_message,
-                attempt=attempt + 1,
-            )
-            can_retry_rate_limit = (
-                response.status_code == 429
-                and attempt + 1 < max_attempts
-            )
-            can_retry_server_error = (
-                response.status_code in (500, 502, 503, 529)
-                and attempt + 1 < max_attempts
-            )
-            if can_retry_rate_limit:
-                # retry_after 헤더 있으면 그 시간, 없으면 지수 백오프 (10s, 20s, 40s)
-                wait = retry_after_seconds if (
-                    retry_after_seconds is not None
-                    and retry_after_seconds <= settings.gemini_retry_after_max_seconds
-                ) else min(10 * (2 ** attempt), 60)
-                log_event(logger, logging.INFO, "gemini_rate_limit_retry",
-                          request_label=label, wait_seconds=wait, attempt=attempt + 1)
-                time.sleep(wait)
-                attempt += 1
-                continue
-            if can_retry_server_error:
-                time.sleep(3)
-                attempt += 1
-                continue
-            raise exc
+            try:
+                response.raise_for_status()
+                break
+            except requests.HTTPError as exc:
+                retry_after_seconds = _extract_retry_after_seconds(response)
+                error_payload = _safe_json(response)
+                error_message = (
+                    ((error_payload.get("error") or {}).get("message"))
+                    if isinstance(error_payload, dict)
+                    else None
+                )
+                log_event(
+                    logger,
+                    logging.WARNING,
+                    "gemini_request_failed",
+                    **_gemini_context_fields(),
+                    request_label=label,
+                    model=model,
+                    status_code=response.status_code,
+                    retry_after_seconds=retry_after_seconds,
+                    error_message=error_message,
+                    attempt=attempt + 1,
+                )
+                can_retry_rate_limit = (
+                    response.status_code == 429
+                    and attempt + 1 < max_attempts
+                )
+                can_retry_server_error = (
+                    response.status_code in (500, 502, 503, 529)
+                    and attempt + 1 < max_attempts
+                )
+                if can_retry_rate_limit:
+                    wait = retry_after_seconds if (
+                        retry_after_seconds is not None
+                        and retry_after_seconds <= settings.gemini_retry_after_max_seconds
+                    ) else min(10 * (2 ** attempt), 60)
+                    log_event(logger, logging.INFO, "gemini_rate_limit_retry",
+                              request_label=label, wait_seconds=wait, attempt=attempt + 1)
+                    time.sleep(wait)
+                    attempt += 1
+                    continue
+                if can_retry_server_error:
+                    time.sleep(3)
+                    attempt += 1
+                    continue
+                raise exc
 
     data = response.json()
     usage = data.get("usageMetadata") or {}
