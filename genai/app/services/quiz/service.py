@@ -352,7 +352,7 @@ def _get_knowledge_question(
     area_score: float | None = None,
 ) -> dict:
     from app.services.gemini.client import gemini_generate_content
-    from psycopg.types.json import Jsonb
+    from psycopg.types.json import Jsonb  # type: ignore
 
     with connect_postgres(settings.postgres_dsn) as conn:
         with conn.cursor() as cur:
@@ -429,11 +429,22 @@ def _get_knowledge_question(
 
 
 
-def submit_answer(session_id: str, question_id: str, answer: str) -> dict:
+def submit_answer(session_id: str, question_id: str | None, answer: str) -> dict:
     settings = get_settings()
 
     with connect_postgres(settings.postgres_dsn) as conn:
         with conn.cursor() as cur:
+            # question_id 없으면 세션의 마지막 미답변 문항 자동 사용
+            if not question_id:
+                cur.execute(
+                    "SELECT id FROM quiz_questions WHERE session_id = %s AND is_correct IS NULL ORDER BY question_number DESC LIMIT 1",
+                    (session_id,),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    raise ValueError("답변할 문항이 없습니다.")
+                question_id = str(row["id"])
+
             cur.execute(
                 "SELECT correct_answer, explanation, is_correct, question_type, area FROM quiz_questions WHERE id = %s AND session_id = %s",
                 (question_id, session_id),
@@ -465,7 +476,7 @@ def submit_answer(session_id: str, question_id: str, answer: str) -> dict:
             if basic_done or deep_done:
                 area_stats = _calculate_area_stats(session_id, settings)
                 tendency_info = _compute_tendency(area_stats)
-                from psycopg.types.json import Jsonb
+                from psycopg.types.json import Jsonb  # type: ignore
                 cur.execute(
                     """
                     UPDATE quiz_sessions

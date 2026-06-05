@@ -32,7 +32,7 @@ class QuestionResponse(BaseModel):
 
 
 class SubmitAnswerRequest(BaseModel):
-    question_id: str
+    question_id: Optional[str] = None
     answer: str
 
     @field_validator("answer")
