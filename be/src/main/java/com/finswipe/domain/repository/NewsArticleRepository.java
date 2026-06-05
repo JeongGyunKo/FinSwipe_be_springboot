@@ -156,9 +156,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
                   WHERE user_id = CAST(:userId AS uuid) AND article_id = na.id
                 )
             )
-            SELECT id, source_url, headline, headline_ko, summary_3lines_ko, content,
-                   sentiment_label, sentiment_score, sentiment_reason, tickers,
-                   published_at, created_at, updated_at, retry_count
+            SELECT *
             FROM ranked
             WHERE rn <= GREATEST(:perTicker, 10)
             ORDER BY published_at DESC
