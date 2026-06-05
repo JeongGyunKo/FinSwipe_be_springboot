@@ -1,6 +1,7 @@
 package com.finswipe.controller;
 
 import com.finswipe.service.NewsCollectorService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -127,7 +128,7 @@ public class UserProfileController {
                 if (password.length() < 8) {
                     return ResponseEntity.badRequest().body(Map.of("error", "비밀번호는 8자 이상이어야 합니다"));
                 }
-                String hashed = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode(password);
+                String hashed = new BCryptPasswordEncoder().encode(password);
                 jdbc.update("UPDATE user_profiles SET password_hash = ?, updated_at = NOW() WHERE id = CAST(? AS UUID)",
                         hashed, uid);
             }

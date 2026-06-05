@@ -79,7 +79,7 @@ public class NewsController {
             """)))
     @GetMapping("/latest")
     @Cacheable(value = CacheConfig.CACHE_NEWS_LATEST, key = "#sort + ':' + #period + ':' + #limit + ':' + #offset",
-               condition = "#userId == null")
+               condition = "#auth == null && #userId == null")
     public ResponseEntity<NewsListResponse> getLatest(
             Authentication auth,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit,
