@@ -25,7 +25,8 @@ import java.util.stream.Collectors;
 @Slf4j
 public class NewsCollectorService {
 
-    // Python: COLLECTION_QUERIES — 텍스트 검색 (13개)
+    // 텍스트 검색 (12개) + 티커 직접 조회 (5개) = 총 17개
+    // 일 콜: 17 × 96 = 1,632 / 월: 48,960 (한도 50,000의 98%)
     private static final List<String> COLLECTION_QUERIES = List.of(
             "stock earnings results guidance",
             "stock market shares price",
@@ -38,8 +39,7 @@ public class NewsCollectorService {
             "healthcare biotech pharma drug stocks",
             "financial banking insurance stocks",
             "consumer retail e-commerce stocks",
-            "EV electric vehicle battery stocks",
-            "stock earnings beat miss surprise"
+            "EV electric vehicle battery stocks"
     );
 
     // 한국 투자자 관심 빅테크 — 티커 직접 조회 (텍스트 검색 미흡 보완)
