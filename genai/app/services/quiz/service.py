@@ -13,10 +13,15 @@ from app.db.postgres import connect_postgres
 
 logger = logging.getLogger(__name__)
 
-# 백그라운드에서 미리 생성된 문제 콘텐츠 캐시 (session_id → content dict)
+# 세션별 prefetch 캐시 (session_id → content dict)
 _prefetch_content_cache: dict[str, dict] = {}
-# prefetch 진행 중 여부 추적 — generate_next_question에서 완료까지 대기할 때 사용
+# prefetch 진행 중 여부 추적
 _prefetch_events: dict[str, threading.Event] = {}
+
+# 전역 문제 풀 (area → list of content dict) — 빠른 응답을 위해 미리 생성해둠
+_question_pool: dict[str, list[dict]] = {}
+_pool_lock = threading.Lock()
+_POOL_SIZE = 3  # 영역별 유지 목표 문제 수
 
 TOTAL_QUESTIONS: int = 10           # 5영역 × 2문제
 KNOWLEDGE_QUESTIONS: int = 10
@@ -343,30 +348,37 @@ def _determine_next_question_params(session_id: str) -> tuple[int, float, str, f
 
 
 def _generate_question_content(
-    session_id: str, question_number: int, difficulty: float, target_area: str, settings,
+    session_id: str | None, question_number: int, difficulty: float, target_area: str, settings,
     area_score: float | None = None,
+    _used_questions: list[str] | None = None,
 ) -> dict:
-    """Gemini로 문제 생성 (DB 저장 없음). generate_next_question과 prefetch 양쪽에서 사용."""
+    """Gemini로 문제 생성 (DB 저장 없음). session_id=None이면 세션 dedup 없이 풀용으로 생성."""
     from app.services.gemini.client import gemini_generate_content
 
-    with connect_postgres(settings.postgres_dsn) as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT qq.question_text, qq.is_correct
-                FROM quiz_questions qq
-                JOIN quiz_sessions qs ON qs.id = qq.session_id
-                WHERE qq.question_type = 'multiple_choice'
-                  AND (
-                    qq.session_id = %s
-                    OR (qs.user_id = (SELECT user_id FROM quiz_sessions WHERE id = %s) AND qs.user_id IS NOT NULL)
-                  )
-                ORDER BY qq.created_at DESC
-                LIMIT 40
-            """, (session_id, session_id))
-            rows = cur.fetchall()
-
-    used_questions = [r["question_text"][:30] for r in rows if r["question_text"]]
-    last_correct = rows[0]["is_correct"] if rows else None
+    if _used_questions is not None:
+        used_questions = _used_questions
+        last_correct = None
+    elif session_id is not None:
+        with connect_postgres(settings.postgres_dsn) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT qq.question_text, qq.is_correct
+                    FROM quiz_questions qq
+                    JOIN quiz_sessions qs ON qs.id = qq.session_id
+                    WHERE qq.question_type = 'multiple_choice'
+                      AND (
+                        qq.session_id = %s
+                        OR (qs.user_id = (SELECT user_id FROM quiz_sessions WHERE id = %s) AND qs.user_id IS NOT NULL)
+                      )
+                    ORDER BY qq.created_at DESC
+                    LIMIT 40
+                """, (session_id, session_id))
+                rows = cur.fetchall()
+        used_questions = [r["question_text"][:30] for r in rows if r["question_text"]]
+        last_correct = rows[0]["is_correct"] if rows else None
+    else:
+        used_questions = []
+        last_correct = None
 
     raw = gemini_generate_content(
         system_prompt=_KNOWLEDGE_SYSTEM_PROMPT,
@@ -453,25 +465,67 @@ def generate_next_question(session_id: str) -> dict:
 
     question_number, difficulty, target_area, area_score = params
 
-    # 캐시 즉시 확인
+    # 1순위: 세션 prefetch 캐시 즉시 확인
     cached = _prefetch_content_cache.get(session_id)
     if cached and cached["question_number"] == question_number:
         _prefetch_content_cache.pop(session_id, None)
-        logger.info("퀴즈 사전 생성 캐시 적중: session=%s Q%d", session_id, question_number)
+        logger.info("세션 prefetch 캐시 적중: session=%s Q%d", session_id, question_number)
         return _insert_question_content(session_id, cached, settings)
 
-    # prefetch가 진행 중이면 최대 3초 대기 후 재확인
+    # 2순위: 전역 문제 풀에서 즉시 꺼내기
+    with _pool_lock:
+        pool = _question_pool.get(target_area, [])
+        if pool:
+            pool_content = min(pool, key=lambda q: abs(q["difficulty"] - difficulty))
+            pool.remove(pool_content)
+        else:
+            pool_content = None
+
+    if pool_content is not None:
+        pool_content["question_number"] = question_number
+        threading.Thread(target=_refill_pool, args=(target_area, difficulty), daemon=True).start()
+        logger.info("문제 풀 적중: session=%s Q%d area=%s", session_id, question_number, target_area)
+        return _insert_question_content(session_id, pool_content, settings)
+
+    # 3순위: prefetch 진행 중이면 최대 3초 대기
     event = _prefetch_events.get(session_id)
     if event:
         event.wait(timeout=3.0)
         cached = _prefetch_content_cache.get(session_id)
         if cached and cached["question_number"] == question_number:
             _prefetch_content_cache.pop(session_id, None)
-            logger.info("퀴즈 사전 생성 대기 후 캐시 적중: session=%s Q%d", session_id, question_number)
+            logger.info("prefetch 대기 후 캐시 적중: session=%s Q%d", session_id, question_number)
             return _insert_question_content(session_id, cached, settings)
 
+    # 최후: 직접 생성
     content = _generate_question_content(session_id, question_number, difficulty, target_area, settings, area_score=area_score)
     return _insert_question_content(session_id, content, settings)
+
+
+def _refill_pool(area: str, difficulty: float) -> None:
+    """백그라운드에서 풀 보충 — 세션 컨텍스트 없이 생성."""
+    with _pool_lock:
+        if len(_question_pool.get(area, [])) >= _POOL_SIZE:
+            return
+    settings = get_settings()
+    try:
+        content = _generate_question_content(
+            session_id=None, question_number=0, difficulty=difficulty,
+            target_area=area, settings=settings, _used_questions=[],
+        )
+        content.pop("question_number", None)
+        with _pool_lock:
+            _question_pool.setdefault(area, []).append(content)
+        logger.info("문제 풀 보충 완료: area=%s difficulty=%.1f pool_size=%d", area, difficulty, len(_question_pool[area]))
+    except Exception as exc:
+        logger.warning("문제 풀 보충 실패 (area=%s): %s", area, exc)
+
+
+def warmup_question_pool() -> None:
+    """서버 시작 시 각 영역별 문제를 미리 생성해 풀을 채움."""
+    for area in AREAS:
+        threading.Thread(target=_refill_pool, args=(area, 1.5), daemon=True).start()
+    logger.info("문제 풀 워밍업 시작 (%d개 영역)", len(AREAS))
 
 
 def prefetch_next_question_content(session_id: str) -> None:
