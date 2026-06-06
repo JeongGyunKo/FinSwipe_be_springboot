@@ -178,10 +178,13 @@ def _adjust_difficulty(current: float, is_correct: bool) -> float:
     return max(1.0, round(current - 0.4, 2))
 
 
-def _calculate_area_stats(session_id: str, settings) -> dict:
-    """5개 영역별 정답률 계산 (0~5 점수)."""
-    with connect_postgres(settings.postgres_dsn) as conn:
-        with conn.cursor() as cur:
+def _calculate_area_stats(session_id: str, settings, conn=None) -> dict:
+    """5개 영역별 정답률 계산 (0~5 점수).
+
+    conn이 주어지면 기존 트랜잭션 내에서 실행해 미커밋 변경사항도 포함한다.
+    """
+    def _fetch(c):
+        with c.cursor() as cur:
             cur.execute(
                 """
                 SELECT area, is_correct
@@ -192,7 +195,13 @@ def _calculate_area_stats(session_id: str, settings) -> dict:
                 """,
                 (session_id,),
             )
-            rows = cur.fetchall()
+            return cur.fetchall()
+
+    if conn is not None:
+        rows = _fetch(conn)
+    else:
+        with connect_postgres(settings.postgres_dsn) as new_conn:
+            rows = _fetch(new_conn)
 
     counts = {area: {"correct": 0, "total": 0} for area in AREAS}
     for row in rows:
@@ -644,7 +653,7 @@ def submit_answer(session_id: str, question_id: str | None, answer: str) -> dict
             deep_done = is_deep and new_questions_asked >= (TOTAL_QUESTIONS + DEEP_EXTRA_QUESTIONS)
 
             if basic_done or deep_done:
-                area_stats = _calculate_area_stats(session_id, settings)
+                area_stats = _calculate_area_stats(session_id, settings, conn=conn)
                 tendency_info = _compute_tendency(area_stats)
                 from psycopg.types.json import Jsonb  # type: ignore
                 cur.execute(
