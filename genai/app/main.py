@@ -66,8 +66,16 @@ async def warm_database_backend() -> None:
         except Exception:
             logger.warning("FinBERT warmup failed — will load on first request.")
 
+    async def _warmup_quiz_pool() -> None:
+        try:
+            from app.services.quiz.service import warmup_question_pool
+            await asyncio.to_thread(warmup_question_pool)
+        except Exception:
+            logger.warning("퀴즈 문제 풀 워밍업 실패 — 첫 요청 시 생성됩니다.")
+
     asyncio.create_task(_initialize_in_background())
     asyncio.create_task(_warmup_finbert())
+    asyncio.create_task(_warmup_quiz_pool())
 
 
 @app.middleware("http")
