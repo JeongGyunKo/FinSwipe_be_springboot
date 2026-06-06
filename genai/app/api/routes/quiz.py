@@ -18,9 +18,13 @@ router = APIRouter(prefix="/quiz", tags=["quiz"])
 
 
 @router.post("/sessions", response_model=SessionResponse, status_code=201)
-async def create_quiz_session(body: CreateSessionRequest) -> SessionResponse:
+async def create_quiz_session(body: CreateSessionRequest, background_tasks: BackgroundTasks) -> SessionResponse:
     try:
         result = await asyncio.to_thread(quiz_service.create_session, body.user_id)
+        # Q1을 세션 생성 직후부터 미리 생성 — next-question 호출 시 대기 시간 단축
+        background_tasks.add_task(
+            asyncio.to_thread, quiz_service.prefetch_next_question_content, result["session_id"]
+        )
         return SessionResponse(**result)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

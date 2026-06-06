@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import threading
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -14,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 # 백그라운드에서 미리 생성된 문제 콘텐츠 캐시 (session_id → content dict)
 _prefetch_content_cache: dict[str, dict] = {}
+# prefetch 진행 중 여부 추적 — generate_next_question에서 완료까지 대기할 때 사용
+_prefetch_events: dict[str, threading.Event] = {}
 
 TOTAL_QUESTIONS: int = 10           # 5영역 × 2문제
 KNOWLEDGE_QUESTIONS: int = 10
@@ -450,12 +453,22 @@ def generate_next_question(session_id: str) -> dict:
 
     question_number, difficulty, target_area, area_score = params
 
-    # 사전 생성된 콘텐츠가 있고 question_number가 일치하면 Gemini 호출 스킵
+    # 캐시 즉시 확인
     cached = _prefetch_content_cache.get(session_id)
     if cached and cached["question_number"] == question_number:
         _prefetch_content_cache.pop(session_id, None)
         logger.info("퀴즈 사전 생성 캐시 적중: session=%s Q%d", session_id, question_number)
         return _insert_question_content(session_id, cached, settings)
+
+    # prefetch가 진행 중이면 최대 3초 대기 후 재확인
+    event = _prefetch_events.get(session_id)
+    if event:
+        event.wait(timeout=3.0)
+        cached = _prefetch_content_cache.get(session_id)
+        if cached and cached["question_number"] == question_number:
+            _prefetch_content_cache.pop(session_id, None)
+            logger.info("퀴즈 사전 생성 대기 후 캐시 적중: session=%s Q%d", session_id, question_number)
+            return _insert_question_content(session_id, cached, settings)
 
     content = _generate_question_content(session_id, question_number, difficulty, target_area, settings, area_score=area_score)
     return _insert_question_content(session_id, content, settings)
@@ -463,19 +476,24 @@ def generate_next_question(session_id: str) -> dict:
 
 def prefetch_next_question_content(session_id: str) -> None:
     """답변 제출 후 백그라운드에서 다음 문제를 미리 생성 (DB 저장 없음)."""
-    if session_id in _prefetch_content_cache:
+    if session_id in _prefetch_content_cache or session_id in _prefetch_events:
         return
     params = _determine_next_question_params(session_id)
     if params is None:
         return
     question_number, difficulty, target_area, area_score = params
     settings = get_settings()
+    event = threading.Event()
+    _prefetch_events[session_id] = event
     try:
         content = _generate_question_content(session_id, question_number, difficulty, target_area, settings, area_score=area_score)
         _prefetch_content_cache[session_id] = content
         logger.info("퀴즈 문제 사전 생성 완료: session=%s Q%d", session_id, question_number)
     except Exception as exc:
         logger.warning("퀴즈 문제 사전 생성 실패 (fallback 사용): %s", exc)
+    finally:
+        _prefetch_events.pop(session_id, None)
+        event.set()
 
 
 
