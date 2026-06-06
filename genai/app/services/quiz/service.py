@@ -22,6 +22,7 @@ _prefetch_events: dict[str, threading.Event] = {}
 _question_pool: dict[str, list[dict]] = {}
 _pool_lock = threading.Lock()
 _POOL_SIZE = 3  # 영역별 유지 목표 문제 수
+_MAX_PREFETCH_CACHE = 200  # 이탈 세션 누적 방지 상한
 
 TOTAL_QUESTIONS: int = 10           # 5영역 × 2문제
 KNOWLEDGE_QUESTIONS: int = 10
@@ -581,6 +582,11 @@ def prefetch_next_question_content(session_id: str) -> None:
     _prefetch_events[session_id] = event
     try:
         content = _generate_question_content(session_id, question_number, difficulty, target_area, settings, area_score=area_score)
+        if len(_prefetch_content_cache) >= _MAX_PREFETCH_CACHE:
+            # 이탈 세션으로 캐시가 과도하게 커진 경우 오래된 절반 제거
+            stale_keys = list(_prefetch_content_cache.keys())[: _MAX_PREFETCH_CACHE // 2]
+            for k in stale_keys:
+                _prefetch_content_cache.pop(k, None)
         _prefetch_content_cache[session_id] = content
         logger.info("퀴즈 문제 사전 생성 완료: session=%s Q%d", session_id, question_number)
     except Exception as exc:
@@ -651,6 +657,7 @@ def submit_answer(session_id: str, question_id: str | None, answer: str) -> dict
                      Jsonb(area_stats), datetime.now(timezone.utc), session_id),
                 )
                 new_status = "completed"
+                _prefetch_content_cache.pop(session_id, None)  # 완료된 세션 캐시 정리
             else:
                 area_stats = None
                 tendency_info = None
