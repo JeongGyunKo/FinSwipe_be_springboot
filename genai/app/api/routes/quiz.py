@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from app.schemas.quiz import (
     AnswerResultResponse,
@@ -46,11 +46,16 @@ async def next_question(session_id: str) -> QuestionResponse:
 
 
 @router.post("/sessions/{session_id}/answers", response_model=AnswerResultResponse)
-async def submit_answer(session_id: str, body: SubmitAnswerRequest) -> AnswerResultResponse:
+async def submit_answer(session_id: str, body: SubmitAnswerRequest, background_tasks: BackgroundTasks) -> AnswerResultResponse:
     try:
         result = await asyncio.to_thread(
             quiz_service.submit_answer, session_id, body.question_id, body.answer,
         )
+        # 세션이 완료되지 않은 경우, 다음 문제를 백그라운드에서 미리 생성
+        if result["session_status"] != "completed":
+            background_tasks.add_task(
+                asyncio.to_thread, quiz_service.prefetch_next_question_content, session_id
+            )
         return AnswerResultResponse(**result)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

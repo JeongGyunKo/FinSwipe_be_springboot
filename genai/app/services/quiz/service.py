@@ -12,6 +12,9 @@ from app.db.postgres import connect_postgres
 
 logger = logging.getLogger(__name__)
 
+# 백그라운드에서 미리 생성된 문제 콘텐츠 캐시 (session_id → content dict)
+_prefetch_content_cache: dict[str, dict] = {}
+
 TOTAL_QUESTIONS: int = 10           # 5영역 × 2문제
 KNOWLEDGE_QUESTIONS: int = 10
 DEEP_EXTRA_QUESTIONS: int = 5       # 심층 분석 추가 문제 수
@@ -297,62 +300,51 @@ def get_session(session_id: str) -> dict | None:
     }
 
 
-def generate_next_question(session_id: str) -> dict:
+def _determine_next_question_params(session_id: str) -> tuple[int, float, str, float | None] | None:
+    """다음 문제의 (question_number, difficulty, target_area, area_score) 반환. 불가능하면 None."""
     settings = get_settings()
     with connect_postgres(settings.postgres_dsn) as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """
-                SELECT current_difficulty, questions_asked, status, analysis_depth, area_stats
-                FROM quiz_sessions WHERE id = %s
-                """,
+                "SELECT current_difficulty, questions_asked, status, area_stats FROM quiz_sessions WHERE id = %s",
                 (session_id,),
             )
             session = cur.fetchone()
-            if session is None:
-                raise ValueError("세션을 찾을 수 없습니다.")
-            if session["status"] not in ("in_progress", "deep_analysis"):
-                raise ValueError("이미 완료된 세션입니다.")
+
+    if session is None or session["status"] not in ("in_progress", "deep_analysis"):
+        return None
 
     question_number = session["questions_asked"] + 1
     is_deep = session["status"] == "deep_analysis"
 
     if not is_deep and question_number > TOTAL_QUESTIONS:
-        raise ValueError("모든 문제를 이미 출제했습니다.")
+        return None
 
-    # 지식 문제 (기본 Q1~Q10 or 심층)
     if is_deep:
         area_stats = session["area_stats"] or {}
-        parsed_stats = {
-            a: {"score": v.get("score"), "correct": v.get("correct", 0), "total": v.get("total", 0)}
-            for a, v in area_stats.items()
-        } if area_stats else {a: {"score": None, "correct": 0, "total": 0} for a in AREAS}
-
-        # 심층 문제 인덱스 (0~4): 강한→심화, 약한→기초 확인 순서
+        parsed_stats = (
+            {a: {"score": v.get("score"), "correct": v.get("correct", 0), "total": v.get("total", 0)} for a, v in area_stats.items()}
+            if area_stats else {a: {"score": None, "correct": 0, "total": 0} for a in AREAS}
+        )
         deep_idx = question_number - TOTAL_QUESTIONS - 1
         ordered = _deep_analysis_order(parsed_stats)
         target_area = ordered[deep_idx % len(ordered)]
         area_score = parsed_stats.get(target_area, {}).get("score")
-        deep_difficulty = _deep_difficulty(session["current_difficulty"], area_score)
+        difficulty = _deep_difficulty(session["current_difficulty"], area_score)
     else:
         target_area = _AREA_CYCLE[(question_number - 1) % len(_AREA_CYCLE)]
-        deep_difficulty = None
+        difficulty = session["current_difficulty"]
         area_score = None
 
-    return _get_knowledge_question(
-        session_id, question_number,
-        deep_difficulty if deep_difficulty is not None else session["current_difficulty"],
-        target_area, settings,
-        area_score=area_score,
-    )
+    return question_number, difficulty, target_area, area_score
 
 
-def _get_knowledge_question(
+def _generate_question_content(
     session_id: str, question_number: int, difficulty: float, target_area: str, settings,
     area_score: float | None = None,
 ) -> dict:
+    """Gemini로 문제 생성 (DB 저장 없음). generate_next_question과 prefetch 양쪽에서 사용."""
     from app.services.gemini.client import gemini_generate_content
-    from psycopg.types.json import Jsonb  # type: ignore
 
     with connect_postgres(settings.postgres_dsn) as conn:
         with conn.cursor() as cur:
@@ -396,7 +388,22 @@ def _get_knowledge_question(
     if area not in AREAS:
         area = target_area
     topic = parsed.get("topic", "").strip()
-    topic_stored = f"{area}|{topic}" if topic else area
+
+    return {
+        "question_number": question_number,
+        "area": area,
+        "question_text": parsed["question_text"],
+        "choices": choices,
+        "correct_answer": correct_answer,
+        "explanation": parsed.get("explanation", ""),
+        "difficulty": difficulty,
+        "topic_stored": f"{area}|{topic}" if topic else area,
+    }
+
+
+def _insert_question_content(session_id: str, content: dict, settings) -> dict:
+    """사전 생성된 콘텐츠를 quiz_questions에 저장하고 응답 dict 반환."""
+    from psycopg.types.json import Jsonb  # type: ignore
 
     question_id = str(uuid4())
     now = datetime.now(timezone.utc)
@@ -410,21 +417,65 @@ def _get_knowledge_question(
                 VALUES (%s, %s, %s, %s, 'multiple_choice', %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    question_id, session_id, question_number, parsed["question_text"],
-                    Jsonb(choices), correct_answer, parsed.get("explanation", ""),
-                    difficulty, topic_stored, area, now,
+                    question_id, session_id, content["question_number"], content["question_text"],
+                    Jsonb(content["choices"]), content["correct_answer"], content["explanation"],
+                    content["difficulty"], content["topic_stored"], content["area"], now,
                 ),
             )
 
     return {
         "question_id": question_id,
-        "question_number": question_number,
+        "question_number": content["question_number"],
         "question_type": "knowledge",
-        "area": area,
-        "question_text": parsed["question_text"],
-        "choices": choices,
-        "difficulty": difficulty,
+        "area": content["area"],
+        "question_text": content["question_text"],
+        "choices": content["choices"],
+        "difficulty": content["difficulty"],
     }
+
+
+def generate_next_question(session_id: str) -> dict:
+    settings = get_settings()
+    params = _determine_next_question_params(session_id)
+    if params is None:
+        with connect_postgres(settings.postgres_dsn) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT status FROM quiz_sessions WHERE id = %s", (session_id,))
+                session = cur.fetchone()
+        if session is None:
+            raise ValueError("세션을 찾을 수 없습니다.")
+        if session["status"] not in ("in_progress", "deep_analysis"):
+            raise ValueError("이미 완료된 세션입니다.")
+        raise ValueError("모든 문제를 이미 출제했습니다.")
+
+    question_number, difficulty, target_area, area_score = params
+
+    # 사전 생성된 콘텐츠가 있고 question_number가 일치하면 Gemini 호출 스킵
+    cached = _prefetch_content_cache.get(session_id)
+    if cached and cached["question_number"] == question_number:
+        _prefetch_content_cache.pop(session_id, None)
+        logger.info("퀴즈 사전 생성 캐시 적중: session=%s Q%d", session_id, question_number)
+        return _insert_question_content(session_id, cached, settings)
+
+    content = _generate_question_content(session_id, question_number, difficulty, target_area, settings, area_score=area_score)
+    return _insert_question_content(session_id, content, settings)
+
+
+def prefetch_next_question_content(session_id: str) -> None:
+    """답변 제출 후 백그라운드에서 다음 문제를 미리 생성 (DB 저장 없음)."""
+    if session_id in _prefetch_content_cache:
+        return
+    params = _determine_next_question_params(session_id)
+    if params is None:
+        return
+    question_number, difficulty, target_area, area_score = params
+    settings = get_settings()
+    try:
+        content = _generate_question_content(session_id, question_number, difficulty, target_area, settings, area_score=area_score)
+        _prefetch_content_cache[session_id] = content
+        logger.info("퀴즈 문제 사전 생성 완료: session=%s Q%d", session_id, question_number)
+    except Exception as exc:
+        logger.warning("퀴즈 문제 사전 생성 실패 (fallback 사용): %s", exc)
 
 
 
