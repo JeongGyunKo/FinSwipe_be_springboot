@@ -500,6 +500,7 @@ _POOL_DIFFICULTY_TOLERANCE = 1.0  # 풀 문제 난이도 허용 오차
 
 def _pick_from_pool(session_id: str, area: str, difficulty: float, settings) -> dict | None:
     """풀에서 난이도 범위·중복 검증을 통과한 문제 반환. 없으면 None."""
+    # 선택과 제거를 같은 락 안에서 원자적으로 처리 — race condition 방지
     with _pool_lock:
         candidates = [
             q for q in _question_pool.get(area, [])
@@ -508,8 +509,9 @@ def _pick_from_pool(session_id: str, area: str, difficulty: float, settings) -> 
         if not candidates:
             return None
         best = min(candidates, key=lambda q: abs(q["difficulty"] - difficulty))
+        _question_pool[area].remove(best)
 
-    # 세션 기출 문제와 중복 체크 (앞 30자 비교)
+    # 세션 기출 중복 체크 (락 밖에서 수행)
     try:
         with connect_postgres(settings.postgres_dsn) as conn:
             with conn.cursor() as cur:
@@ -522,14 +524,10 @@ def _pick_from_pool(session_id: str, area: str, difficulty: float, settings) -> 
         used_texts = set()
 
     if best["question_text"][:30] in used_texts:
-        logger.info("풀 문제 중복 감지 — 스킵: area=%s", area)
+        # 중복이면 폐기 — 풀 보충이 새 문제를 채움
+        logger.info("풀 문제 중복 감지 — 폐기: area=%s", area)
         return None
 
-    # 검증 통과 → 풀에서 제거 후 반환
-    with _pool_lock:
-        pool = _question_pool.get(area, [])
-        if best in pool:
-            pool.remove(best)
     return best
 
 
