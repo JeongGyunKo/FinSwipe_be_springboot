@@ -557,8 +557,9 @@ def _refill_pool(area: str, difficulty: float) -> None:
 def warmup_question_pool() -> None:
     """서버 시작 시 각 영역별 문제를 미리 생성해 풀을 채움."""
     for area in AREAS:
-        threading.Thread(target=_refill_pool, args=(area, 1.5), daemon=True).start()
-    logger.info("문제 풀 워밍업 시작 (%d개 영역)", len(AREAS))
+        for _ in range(_POOL_SIZE):
+            threading.Thread(target=_refill_pool, args=(area, 1.5), daemon=True).start()
+    logger.info("문제 풀 워밍업 시작 (%d개 영역, 영역당 %d문제)", len(AREAS), _POOL_SIZE)
 
 
 def prefetch_next_question_content(session_id: str) -> None:
