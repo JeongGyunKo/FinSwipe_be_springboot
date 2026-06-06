@@ -472,19 +472,12 @@ def generate_next_question(session_id: str) -> dict:
         logger.info("세션 prefetch 캐시 적중: session=%s Q%d", session_id, question_number)
         return _insert_question_content(session_id, cached, settings)
 
-    # 2순위: 전역 문제 풀에서 즉시 꺼내기
-    with _pool_lock:
-        pool = _question_pool.get(target_area, [])
-        if pool:
-            pool_content = min(pool, key=lambda q: abs(q["difficulty"] - difficulty))
-            pool.remove(pool_content)
-        else:
-            pool_content = None
-
+    # 2순위: 전역 문제 풀에서 즉시 꺼내기 (난이도 ±1.0 이내 + 세션 기출 중복 제외)
+    pool_content = _pick_from_pool(session_id, target_area, difficulty, settings)
     if pool_content is not None:
         pool_content["question_number"] = question_number
         threading.Thread(target=_refill_pool, args=(target_area, difficulty), daemon=True).start()
-        logger.info("문제 풀 적중: session=%s Q%d area=%s", session_id, question_number, target_area)
+        logger.info("문제 풀 적중: session=%s Q%d area=%s diff=%.1f", session_id, question_number, target_area, pool_content["difficulty"])
         return _insert_question_content(session_id, pool_content, settings)
 
     # 3순위: prefetch 진행 중이면 최대 3초 대기
@@ -500,6 +493,44 @@ def generate_next_question(session_id: str) -> dict:
     # 최후: 직접 생성
     content = _generate_question_content(session_id, question_number, difficulty, target_area, settings, area_score=area_score)
     return _insert_question_content(session_id, content, settings)
+
+
+_POOL_DIFFICULTY_TOLERANCE = 1.0  # 풀 문제 난이도 허용 오차
+
+
+def _pick_from_pool(session_id: str, area: str, difficulty: float, settings) -> dict | None:
+    """풀에서 난이도 범위·중복 검증을 통과한 문제 반환. 없으면 None."""
+    with _pool_lock:
+        candidates = [
+            q for q in _question_pool.get(area, [])
+            if abs(q["difficulty"] - difficulty) <= _POOL_DIFFICULTY_TOLERANCE
+        ]
+        if not candidates:
+            return None
+        best = min(candidates, key=lambda q: abs(q["difficulty"] - difficulty))
+
+    # 세션 기출 문제와 중복 체크 (앞 30자 비교)
+    try:
+        with connect_postgres(settings.postgres_dsn) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT question_text FROM quiz_questions WHERE session_id = %s",
+                    (session_id,),
+                )
+                used_texts = {r["question_text"][:30] for r in cur.fetchall()}
+    except Exception:
+        used_texts = set()
+
+    if best["question_text"][:30] in used_texts:
+        logger.info("풀 문제 중복 감지 — 스킵: area=%s", area)
+        return None
+
+    # 검증 통과 → 풀에서 제거 후 반환
+    with _pool_lock:
+        pool = _question_pool.get(area, [])
+        if best in pool:
+            pool.remove(best)
+    return best
 
 
 def _refill_pool(area: str, difficulty: float) -> None:
