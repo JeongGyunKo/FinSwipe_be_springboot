@@ -474,9 +474,12 @@ def generate_next_question(session_id: str) -> dict:
 
     # 2순위: 전역 문제 풀에서 즉시 꺼내기 (난이도 ±1.0 이내 + 세션 기출 중복 제외)
     pool_content = _pick_from_pool(session_id, target_area, difficulty, settings)
-    if pool_content is not None:
-        pool_content["question_number"] = question_number
+    # 풀에서 꺼냈거나 중복으로 폐기됐으면 부족분 보충
+    if len(_question_pool.get(target_area, [])) < _POOL_SIZE:
         threading.Thread(target=_refill_pool, args=(target_area, difficulty), daemon=True).start()
+    if pool_content is not None:
+        _prefetch_content_cache.pop(session_id, None)  # stale prefetch 캐시 제거
+        pool_content["question_number"] = question_number
         logger.info("문제 풀 적중: session=%s Q%d area=%s diff=%.1f", session_id, question_number, target_area, pool_content["difficulty"])
         return _insert_question_content(session_id, pool_content, settings)
 
@@ -559,12 +562,20 @@ def warmup_question_pool() -> None:
 
 def prefetch_next_question_content(session_id: str) -> None:
     """답변 제출 후 백그라운드에서 다음 문제를 미리 생성 (DB 저장 없음)."""
-    if session_id in _prefetch_content_cache or session_id in _prefetch_events:
-        return
+    if session_id in _prefetch_events:
+        return  # 이미 prefetch 진행 중
     params = _determine_next_question_params(session_id)
     if params is None:
         return
     question_number, difficulty, target_area, area_score = params
+
+    # 이미 올바른 question_number의 캐시가 있으면 skip; stale 캐시는 제거
+    cached = _prefetch_content_cache.get(session_id)
+    if cached:
+        if cached["question_number"] == question_number:
+            return  # 이미 준비됨
+        _prefetch_content_cache.pop(session_id, None)  # stale 캐시 제거
+
     settings = get_settings()
     event = threading.Event()
     _prefetch_events[session_id] = event
