@@ -23,7 +23,7 @@ def coach(user_id: str) -> dict:
             # 최근 퀴즈 세션의 area_stats 조회
             cur.execute(
                 """
-                SELECT area_stats, correct_count, questions_asked, tendency, analysis_depth
+                SELECT area_stats, correct_count, questions_asked, analysis_depth
                 FROM quiz_sessions
                 WHERE user_id = %s AND status = 'completed' AND area_stats IS NOT NULL
                 ORDER BY created_at DESC LIMIT 3
@@ -38,6 +38,16 @@ def coach(user_id: str) -> dict:
     # 가장 최근 세션 기준
     latest = sessions[0]
     area_stats = latest["area_stats"] or {}
+
+    # area_stats에서 대표 성향 도출 (tendency 컬럼은 quiz_sessions에 없음)
+    tested = {a: (area_stats.get(a) or {}).get("score") for a in _AREAS_KO if (area_stats.get(a) or {}).get("score") is not None}
+    strongest_area = max(tested, key=lambda k: tested[k]) if tested else "기본개념"
+    _TENDENCY_LABEL = {
+        "기본개념": "탐색형 투자자", "마켓수급": "모멘텀형 투자자",
+        "매크로": "거시경제형 투자자", "펀더멘털": "가치투자형 투자자",
+        "리스크관리": "안정추구형 투자자",
+    }
+    tendency_label = _TENDENCY_LABEL.get(strongest_area, "탐색형 투자자")
 
     # 영역별 점수 정리
     area_summary = []
@@ -64,7 +74,7 @@ def coach(user_id: str) -> dict:
     user_prompt = f"""
 사용자 퀴즈 결과:
 정답률: {latest['correct_count']}/{latest['questions_asked']}문제
-투자 성향: {latest.get('tendency') or '미측정'}
+투자 성향: {tendency_label}
 분석 깊이: {latest.get('analysis_depth') or 'basic'}
 
 영역별 점수:
@@ -95,7 +105,7 @@ def coach(user_id: str) -> dict:
             "coaching": coaching.strip(),
             "area_stats": area_stats,
             "weak_areas": [a[0] for a in weak_areas],
-            "tendency": latest.get("tendency"),
+            "tendency": tendency_label,
             "sessions_analyzed": len(sessions),
         }
 

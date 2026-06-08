@@ -663,16 +663,31 @@ def submit_answer(session_id: str, question_id: str | None, answer: str) -> dict
                 area_stats = _calculate_area_stats(session_id, settings, conn=conn)
                 tendency_info = _compute_tendency(area_stats)
                 from psycopg.types.json import Jsonb  # type: ignore
+                derived_level = max(1, min(5, round(new_difficulty)))
                 cur.execute(
                     """
                     UPDATE quiz_sessions
                     SET current_difficulty = %s, questions_asked = %s, correct_count = %s,
-                        status = 'completed', area_stats = %s, completed_at = %s
+                        status = 'completed', area_stats = %s, completed_at = %s,
+                        final_level = %s
                     WHERE id = %s
                     """,
                     (new_difficulty, new_questions_asked, new_correct_count,
-                     Jsonb(area_stats), datetime.now(timezone.utc), session_id),
+                     Jsonb(area_stats), datetime.now(timezone.utc),
+                     derived_level, session_id),
                 )
+                # 로그인 사용자이면 user_profiles에 성향·레벨 반영
+                cur.execute("SELECT user_id FROM quiz_sessions WHERE id = %s", (session_id,))
+                sess_row = cur.fetchone()
+                if sess_row and sess_row["user_id"]:
+                    cur.execute(
+                        """
+                        UPDATE user_profiles
+                        SET tendency = %s, level = %s, updated_at = NOW()
+                        WHERE id = CAST(%s AS UUID)
+                        """,
+                        (tendency_info["tendency"], derived_level, sess_row["user_id"]),
+                    )
                 new_status = "completed"
                 _prefetch_content_cache.pop(session_id, None)  # 완료된 세션 캐시 정리
             else:
