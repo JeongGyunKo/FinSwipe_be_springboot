@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid as _uuid_module
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/analysis", tags=["agent"])
@@ -62,16 +63,26 @@ async def personalized_analysis(body: PersonalizedRequest) -> PersonalizedRespon
         raise HTTPException(status_code=502, detail="뉴스 분석 중 오류가 발생했습니다.") from exc
 
 
-# ── 뉴스 큐레이션 에이전트 ────────────────────────────────────���─────────────────
+class UserIdRequest(BaseModel):
+    user_id: str = Field(..., min_length=36, max_length=36)
+
+    @field_validator("user_id")
+    @classmethod
+    def must_be_uuid(cls, v: str) -> str:
+        try:
+            _uuid_module.UUID(v)
+        except ValueError:
+            raise ValueError("user_id는 UUID 형식이어야 합니다")
+        return v
+
+
+# ── 뉴스 큐레이션 에이전트 ─────────────────────────────────────────────────────
 
 @router.post("/curate")
-async def curate_news(body: dict) -> dict:
-    user_id = body.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=400, detail="user_id 필요")
+async def curate_news(body: UserIdRequest) -> dict:
     try:
         from app.services.curation.agent import curate_news as _curate
-        return await asyncio.to_thread(_curate, user_id)
+        return await asyncio.to_thread(_curate, body.user_id)
     except Exception as exc:
         logger.error("[큐레이션] 실패: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail="뉴스 큐레이션 중 오류가 발생했습니다.") from exc
@@ -80,13 +91,10 @@ async def curate_news(body: dict) -> dict:
 # ── 학습 코치 에이전트 ──────────────────────────────────────────────────────────
 
 @router.post("/coach")
-async def coach(body: dict) -> dict:
-    user_id = body.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=400, detail="user_id 필요")
+async def coach(body: UserIdRequest) -> dict:
     try:
         from app.services.coach.agent import coach as _coach
-        return await asyncio.to_thread(_coach, user_id)
+        return await asyncio.to_thread(_coach, body.user_id)
     except Exception as exc:
         logger.error("[코치] 실패: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail="학습 코치 분석 중 오류가 발생했습니다.") from exc

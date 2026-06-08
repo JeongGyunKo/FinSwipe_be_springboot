@@ -90,6 +90,8 @@ public class AnalysisController {
         final String uid = resolveUserId(auth, userId);
         if (uid == null) return ResponseEntity.badRequest()
                 .contentType(MediaType.APPLICATION_JSON).body("{\"error\":\"userId 필요\"}");
+        if (!isValidUuid(uid)) return ResponseEntity.badRequest()
+                .contentType(MediaType.APPLICATION_JSON).body("{\"error\":\"유효하지 않은 userId\"}");
         return proxy("/api/v1/analysis/curate", "{\"user_id\":\"" + uid + "\"}");
     }
 
@@ -108,12 +110,19 @@ public class AnalysisController {
         final String uid = resolveUserId(auth, userId);
         if (uid == null) return ResponseEntity.badRequest()
                 .contentType(MediaType.APPLICATION_JSON).body("{\"error\":\"userId 필요\"}");
+        if (!isValidUuid(uid)) return ResponseEntity.badRequest()
+                .contentType(MediaType.APPLICATION_JSON).body("{\"error\":\"유효하지 않은 userId\"}");
         return proxy("/api/v1/analysis/coach", "{\"user_id\":\"" + uid + "\"}");
     }
 
     private String resolveUserId(Authentication auth, String userId) {
         if (auth != null && auth.getPrincipal() instanceof java.util.UUID) return auth.getPrincipal().toString();
         return userId;
+    }
+
+    private static boolean isValidUuid(String value) {
+        try { java.util.UUID.fromString(value); return true; }
+        catch (IllegalArgumentException e) { return false; }
     }
 
     private ResponseEntity<String> proxy(String path, String body) {
