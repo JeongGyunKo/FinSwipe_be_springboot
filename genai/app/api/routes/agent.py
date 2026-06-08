@@ -58,5 +58,35 @@ async def personalized_analysis(body: PersonalizedRequest) -> PersonalizedRespon
             error=result.get("error"),
         )
     except Exception as exc:
-        logger.error("[에이전트] 분석 실패: %s", exc)
-        raise HTTPException(status_code=502, detail=f"분석 실패: {exc}") from exc
+        logger.error("[에이전트] 분석 실패: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail="뉴스 분석 중 오류가 발생했습니다.") from exc
+
+
+# ── 뉴스 큐레이션 에이전트 ────────────────────────────────────���─────────────────
+
+@router.post("/curate")
+async def curate_news(body: dict) -> dict:
+    user_id = body.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id 필요")
+    try:
+        from app.services.curation.agent import curate_news as _curate
+        return await asyncio.to_thread(_curate, user_id)
+    except Exception as exc:
+        logger.error("[큐레이션] 실패: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail="뉴스 큐레이션 중 오류가 발생했습니다.") from exc
+
+
+# ── 학습 코치 에이전트 ──────────────────────────────────────────────────────────
+
+@router.post("/coach")
+async def coach(body: dict) -> dict:
+    user_id = body.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id 필요")
+    try:
+        from app.services.coach.agent import coach as _coach
+        return await asyncio.to_thread(_coach, user_id)
+    except Exception as exc:
+        logger.error("[코치] 실패: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail="학습 코치 분석 중 오류가 발생했습니다.") from exc
