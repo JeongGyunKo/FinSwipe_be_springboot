@@ -14,10 +14,13 @@ public class AnalyzeRequest {
     private String headline;
 
     @NotBlank
+    @Size(max = 2048)
     private String sourceUrl;
 
     @NotBlank
+    @Size(max = 100_000)
     private String content;
 
+    @Size(max = 50)
     private List<String> tickers;
 }
