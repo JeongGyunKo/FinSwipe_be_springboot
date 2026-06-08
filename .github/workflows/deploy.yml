@@ -8,6 +8,8 @@ on:
 jobs:
   deploy:
     runs-on: [self-hosted, finswipe-ec2]
+    env:
+      GENAI_BASIC_AUTH: ${{ secrets.GENAI_BASIC_AUTH }}
 
     steps:
       - name: EC2 배포 (빌드 → 헬스체크 → 교체)
@@ -54,7 +56,7 @@ jobs:
           # GenAI 헬스체크 — 최대 30초 대기
           echo "GenAI 헬스체크 중..."
           for i in $(seq 1 6); do
-            GEN_STATUS=$(curl -s -u 'fin:***REMOVED-GENAI-BASIC-AUTH***' http://127.0.0.1:8000/health | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null || echo "")
+            GEN_STATUS=$(curl -s -u "$GENAI_BASIC_AUTH" http://127.0.0.1:8000/health | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null || echo "")
             if [ "$GEN_STATUS" = "ok" ]; then
               echo "GenAI 정상 기동 (${i}회차)"
               break
