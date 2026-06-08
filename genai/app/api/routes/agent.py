@@ -101,14 +101,14 @@ async def coach(body: UserIdRequest) -> dict:
 
 
 # ── 티커별 일일 다이제스트 ────────────────────────────────────────────────────────
-# 관심 티커 각각에 대해 어제 장 마감 이후 기사 전체를 종합 분석 →
-# 사용자 성향·레벨 맞춤 요약 + RSI/MACD 보조지표 반환
+# 캐시 우선 조회 → 캐시 미스 시 온디맨드 생성으로 폴백
+# digest_worker가 백그라운드에서 새 기사 감지 즉시 캐시를 갱신함
 
 @router.post("/digest")
 async def daily_digest(body: UserIdRequest) -> dict:
     try:
-        from app.services.digest.agent import generate_digest
-        return await asyncio.to_thread(generate_digest, body.user_id)
+        from app.services.digest.agent import generate_digest_from_cache
+        return await asyncio.to_thread(generate_digest_from_cache, body.user_id)
     except Exception as exc:
         logger.error("[다이제스트] 실패: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail="일일 다이제스트 생성 중 오류가 발생했습니다.") from exc

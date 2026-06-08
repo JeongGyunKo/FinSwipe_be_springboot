@@ -79,5 +79,18 @@ jobs:
             sleep 5
           done
 
+          # ── Digest Worker 서비스 등록 및 재시작 ─────────────────────
+          sudo cp ~/finswipe/genai/scripts/finswipe-genai-digest-worker.service \
+                  /etc/systemd/system/finswipe-genai-digest-worker.service
+          sudo systemctl daemon-reload
+          sudo systemctl enable finswipe-genai-digest-worker
+          sudo systemctl restart finswipe-genai-digest-worker
+          echo "Digest Worker 재시작 완료"
+
+          # ── Nginx 설정 갱신 ─────────────────────────────────────────
+          sudo cp ~/finswipe/nginx/finswipe.conf /etc/nginx/sites-available/finswipe
+          sudo nginx -t && sudo systemctl reload nginx
+          echo "Nginx 설정 갱신 완료"
+
           echo "===== 배포 완료: $(date) ====="
           curl -s http://127.0.0.1:8080/health

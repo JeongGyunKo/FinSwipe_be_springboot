@@ -1,0 +1,19 @@
+[Unit]
+Description=FinSwipe GenAI Digest Cache Worker
+After=network.target finswipe-genai.service
+Requires=finswipe-genai.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/finswipe/genai
+EnvironmentFile=/home/ubuntu/finswipe/genai/.env
+ExecStart=/home/ubuntu/finswipe/genai/venv/bin/python -m app.workers.digest_worker --poll-interval 60
+Restart=on-failure
+RestartSec=15
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=finswipe-genai-digest-worker
+
+[Install]
+WantedBy=multi-user.target
