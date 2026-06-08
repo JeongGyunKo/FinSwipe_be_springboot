@@ -11,7 +11,7 @@ from app.core.config import get_settings
 
 
 _BASIC_AUTH_REALM: Final[str] = 'Basic realm="Financial News Gen AI Service"'
-_EXEMPT_PATHS: Final[tuple[str, ...]] = ("/health", "/health/deep")
+_EXEMPT_PATHS: Final[tuple[str, ...]] = ("/health",)
 _LOCAL_PROBE_HOSTS: Final[frozenset[str]] = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
 
 
