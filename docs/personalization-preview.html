@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinSwipe 일일 다이제스트 미리보기</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0f1923; color: #d4dbe8; font-family: -apple-system, 'Pretendard', 'Apple SD Gothic Neo', sans-serif; min-height: 100vh; }
+
+.page { max-width: 1100px; margin: 0 auto; padding: 28px 20px 60px; }
+.page-title { font-size: 20px; font-weight: 700; color: #e8eaf0; margin-bottom: 4px; }
+.page-sub { font-size: 13px; color: #4b6a9b; margin-bottom: 24px; }
+
+/* ── Profile Bar ── */
+.profile-bar { background: #151f2c; border: 1px solid #1e2d42; border-radius: 14px; padding: 16px 20px; margin-bottom: 24px; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.profile-section { display: flex; flex-direction: column; gap: 4px; }
+.profile-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; color: #4b6a9b; text-transform: uppercase; }
+.profile-value { font-size: 14px; font-weight: 700; color: #e8eaf0; }
+.profile-divider { width: 1px; height: 36px; background: #1e2d42; }
+
+.tendency-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.t-pill { padding: 5px 12px; border-radius: 16px; border: 1.5px solid #1e2d42; background: #0f1923; cursor: pointer; font-size: 12px; color: #7a90b4; font-weight: 600; transition: all .15s; white-space: nowrap; }
+.t-pill:hover { border-color: #3a5a8a; }
+.t-pill.active { background: #1a3a5c; border-color: #3b8ae0; color: #e8eaf0; }
+
+.level-pills { display: flex; gap: 4px; }
+.l-pill { width: 34px; height: 34px; border-radius: 10px; border: 1.5px solid #1e2d42; background: #0f1923; cursor: pointer; font-size: 12px; color: #7a90b4; font-weight: 700; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+.l-pill:hover { border-color: #3a5a8a; }
+.l-pill.active { background: #1a2e1a; border-color: #3a8a3a; color: #6dbf6d; }
+
+.level-hint { font-size: 12px; color: #4b6a9b; max-width: 280px; }
+
+/* ── Digest Grid ── */
+.digest-grid { display: flex; flex-direction: column; gap: 16px; }
+
+/* ── Digest Card ── */
+.digest-card { background: #151f2c; border: 1px solid #1e2d42; border-radius: 16px; overflow: hidden; }
+.digest-header { display: flex; align-items: center; gap: 14px; padding: 16px 20px 14px; border-bottom: 1px solid #1e2d42; }
+.ticker-badge { font-size: 18px; font-weight: 800; color: #e8eaf0; background: #1a2535; border: 1px solid #2a3d54; border-radius: 10px; padding: 4px 12px; }
+.header-right { flex: 1; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.article-count { font-size: 12px; color: #4b6a9b; }
+.sent-bar { display: flex; gap: 8px; align-items: center; }
+.sent-chip { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 8px; }
+.s-pos { background: #0d2b1a; color: #4ade80; }
+.s-neg { background: #2b0d0d; color: #f87171; }
+.s-neu { background: #1a1f2c; color: #94a3b8; }
+.avg-score { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 8px; }
+.avg-pos { background: #0d2b1a; color: #4ade80; }
+.avg-neg { background: #2b0d0d; color: #f87171; }
+.avg-neu { background: #1a1f2c; color: #94a3b8; }
+
+.digest-body { display: grid; grid-template-columns: 1fr 260px; }
+@media (max-width: 700px) { .digest-body { grid-template-columns: 1fr; } }
+
+/* Summary */
+.summary-panel { padding: 18px 20px; border-right: 1px solid #1e2d42; }
+.summary-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; color: #4b6a9b; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.tendency-tag { background: #1a2535; border: 1px solid #243044; border-radius: 6px; padding: 2px 8px; font-size: 10px; color: #7aabde; font-weight: 700; }
+.summary-text { font-size: 14px; color: #c8d8ec; line-height: 1.8; }
+
+.articles-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; color: #4b6a9b; text-transform: uppercase; margin: 14px 0 8px; }
+.article-list { display: flex; flex-direction: column; gap: 6px; }
+.article-item { display: flex; gap: 8px; font-size: 12px; color: #7a90b4; line-height: 1.4; }
+.article-score { flex-shrink: 0; font-weight: 700; font-size: 11px; padding: 1px 6px; border-radius: 5px; height: fit-content; margin-top: 1px; }
+.article-item .s-pos { background: #0d2b1a; color: #4ade80; }
+.article-item .s-neg { background: #2b0d0d; color: #f87171; }
+.article-item .s-neu { background: #1a1f2c; color: #94a3b8; }
+
+/* Indicators Panel */
+.indicators-panel { padding: 18px 16px; display: flex; flex-direction: column; gap: 10px; }
+.ind-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; color: #4b6a9b; text-transform: uppercase; margin-bottom: 2px; }
+
+.price-row { display: flex; align-items: baseline; gap: 8px; }
+.price-value { font-size: 24px; font-weight: 800; color: #e8eaf0; }
+.price-change { font-size: 14px; font-weight: 700; }
+.up { color: #4ade80; }
+.down { color: #f87171; }
+.flat { color: #94a3b8; }
+
+.ind-divider { border: none; border-top: 1px solid #1e2d42; margin: 2px 0; }
+
+.ind-row { display: flex; justify-content: space-between; align-items: center; }
+.ind-name { font-size: 12px; color: #7a90b4; }
+.ind-val { font-size: 13px; font-weight: 700; color: #e8eaf0; }
+.ind-val.warn { color: #f59e0b; }
+.ind-val.up { color: #4ade80; }
+.ind-val.down { color: #f87171; }
+
+.rsi-bar-track { height: 4px; background: #1e2d42; border-radius: 2px; margin-top: 4px; overflow: hidden; }
+.rsi-bar-fill { height: 100%; border-radius: 2px; transition: width .3s; }
+
+.macd-row { display: flex; flex-direction: column; gap: 3px; }
+.macd-line { display: flex; justify-content: space-between; font-size: 11px; }
+.macd-k { color: #7a90b4; }
+.macd-v { font-weight: 600; }
+
+.vol-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+.vol-label { color: #7a90b4; }
+.vol-val { font-weight: 700; }
+
+.no-news-card { background: #151f2c; border: 1px dashed #1e2d42; border-radius: 16px; padding: 24px 20px; text-align: center; color: #4b6a9b; font-size: 14px; }
+
+/* ── Data Flow Legend ── */
+.flow-box { background: #0d1620; border: 1px solid #1e2d42; border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; }
+.flow-title { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: #4b6a9b; text-transform: uppercase; margin-bottom: 12px; }
+.flow-steps { display: flex; gap: 0; align-items: center; flex-wrap: wrap; gap: 4px; }
+.flow-step { background: #151f2c; border: 1px solid #1e2d42; border-radius: 8px; padding: 6px 12px; font-size: 12px; color: #8da4c0; }
+.flow-arrow { color: #2a3d54; font-size: 16px; padding: 0 2px; }
+.flow-highlight { border-color: #3b8ae0; color: #7aabde; background: #0d1f33; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-title">POST /analysis/digest — 일일 티커 다이제스트</div>
+  <div class="page-sub">관심 티커별 어제 장 마감 이후 기사 전체를 종합 분석 → 퀴즈로 측정된 성향·레벨 맞춤 요약 + RSI/MACD 보조지표</div>
+
+  <!-- Flow -->
+  <div class="flow-box">
+    <div class="flow-title">데이터 흐름</div>
+    <div class="flow-steps">
+      <div class="flow-step">퀴즈 완료<br><small style="color:#4b6a9b">user_profiles.tendency·level</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step flow-highlight">POST /analysis/digest<br><small>{ user_id }</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">관심 티커 조회<br><small style="color:#4b6a9b">user_profiles.tickers</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">티커별 오늘 기사 수집<br><small style="color:#4b6a9b">news_articles (24h)</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">Gemini 종합 요약<br><small style="color:#4b6a9b">성향·레벨 프롬프트</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">yfinance 지표 수집<br><small style="color:#4b6a9b">RSI·MACD·수익률</small></div>
+    </div>
+  </div>
+
+  <!-- Profile Bar -->
+  <div class="profile-bar">
+    <div class="profile-section">
+      <div class="profile-label">투자 성향</div>
+      <div class="tendency-pills" id="tendencyPills"></div>
+    </div>
+    <div class="profile-divider"></div>
+    <div class="profile-section">
+      <div class="profile-label">지식 레벨</div>
+      <div class="level-pills" id="levelPills"></div>
+    </div>
+    <div class="profile-divider"></div>
+    <div class="profile-section">
+      <div class="profile-label">레벨 기준</div>
+      <div class="level-hint" id="levelHint"></div>
+    </div>
+  </div>
+
+  <!-- Digest Cards -->
+  <div class="digest-grid" id="digestGrid"></div>
+</div>
+
+<script>
+// ── 데이터 ────────────────────────────────────────────────────────────────────
+
+const TENDENCIES = [
+  { key: "탐색형 투자자",    emoji: "🌱" },
+  { key: "모멘텀형 투자자",  emoji: "📈" },
+  { key: "가치투자형 투자자",emoji: "🔍" },
+  { key: "거시경제형 투자자",emoji: "🌍" },
+  { key: "안정추구형 투자자",emoji: "🛡️" },
+];
+
+const LEVEL_HINTS = {
+  1: "비유 중심, 전문 용어 없음",
+  2: "기본 개념 용어 허용",
+  3: "PER·RSI·MACD 이해",
+  4: "재무·기술적 분석 이해",
+  5: "정량 분석·알파 시그널",
+};
+
+// 오늘 날짜 기준 가상 데이터 (실제는 DB+yfinance에서 동적 생성)
+const TICKER_DATA = {
+  AAPL: {
+    price: 194.50, change_1d: +2.14, change_1m: +8.2, volume_ratio: 1.35,
+    rsi: 68.0, macd: { val: 0.42, signal: 0.31, hist: 0.11, trend: "상승" },
+    articles: [
+      { label: "positive", score: +0.82, title: "애플, 2분기 EPS $1.52 어닝서프라이즈 — 예상 $1.43 대비 +6.3%" },
+      { label: "positive", score: +0.61, title: "애플 서비스 부문 매출 역대 최고 — App Store 수수료 개정 효과" },
+      { label: "negative", score: -0.44, title: "아이폰 중국 시장 점유율 3개월 연속 하락 — 화웨이 회복세 지속" },
+      { label: "neutral",  score: +0.12, title: "WWDC 2024 AI 기능 발표 예정 — 시리 대폭 개편 루머" },
+      { label: "positive", score: +0.35, title: "애플, 자사주 매입 1,100억 달러 확대 발표" },
+    ],
+    summary: {
+      "탐색형 투자자": {
+        1: "오늘 애플에서 두 가지 큰 소식이 있었어요! 🍎 예상보다 훨씬 많은 이익을 냈다는 좋은 소식이 있었지만, 중국에서는 판매가 줄고 있다는 걱정스러운 소식도 있었어요. 전체적으로 좋은 소식이 더 많아서 오늘 주가는 올랐답니다.",
+        3: "오늘 AAPL은 어닝서프라이즈(+6.3%)와 서비스 부문 최대 매출이라는 긍정 호재가 중국 시장 점유율 하락 우려를 상쇄하며 전반적으로 강세를 유지했습니다. RSI가 68로 상승 중이어서 모멘텀은 살아있지만 70 돌파 시 단기 조정에 주의가 필요합니다.",
+        5: "EPS 서프라이즈(+6.3%, σ+1.8)가 서비스 부문 ARPU 확대와 맞물려 선행 PER 재조정을 촉발할 가능성이 있습니다. 자사주 매입 1,100억 달러 확대는 FCF yield 압박 없이 EPS 성장 레버리지를 제공합니다. 중국 시장 점유율 하락(화웨이 회복)은 지역 매출 집중 리스크로 분기 가이던스에 반영 여부를 확인하세요.",
+      },
+      "모멘텀형 투자자": {
+        1: "애플 주식이 오늘 많이 올랐어요! 좋은 실적 발표가 나와서 사람들이 주식을 많이 샀어요. 거래량도 평소보다 35% 더 많았다는 건 그만큼 관심이 높다는 뜻이에요.",
+        3: "어닝서프라이즈와 자사주 매입 확대가 오늘 AAPL 모멘텀의 핵심 동인입니다. RSI 68에서 MACD 히스토그램(+0.11)이 확장세를 보이며 단기 상승 추세가 유효합니다. 거래량이 5일 평균 대비 35% 증가한 점은 추세 지속 신호이나, RSI 70 돌파 시 차익 실현 압력을 경계하세요.",
+        5: "어닝 후 드리프트(PEAD) 효과와 자사주 매입 발표가 복합적으로 모멘텀을 강화하고 있습니다. MACD 히스토그램 +0.11의 확장세와 거래량 급증(+35%)은 α 팩터로 유효하며, 옵션 시장 IV 상승을 통해 시장의 기대 범위를 확인하세요. RSI(14) 68은 과매수 구간 직전으로 신고가 돌파 시 브레이크아웃 전략을 고려할 수 있습니다.",
+      },
+      "가치투자형 투자자": {
+        1: "애플이 예상보다 더 많은 이익을 냈어요. 이걸 보면 애플이라는 회사가 얼마나 가치 있는지 더 잘 알 수 있어요. 좋은 회사가 꾸준히 잘 버는 모습을 보여주고 있답니다.",
+        3: "어닝서프라이즈(+6.3%)로 12개월 선행 EPS 추정치가 상향될 가능성이 높아져 현재 PER 29x가 재조정될 수 있습니다. 서비스 부문 영업마진(30%+) 확대가 FCF 개선으로 이어지고 있으며, 자사주 매입 1,100억 달러 확대는 주당 가치를 꾸준히 높이는 신호입니다. 중국 리스크는 매출 집중도 관점에서 분기 가이던스를 주시하세요.",
+        5: "EPS 서프라이즈를 반영한 FY25 추정 EPS는 $6.55~6.70으로 조정되며, DCF 내재가치 $210~225 범위를 시사합니다. ROIC 28%가 WACC 8%를 안정적으로 초과하는 EVA 창출 구조 하에서 자사주 매입($110B)이 EPS 희석 없는 성장 레버리지를 제공합니다. 중국 매출 비중(20%)에 대한 지정학적 집중 리스크는 밸류에이션 디스카운트 요인으로 관리하세요.",
+      },
+      "거시경제형 투자자": {
+        1: "오늘 애플 소식은 좋았어요. 요즘 금리가 안정되면서 기술 회사들에게 좋은 환경이 만들어지고 있어요. 금리와 달러 가치 변화가 애플처럼 해외에서 많이 파는 회사에 큰 영향을 준답니다.",
+        3: "어닝서프라이즈는 현재 매크로 환경(연준 금리 동결 기대)과 맞물려 기술주 전반에 긍정적 시그널입니다. 달러인덱스 약세 흐름이 지속되면 AAPL 해외 매출(60%+)에 환율 수혜가 추가될 수 있습니다. 다음 FOMC 결정과 CPI 데이터가 기술주 섹터 로테이션의 핵심 변수가 될 전망입니다.",
+        5: "매크로 팩터 분해 관점에서 오늘 AAPL 실적은 ① 달러 약세에 따른 해외 환율 효과, ② 금리 안정에 따른 할인율 하락(멀티플 확장), ③ 미-중 관계 현상 유지에 따른 공급망 안정이 복합적으로 반영된 결과입니다. 중국 점유율 하락은 내수 소비 둔화 + 화웨이 회복의 산물로, 중국 PMI 및 위안화 환율과 함께 모니터링이 필요합니다.",
+      },
+      "안정추구형 투자자": {
+        1: "오늘 애플 소식은 대체로 좋았어요. 하지만 주가가 이미 많이 올랐을 때는 너무 욕심내지 않는 게 좋아요. 포트폴리오에서 한 종목이 너무 많은 비중을 차지하지 않도록 주의하세요.",
+        3: "어닝서프라이즈는 긍정적이나 RSI 68은 단기 과열 신호입니다. AAPL의 베타(1.2)를 감안하면 시장 변동성 확대 시 포트폴리오 리스크가 증가할 수 있습니다. 중국 점유율 하락은 지역 매출 집중 리스크이며, 보유 비중 유지 혹은 소폭 축소를 통한 리스크 관리를 권장합니다.",
+        5: "RSI 68에서의 내재 변동성(IV) 상승은 커버드 콜 전략으로 수익률을 제고할 수 있는 구간입니다. 포트폴리오 β를 0.8 이하로 유지하는 관점에서 AAPL(β 1.2) 비중이 10% 초과 시 저베타 자산(XLU, TLT)으로 헤지 비율 재검토를 권장합니다. 중국 매출 집중 리스크에 대한 지정학적 프리미엄이 밸류에이션에 반영되어 있는지 확인하세요.",
+      },
+    }
+  },
+  NVDA: {
+    price: 875.40, change_1d: +4.82, change_1m: +22.1, volume_ratio: 1.67,
+    rsi: 73.2, macd: { val: 18.4, signal: 14.2, hist: 4.2, trend: "상승" },
+    articles: [
+      { label: "positive", score: +0.91, title: "엔비디아 B200 GPU 수요 급증 — 마이크로소프트·구글 대규모 선주문" },
+      { label: "positive", score: +0.78, title: "엔비디아, 데이터센터 부문 분기 매출 200억 달러 돌파 전망" },
+      { label: "positive", score: +0.55, title: "젠슨 황 CEO \"AI 인프라 투자 사이클은 이제 시작\" — 상하이 AI 서밋" },
+      { label: "negative", score: -0.38, title: "엔비디아 주가 과열 경고 — RSI 73으로 과매수 구간 진입" },
+    ],
+    summary: {
+      "탐색형 투자자": {
+        1: "엔비디아가 오늘 정말 좋은 소식을 많이 받았어요! AI를 위한 특별한 칩(반도체)이 엄청나게 많이 팔리고 있어서 주가가 크게 올랐습니다. 다만 너무 빨리 올라서 일부에서는 잠깐 내릴 수도 있다는 이야기도 나오고 있어요.",
+        3: "오늘 NVDA는 B200 대규모 선주문과 데이터센터 매출 200억 달러 돌파 전망이 강한 상승 동력을 제공했습니다. 거래량이 5일 평균 대비 67% 급증하며 기관의 강한 수급이 확인됩니다. 다만 RSI 73으로 이미 과매수 구간에 진입했음을 감안해 신규 진입보다는 보유 중인 포지션 관리에 집중하세요.",
+        5: "B200 수요 급증은 NIM(NVDA Infrastructure Margin) 확대로 이어져 FY25 데이터센터 매출 추정치($900억+)의 상방 리비전을 촉발할 수 있습니다. 마이크로소프트·구글의 대규모 선주문은 12~18개월 매출 가시성을 높이는 핵심 catalyst입니다. RSI 73의 과매수 구간은 단기 차익 실현 압력이지만, AI CapEx 사이클 초기 단계에서의 멀티플 확장 여지가 남아 있습니다.",
+      },
+      "모멘텀형 투자자": {
+        1: "엔비디아 주식이 오늘 엄청 올랐어요! 좋은 소식이 여러 개 나와서 거래량도 평소보다 67%나 더 많았습니다. 다만 너무 빠르게 올랐을 때는 잠깐 쉬어가는 경우도 있어요.",
+        3: "B200 대규모 선주문 소식과 데이터센터 매출 전망이 NVDA 모멘텀을 강하게 뒷받침하고 있습니다. RSI 73으로 과매수 구간에 진입했으나, MACD 히스토그램(+4.2)이 여전히 확장 중이고 거래량이 67% 급증하며 추세 강도가 확인됩니다. 과매수 경고가 나오고 있으므로 기존 보유자는 부분 익절 기회를 검토하세요.",
+        5: "거래량 서지(+67%)와 MACD 히스토그램 확장이 동반된 신고가 돌파는 강한 브레이크아웃 신호입니다. RSI 73의 과매수 구간이지만 AI CapEx 슈퍼사이클 초입에서의 멀티플 확장과 수급 쏠림이 기술적 한계를 연장시킬 수 있습니다. 이벤트 드리프트(PEAD) 전략으로 접근하되, 일중 변동성 확대 시 스탑 수준을 타이트하게 설정하세요.",
+      },
+      "가치투자형 투자자": {
+        1: "엔비디아가 AI 칩을 엄청나게 많이 팔고 있어요. 이렇게 많이 팔면 회사 가치도 올라가지만, 지금 주가가 이미 많이 올라서 적정 가격인지 잘 생각해봐야 해요.",
+        3: "B200 선주문과 데이터센터 매출 급증은 NVDA의 펀더멘털 성장을 뒷받침하지만, 현재 PER 수준이 이미 높은 기대치를 반영하고 있습니다. FCF 성장률 대비 밸류에이션 프리미엄이 적정한지 검토가 필요하며, AI 인프라 사이클의 지속 기간이 핵심 변수입니다.",
+        5: "B200 수요 가시성을 반영한 FY26 EPS 추정치는 $28~32 범위로, 현재 주가 기준 PER 27~31x에 해당합니다. AI 인프라 사이클 초기에서의 멀티플 프리미엄이 정당화되려면 매출 성장률이 연간 50%+ 유지되어야 합니다. 데이터센터 매출 집중도(90%+) 리스크와 AMD·인텔의 GPU 추격 여부를 밸류에이션 시나리오에 반영하세요.",
+      },
+      "거시경제형 투자자": {
+        1: "엔비디아 소식이 오늘 정말 좋았어요. AI라는 기술에 전 세계 큰 회사들이 엄청난 돈을 투자하고 있어서, 엔비디아처럼 AI 칩을 만드는 회사에 기회가 생기고 있어요.",
+        3: "오늘 NVDA 강세는 빅테크 AI CapEx 확대라는 거시적 테마와 완벽하게 부합합니다. 연준 금리 동결 기조 하에서 성장주 밸류에이션 확장이 계속되고 있으며, AI 반도체 섹터로의 글로벌 자금 유입이 가속화되고 있습니다. 대중국 반도체 수출 규제 동향이 유일한 매크로 리스크 요인입니다.",
+        5: "B200 수요는 글로벌 AI 인프라 투자 사이클의 1단계(학습 인프라 구축)가 본격화되고 있음을 시사합니다. 연준의 금리 동결 → 기술주 할인율 안정 → AI 멀티플 확장의 매크로 경로가 유효하며, 달러 강세 완화 시 해외 데이터센터 수요에도 긍정적입니다. 대중 반도체 수출 규제 강화 여부가 유일한 매크로 테일 리스크입니다.",
+      },
+      "안정추구형 투자자": {
+        1: "엔비디아 소식은 좋지만, 주가가 이미 많이 올라있어요. RSI가 73이라는 건 '너무 빨리 올랐다'는 신호예요. 안전한 투자를 위해서는 지금 많이 사기보다는 조금 기다려보는 게 나을 수 있어요.",
+        3: "오늘 호재는 강력하지만 RSI 73의 과매수 구간과 높은 베타(1.8)는 리스크 관리 측면에서 주의가 필요합니다. 전체 포트폴리오에서 NVDA 비중이 과도하게 높아지지 않도록 관리하고, 시장 변동성 확대 구간에서는 포지션을 축소하는 전략이 적합합니다.",
+        5: "RSI 73과 베타 1.8의 결합은 포트폴리오 β를 급격히 상승시키므로, NVDA 비중이 5% 초과 시 저베타 자산(채권·배당주)으로 헤지가 필요합니다. IV 급등 구간에서 커버드 콜(OTM 15~20%) 전략을 통해 보유 리스크를 부분 헤지하고 옵션 프리미엄 수취를 고려하세요.",
+      },
+    }
+  },
+  TSLA: {
+    price: 176.90, change_1d: -1.73, change_1m: -12.4, volume_ratio: 0.88,
+    rsi: 38.5, macd: { val: -3.2, signal: -2.1, hist: -1.1, trend: "하락" },
+    articles: [
+      { label: "negative", score: -0.72, title: "테슬라 2분기 인도량 43만 대 — 전년 동기 대비 -5% 미달" },
+      { label: "negative", score: -0.58, title: "중국 BYD, 테슬라 추월 — 글로벌 전기차 판매 1위 등극" },
+      { label: "positive", score: +0.41, title: "테슬라 FSD v12 유럽 출시 임박 — 자율주행 수익화 기대" },
+      { label: "neutral",  score: -0.15, title: "일론 머스크, 로보택시 공개 행사 10월 예정 재확인" },
+    ],
+    summary: {
+      "탐색형 투자자": {
+        1: "오늘 테슬라는 좋지 않은 소식이 많았어요. 자동차를 예상보다 적게 팔았고, 중국의 BYD라는 회사에 전기차 1등 자리를 빼앗겼어요. 그래도 자율주행이라는 새로운 기술에 대한 기대는 여전히 남아있습니다.",
+        3: "오늘 TSLA는 2분기 인도량 부진(-5% YoY)과 BYD에 글로벌 1위 자리를 내어준 것이 주가에 부담을 주고 있습니다. RSI가 38.5로 과매도에 근접하고 있어 단기 기술적 반등 가능성이 있지만, MACD가 여전히 하락 추세를 보이고 있어 저점 확인이 필요합니다. FSD 유럽 출시와 로보택시 이벤트가 중기 카탈리스트입니다.",
+        5: "2분기 인도량 43만 대는 컨센서스(45만 대) 대비 σ-1.2의 부진으로, ASP 하락과 물량 모두 실망스러운 수준입니다. BYD의 글로벌 1위 등극은 전기차 시장의 구조적 경쟁 강화를 의미합니다. RSI 38.5에서 하락 추세의 기술적 반등 구간이나, FSD v12 수익화 가시성과 로보택시 TAM이 현재 밸류에이션(PER 60x+)을 정당화하는지가 관건입니다.",
+      },
+      "모멘텀형 투자자": {
+        1: "오늘 테슬라 주가가 내렸어요. 판매량이 기대보다 적었기 때문이에요. RSI라는 지표가 38.5인데, 이건 주가가 많이 내려왔다는 뜻이에요. 너무 싸져서 다시 오를 수도 있지만, 아직 확실하지는 않아요.",
+        3: "인도량 부진으로 TSLA 모멘텀이 악화되고 있습니다. MACD 히스토그램 -1.1이 확장 중이고 거래량이 평균 대비 12% 낮아 매수세가 약합니다. RSI 38.5는 과매도에 근접하지만 추세 전환 신호 없이 저점을 잡는 건 위험합니다. MACD 데드크로스 해소 + 거래량 급증을 추세 전환 확인 조건으로 설정하세요.",
+        5: "MACD 히스토그램 -1.1의 지속적 확장과 거래량 감소(−12%)의 조합은 약세 모멘텀의 지속을 시사합니다. RSI 38.5는 과매도 경계 구간으로 단기 반등은 가능하나, 2분기 인도량 실망이 어닝 시즌 하방 리비전으로 이어질 리스크가 있습니다. 추세 전환의 기술적 확인(MACD 양전환 + RSI 50 돌파)까지는 포지션 축소가 적합합니다.",
+      },
+      "가치투자형 투자자": {
+        1: "테슬라 주가가 오늘 내렸어요. 차를 예상보다 적게 팔아서 회사의 가치에 의문이 생기고 있어요. 지금 주가가 정당한 가격인지 잘 생각해봐야 할 때예요.",
+        3: "2분기 인도량 부진은 EPS 추정치 하향으로 이어질 가능성이 높아 현재 PER 60x+ 밸류에이션의 부담이 커지고 있습니다. 자동차 부문의 ASP 하락 추세가 지속되고 있으며, 수익성 회복 없이는 현재 주가 수준 방어가 어렵습니다. FSD 수익화 타임라인과 에너지 사업 부문의 성장이 핵심 밸류에이션 재평가 요소입니다.",
+        5: "2Q 인도량 43만 대를 반영한 FY24 EPS 추정치는 $2.80~3.00으로 하향되며, PER 60배 기준 내재가치는 $168~180 범위입니다. 자동차 부문 마진 압박(GPM 17%→13%)이 지속되는 상황에서 FSD 소프트웨어 수익화($20B+ TAM) 가정이 핵심 프리미엄 요소입니다. 현재 주가는 FSD+에너지 사업 가치를 선반영한 수준으로, 실행 가시성이 확보될 때까지 가치투자 관점의 매력도는 제한적입니다.",
+      },
+      "거시경제형 투자자": {
+        1: "테슬라가 오늘 힘든 날을 보냈어요. 전기차 시장에서 경쟁이 점점 치열해지고, 중국 경제 상황도 테슬라 판매에 영향을 주고 있어요.",
+        3: "TSLA 인도량 부진은 글로벌 전기차 수요 둔화와 중국 경기 침체의 복합 영향을 반영합니다. 중국 매출 비중(20%)과 위안화 약세, 현지 경쟁(BYD) 심화가 매크로 역풍으로 작용 중입니다. 미국 금리 인하 기대는 성장주 밸류에이션에 긍정적이지만, 구조적 경쟁 심화가 이를 상쇄하고 있습니다.",
+        5: "TSLA의 2Q 인도량 부진은 글로벌 EV 수요 사이클 둔화(재고 조정 단계)와 중국 경기 디플레이션의 복합 영향입니다. 중국 위안화 약세와 로컬 업체(BYD) 보조금 경쟁이 ASP 압박의 매크로 구조적 원인입니다. 미국 IRA 전기차 세액공제 적용 여부와 유럽 탄소세 강화가 FY25 수요 회복의 매크로 촉매가 될 수 있습니다.",
+      },
+      "안정추구형 투자자": {
+        1: "오늘 테슬라는 좋지 않은 소식이 많았어요. 테슬라 주식은 원래 오르내림이 심한 편이에요. 포트폴리오에서 테슬라 비중을 너무 높게 유지하는 건 위험할 수 있으니 주의하세요.",
+        3: "오늘 테슬라의 부진한 실적과 높은 베타(1.8)를 감안할 때 포지션 리스크를 재검토할 필요가 있습니다. MACD 하락 추세와 거래량 부진은 추세 반전의 신호가 아니므로, 추가 하락 리스크에 대비한 비중 축소 또는 스탑 설정을 권장합니다. 고변동성 종목 특성상 포트폴리오 내 비중을 5% 이내로 제한하는 것이 안정적입니다.",
+        5: "TSLA 베타 1.8과 현재 MACD 하락 추세의 조합은 포트폴리오 β를 급격히 높이는 리스크 요인입니다. 1Q EPS 대비 하향된 추정치를 반영한 VaR 재계산을 권장하며, 포지션이 있다면 커버드 콜보다 풋 옵션 매수를 통한 하방 헤지가 현 국면에 적합합니다. 테슬라 비중이 포트폴리오 5% 초과 시 축소를 고려하세요.",
+      },
+    }
+  }
+};
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let currentTendency = "모멘텀형 투자자";
+let currentLevel = 3;
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+function init() {
+  const tBar = document.getElementById('tendencyPills');
+  TENDENCIES.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 't-pill' + (t.key === currentTendency ? ' active' : '');
+    btn.textContent = t.emoji + ' ' + t.key;
+    btn.onclick = () => { currentTendency = t.key; document.querySelectorAll('.t-pill').forEach(b => b.classList.remove('active')); btn.classList.add('active'); render(); };
+    tBar.appendChild(btn);
+  });
+
+  const lBar = document.getElementById('levelPills');
+  for (let l = 1; l <= 5; l++) {
+    const btn = document.createElement('button');
+    btn.className = 'l-pill' + (l === currentLevel ? ' active' : '');
+    btn.textContent = l;
+    btn.onclick = () => { currentLevel = l; document.querySelectorAll('.l-pill').forEach(b => b.classList.remove('active')); btn.classList.add('active'); document.getElementById('levelHint').textContent = LEVEL_HINTS[l]; render(); };
+    lBar.appendChild(btn);
+  }
+
+  document.getElementById('levelHint').textContent = LEVEL_HINTS[currentLevel];
+  render();
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+  const grid = document.getElementById('digestGrid');
+  grid.innerHTML = '';
+  Object.entries(TICKER_DATA).forEach(([ticker, d]) => {
+    grid.appendChild(buildCard(ticker, d));
+  });
+}
+
+function buildCard(ticker, d) {
+  const lvl = currentLevel <= 2 ? 1 : currentLevel <= 3 ? 3 : 5;
+  const summaryMap = d.summary[currentTendency] || d.summary["탐색형 투자자"];
+  const summaryText = (summaryMap && summaryMap[lvl]) || "요약 데이터 없음";
+
+  const overview = {
+    positive: d.articles.filter(a => a.label === 'positive').length,
+    negative: d.articles.filter(a => a.label === 'negative').length,
+    neutral: d.articles.filter(a => a.label === 'neutral').length,
+    avg: d.articles.reduce((s, a) => s + a.score, 0) / d.articles.length,
+  };
+
+  const card = document.createElement('div');
+  card.className = 'digest-card';
+
+  // ── Header
+  const avgCls = overview.avg > 0.1 ? 'avg-pos' : overview.avg < -0.1 ? 'avg-neg' : 'avg-neu';
+  card.innerHTML = `
+    <div class="digest-header">
+      <div class="ticker-badge">${ticker}</div>
+      <div class="header-right">
+        <div class="article-count">오늘 기사 ${d.articles.length}건 종합</div>
+        <div class="sent-bar">
+          ${overview.positive ? `<span class="sent-chip s-pos">긍정 ${overview.positive}</span>` : ''}
+          ${overview.negative ? `<span class="sent-chip s-neg">부정 ${overview.negative}</span>` : ''}
+          ${overview.neutral  ? `<span class="sent-chip s-neu">중립 ${overview.neutral}</span>` : ''}
+          <span class="avg-score ${avgCls}">평균 ${overview.avg >= 0 ? '+' : ''}${overview.avg.toFixed(2)}</span>
+        </div>
+      </div>
+    </div>`;
+
+  // ── Body
+  const body = document.createElement('div');
+  body.className = 'digest-body';
+
+  // Summary panel
+  const summary = document.createElement('div');
+  summary.className = 'summary-panel';
+  summary.innerHTML = `
+    <div class="summary-label">
+      맞춤 요약
+      <span class="tendency-tag">${currentTendency} · Lv.${currentLevel}</span>
+    </div>
+    <div class="summary-text">${summaryText}</div>
+    <div class="articles-label">오늘 수집된 기사</div>
+    <div class="article-list">
+      ${d.articles.map(a => {
+        const sc = a.label === 'positive' ? 's-pos' : a.label === 'negative' ? 's-neg' : 's-neu';
+        const st = a.score >= 0 ? '+' + a.score.toFixed(2) : a.score.toFixed(2);
+        return `<div class="article-item"><span class="article-score ${sc}">${st}</span>${a.title}</div>`;
+      }).join('')}
+    </div>`;
+
+  // Indicators panel
+  const inds = document.createElement('div');
+  inds.className = 'indicators-panel';
+
+  const changeCls = d.change_1d > 0 ? 'up' : d.change_1d < 0 ? 'down' : 'flat';
+  const changeSign = d.change_1d > 0 ? '+' : '';
+  const change1mCls = d.change_1m > 0 ? 'up' : d.change_1m < 0 ? 'down' : 'flat';
+  const rsiCls = d.rsi > 70 ? 'warn' : d.rsi < 30 ? 'down' : 'ind-val';
+  const rsiPct = Math.min(100, d.rsi);
+  const rsiColor = d.rsi > 70 ? '#f59e0b' : d.rsi < 30 ? '#f87171' : '#4ade80';
+  const macdCls = d.macd.trend === '상승' ? 'up' : 'down';
+  const volCls = d.volume_ratio >= 1.2 ? 'up' : d.volume_ratio <= 0.8 ? 'down' : '';
+
+  inds.innerHTML = `
+    <div>
+      <div class="ind-label">현재가</div>
+      <div class="price-row">
+        <div class="price-value">$${d.price.toLocaleString()}</div>
+        <div class="price-change ${changeCls}">${changeSign}${d.change_1d}%</div>
+      </div>
+    </div>
+    <hr class="ind-divider">
+    <div class="ind-row"><span class="ind-name">1개월 수익률</span><span class="ind-val ${change1mCls}">${d.change_1m > 0 ? '+' : ''}${d.change_1m}%</span></div>
+    <div class="ind-row"><span class="ind-name">거래량 비율</span><span class="ind-val ${volCls}">${d.volume_ratio}×</span></div>
+    <hr class="ind-divider">
+    <div>
+      <div class="ind-row"><span class="ind-name">RSI (14일)</span><span class="ind-val ${rsiCls}">${d.rsi} · ${d.rsi > 70 ? '⚠ 과매수' : d.rsi < 30 ? '⚠ 과매도' : '중립'}</span></div>
+      <div class="rsi-bar-track"><div class="rsi-bar-fill" style="width:${rsiPct}%;background:${rsiColor}"></div></div>
+    </div>
+    <hr class="ind-divider">
+    <div>
+      <div class="ind-label">MACD (12/26/9) <span style="color:${d.macd.trend === '상승' ? '#4ade80' : '#f87171'}">${d.macd.trend === '상승' ? '↑' : '↓'} ${d.macd.trend}</span></div>
+      <div class="macd-row">
+        <div class="macd-line"><span class="macd-k">MACD</span><span class="macd-v ${macdCls}">${d.macd.val > 0 ? '+' : ''}${d.macd.val}</span></div>
+        <div class="macd-line"><span class="macd-k">Signal</span><span class="macd-v">${d.macd.signal}</span></div>
+        <div class="macd-line"><span class="macd-k">Histogram</span><span class="macd-v ${macdCls}">${d.macd.hist > 0 ? '+' : ''}${d.macd.hist}</span></div>
+      </div>
+    </div>`;
+
+  body.appendChild(summary);
+  body.appendChild(inds);
+  card.appendChild(body);
+  return card;
+}
+
+init();
+</script>
+</body>
+</html>

@@ -95,6 +95,41 @@ public class AnalysisController {
         return proxy("/api/v1/analysis/curate", "{\"user_id\":\"" + uid + "\"}");
     }
 
+    @Operation(summary = "티커별 일일 다이제스트", description = "관심 티커 각각에 대해 어제 장 마감 이후 기사 전체를 종합 분석 — 성향·레벨 맞춤 요약 + RSI/MACD 보조지표 반환")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            {
+              "digests": [
+                {
+                  "ticker": "AAPL",
+                  "articles_count": 5,
+                  "sentiment_overview": { "positive": 3, "negative": 1, "neutral": 1, "avg_score": 0.42 },
+                  "summary": "오늘 AAPL은 어닝서프라이즈를 기록하며 긍정적인 흐름을 보였습니다...",
+                  "technical_indicators": {
+                    "current_price": 194.5,
+                    "change_pct_1d": 2.1,
+                    "change_pct_1m": 8.2,
+                    "volume_ratio": 1.35,
+                    "RSI": 68.0,
+                    "RSI_signal": "중립",
+                    "MACD": { "macd": 0.42, "signal": 0.31, "histogram": 0.11, "trend": "상승" }
+                  }
+                }
+              ],
+              "user_level": 3,
+              "user_tendency": "모멘텀형 투자자",
+              "generated_at": "2024-07-26T15:30:00Z"
+            }
+            """)))
+    @PostMapping("/digest")
+    public ResponseEntity<String> digest(Authentication auth, @RequestParam(required = false) String userId) {
+        final String uid = resolveUserId(auth, userId);
+        if (uid == null) return ResponseEntity.badRequest()
+                .contentType(MediaType.APPLICATION_JSON).body("{\"error\":\"userId 필요\"}");
+        if (!isValidUuid(uid)) return ResponseEntity.badRequest()
+                .contentType(MediaType.APPLICATION_JSON).body("{\"error\":\"유효하지 않은 userId\"}");
+        return proxy("/api/v1/analysis/digest", "{\"user_id\":\"" + uid + "\"}");
+    }
+
     @Operation(summary = "학습 코치", description = "퀴즈 영역별 점수 분석 → 강점·약점 파악 및 맞춤 학습 방향 제시")
     @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
             {
