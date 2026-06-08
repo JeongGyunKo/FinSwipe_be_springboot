@@ -194,7 +194,7 @@ public class AuthService {
         try {
             var client = RestClient.create();
             java.net.URI tokenInfoUri = org.springframework.web.util.UriComponentsBuilder
-                    .fromHttpUrl("https://oauth2.googleapis.com/tokeninfo")
+                    .fromUriString("https://oauth2.googleapis.com/tokeninfo")
                     .queryParam("id_token", idToken)
                     .build()
                     .toUri();
