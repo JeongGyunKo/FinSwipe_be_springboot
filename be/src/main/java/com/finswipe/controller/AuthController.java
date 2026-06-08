@@ -89,7 +89,7 @@ public class AuthController {
         } catch (Exception e) {
             log.error("[Google] 로그인 처리 중 오류: {}: {}", e.getClass().getSimpleName(), e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "서버 오류: " + e.getMessage()));
+                    .body(Map.of("error", "서버 오류"));
         }
     }
 
