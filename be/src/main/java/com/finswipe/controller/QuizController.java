@@ -63,6 +63,7 @@ public class QuizController {
             """)))
     @GetMapping("/sessions/{sessionId}")
     public ResponseEntity<String> getSession(@PathVariable String sessionId) {
+        if (!isValidUuid(sessionId)) return badSessionId();
         return proxyGet("/api/v1/quiz/sessions/" + sessionId);
     }
 
@@ -86,6 +87,7 @@ public class QuizController {
             """)))
     @PostMapping("/sessions/{sessionId}/next-question")
     public ResponseEntity<String> nextQuestion(@PathVariable String sessionId) {
+        if (!isValidUuid(sessionId)) return badSessionId();
         return proxyPost("/api/v1/quiz/sessions/" + sessionId + "/next-question", null);
     }
 
@@ -114,6 +116,7 @@ public class QuizController {
     public ResponseEntity<String> submitAnswer(
             @PathVariable String sessionId,
             @RequestBody String body) {
+        if (!isValidUuid(sessionId)) return badSessionId();
         return proxyPost("/api/v1/quiz/sessions/" + sessionId + "/answers", body);
     }
 
@@ -156,5 +159,16 @@ public class QuizController {
         return ResponseEntity.internalServerError()
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("{\"error\":\"GenAI 서버에 연결할 수 없습니다\"}");
+    }
+
+    private static boolean isValidUuid(String value) {
+        try { java.util.UUID.fromString(value); return true; }
+        catch (IllegalArgumentException e) { return false; }
+    }
+
+    private static ResponseEntity<String> badSessionId() {
+        return ResponseEntity.badRequest()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"error\":\"유효하지 않은 sessionId\"}");
     }
 }
