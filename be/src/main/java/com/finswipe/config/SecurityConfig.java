@@ -31,9 +31,10 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // 공개 엔드포인트
+                .requestMatchers("/", "/health", "/health/detail").permitAll()
                 .requestMatchers("/auth/**").permitAll()
-                .requestMatchers("/health").permitAll()
-                .requestMatchers(HttpMethod.GET, "/news/latest", "/news/tickers", "/news/search").permitAll()
+                .requestMatchers(HttpMethod.GET, "/news/latest", "/news/tickers", "/news/search",
+                        "/news/genai/health").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 // 어드민 (X-Admin-Key 별도 검증)
                 .requestMatchers("/news/collect", "/news/reanalyze", "/news/analyze/**",
@@ -46,7 +47,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/news/*/read").authenticated()
                 .requestMatchers(HttpMethod.POST, "/news/device-token").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/news/device-token").authenticated()
-                .anyRequest().permitAll()
+                // 명시되지 않은 모든 경로 차단 (기본값 공개 방지)
+                .anyRequest().denyAll()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
