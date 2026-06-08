@@ -98,3 +98,17 @@ async def coach(body: UserIdRequest) -> dict:
     except Exception as exc:
         logger.error("[코치] 실패: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail="학습 코치 분석 중 오류가 발생했습니다.") from exc
+
+
+# ── 티커별 일일 다이제스트 ────────────────────────────────────────────────────────
+# 관심 티커 각각에 대해 어제 장 마감 이후 기사 전체를 종합 분석 →
+# 사용자 성향·레벨 맞춤 요약 + RSI/MACD 보조지표 반환
+
+@router.post("/digest")
+async def daily_digest(body: UserIdRequest) -> dict:
+    try:
+        from app.services.digest.agent import generate_digest
+        return await asyncio.to_thread(generate_digest, body.user_id)
+    except Exception as exc:
+        logger.error("[다이제스트] 실패: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail="일일 다이제스트 생성 중 오류가 발생했습니다.") from exc
