@@ -98,7 +98,7 @@ public class GuardrailController {
 
     private void requireAdmin(String key) {
         String expected = props.getAdmin().getApiKey();
-        if (!MessageDigest.isEqual(key.getBytes(), expected.getBytes())) {
+        if (!MessageDigest.isEqual(key.getBytes(java.nio.charset.StandardCharsets.UTF_8), expected.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.FORBIDDEN, "Invalid admin key");
         }

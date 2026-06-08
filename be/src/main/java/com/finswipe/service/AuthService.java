@@ -193,8 +193,13 @@ public class AuthService {
     private Map<String, Object> verifyGoogleToken(String idToken) {
         try {
             var client = RestClient.create();
+            java.net.URI tokenInfoUri = org.springframework.web.util.UriComponentsBuilder
+                    .fromHttpUrl("https://oauth2.googleapis.com/tokeninfo")
+                    .queryParam("id_token", idToken)
+                    .build()
+                    .toUri();
             Map<String, Object> payload = client.get()
-                    .uri("https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken)
+                    .uri(tokenInfoUri)
                     .retrieve()
                     .body(Map.class);
 

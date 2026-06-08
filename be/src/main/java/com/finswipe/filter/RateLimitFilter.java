@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
 
@@ -64,7 +65,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String provided = request.getHeader("X-Admin-Key");
         if (provided == null) return false;
         String expected = props.getAdmin().getApiKey();
-        return expected != null && MessageDigest.isEqual(provided.getBytes(), expected.getBytes());
+        return expected != null && MessageDigest.isEqual(provided.getBytes(StandardCharsets.UTF_8), expected.getBytes(StandardCharsets.UTF_8));
     }
 
     private Bucket buildBucket(int rpm) {
