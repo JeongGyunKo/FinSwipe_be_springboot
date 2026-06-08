@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from time import monotonic
 
 from fastapi import HTTPException
@@ -9,6 +10,8 @@ from app.repositories import EnrichmentRepository, create_repository
 from app.schemas.enrichment import FlexibleTextEnrichmentRequest
 from app.schemas.ingestion import EnrichmentJobStatus
 from app.schemas.storage import EnrichmentStoragePayload
+
+logger = logging.getLogger(__name__)
 
 
 class DirectEnrichmentJobService:
@@ -64,10 +67,14 @@ class DirectEnrichmentJobService:
             }:
                 if enrichment is not None:
                     return enrichment
+                logger.error(
+                    "직접 보강 작업 완료 후 저장된 결과 없음: job_id=%s error=%s",
+                    awaited_job_id,
+                    latest_job.last_error,
+                )
                 raise HTTPException(
                     status_code=500,
-                    detail=latest_job.last_error
-                    or "Worker finished the enrichment job without a stored result.",
+                    detail="보강 작업이 완료되었으나 결과를 찾을 수 없습니다.",
                 )
 
             await asyncio.sleep(self._poll_interval_seconds)
