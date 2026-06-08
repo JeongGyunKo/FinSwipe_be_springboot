@@ -167,5 +167,5 @@ def generate_personalized_analysis(state: AnalysisState) -> dict:
         )
         return {"personalized_analysis": result.strip()}
     except Exception as exc:
-        logger.error("[에이전트] 맞춤 분석 생성 실패: %s", exc)
-        return {"personalized_analysis": None, "error": str(exc)}
+        logger.error("[에이전트] 맞춤 분석 생성 실패: %s", exc, exc_info=True)
+        return {"personalized_analysis": None, "error": "분석 처리 중 오류가 발생했습니다."}
