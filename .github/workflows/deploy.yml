@@ -12,6 +12,21 @@ jobs:
       GENAI_BASIC_AUTH: ${{ secrets.GENAI_BASIC_AUTH }}
 
     steps:
+      - name: 환경변수 파일 업데이트
+        shell: bash
+        env:
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          FINLIGHT_API_KEY: ${{ secrets.FINLIGHT_API_KEY }}
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+          GENAI_POSTGRES_DSN: ${{ secrets.GENAI_POSTGRES_DSN }}
+        run: |
+          # Spring Boot .env 업데이트
+          sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD}|" ~/finswipe/.env
+          sed -i "s|^FINLIGHT_API_KEY=.*|FINLIGHT_API_KEY=${FINLIGHT_API_KEY}|" ~/finswipe/.env
+          sed -i "s|^ADMIN_API_KEY=.*|ADMIN_API_KEY=${ADMIN_API_KEY}|" ~/finswipe/.env
+          # GenAI .env 업데이트
+          sed -i "s|^GENAI_POSTGRES_DSN=.*|GENAI_POSTGRES_DSN=${GENAI_POSTGRES_DSN}|" ~/finswipe/genai/.env
+
       - name: EC2 배포 (빌드 → 헬스체크 → 교체)
         shell: bash
         run: |
