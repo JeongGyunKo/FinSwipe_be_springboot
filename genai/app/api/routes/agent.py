@@ -11,14 +11,14 @@ router = APIRouter(prefix="/analysis", tags=["agent"])
 
 
 class PersonalizedRequest(BaseModel):
-    article_title: str
-    article_text: str
-    tickers: list[str] = Field(default_factory=list)
-    sentiment_label: str = "neutral"
+    article_title: str = Field(..., max_length=1000)
+    article_text: str = Field(..., max_length=100_000)
+    tickers: list[str] = Field(default_factory=list, max_length=50)
+    sentiment_label: str = Field(default="neutral", max_length=50)
     sentiment_score: float = 0.0
-    sentiment_reason: str = ""
+    sentiment_reason: str = Field(default="", max_length=5000)
     user_level: int = Field(default=3, ge=1, le=5)
-    user_tendency: str = "탐색형"
+    user_tendency: str = Field(default="탐색형", max_length=50)
 
 
 class PersonalizedResponse(BaseModel):

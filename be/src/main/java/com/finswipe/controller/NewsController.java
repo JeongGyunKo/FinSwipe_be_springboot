@@ -353,7 +353,8 @@ public class NewsController {
                 int count = collectorService.reanalyzeUnanalyzed(limit);
                 jobTracking.finishJob(jobId, Map.of("analyzed", count));
             } catch (Exception e) {
-                jobTracking.failJob(jobId, e.getMessage());
+                log.error("[재분석] 백그라운드 작업 오류", e);
+                jobTracking.failJob(jobId, "재분석 작업 중 오류가 발생했습니다.");
             }
         });
 
