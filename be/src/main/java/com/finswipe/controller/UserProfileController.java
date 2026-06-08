@@ -104,6 +104,16 @@ public class UserProfileController {
             return ResponseEntity.badRequest().body(Map.of("error", "수정할 항목이 없습니다"));
         }
 
+        if (displayName != null && (displayName.strip().length() < 2 || displayName.strip().length() > 30)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "닉네임은 2~30자여야 합니다"));
+        }
+        if (loginId != null && (loginId.strip().length() < 2 || loginId.strip().length() > 20)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "아이디는 2~20자여야 합니다"));
+        }
+        if (password != null && password.length() > 128) {
+            return ResponseEntity.badRequest().body(Map.of("error", "비밀번호는 128자를 초과할 수 없습니다"));
+        }
+
         try {
             if (displayName != null && !displayName.isBlank()) {
                 jdbc.update("UPDATE user_profiles SET display_name = ?, updated_at = NOW() WHERE id = CAST(? AS UUID)",
