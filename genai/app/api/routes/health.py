@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter
 from fastapi.responses import Response
 
@@ -5,6 +7,7 @@ from app.core import get_settings
 from app.core.runtime_safety import get_runtime_safety_snapshot
 from app.db import get_database_backend, ping_database_backend
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["health"])
 
@@ -22,13 +25,15 @@ async def health_check_head() -> Response:
 @router.get("/health/deep", summary="Deep health check")
 async def deep_health_check() -> dict[str, str | bool | None]:
     database_ok, database_error = ping_database_backend()
+    if database_error:
+        logger.error("데이터베이스 연결 실패: %s", database_error)
     runtime = get_runtime_safety_snapshot()
     settings = get_settings()
     return {
         "status": "ok" if database_ok else "degraded",
         "database_backend": get_database_backend(),
         "database_ok": database_ok,
-        "database_error": database_error,
+        "database_error": not database_ok,
         "guard_fail_on_suspicious_gpu_runtime": settings.fail_on_suspicious_gpu_runtime,
         "runtime_torch_installed": bool(runtime["torch_installed"]),
         "runtime_torch_cuda_version": runtime["torch_cuda_version"],
