@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record RegisterRequest(
-        @NotBlank @Email String email,
+        @NotBlank @Email @Size(max = 254) String email,
         @NotBlank
         @Size(min = 8, max = 64, message = "비밀번호는 8~64자여야 합니다")
         @Pattern(
