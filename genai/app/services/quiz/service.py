@@ -493,6 +493,13 @@ def generate_next_question(session_id: str) -> dict:
         logger.info("문제 풀 적중: session=%s Q%d area=%s diff=%.1f", session_id, question_number, target_area, pool_content["difficulty"])
         return _insert_question_content(session_id, pool_content, settings)
 
+    # pool DB 쿼리(중복 체크) 도중 prefetch가 완료됐을 수 있으므로 캐시 재확인
+    cached = _prefetch_content_cache.get(session_id)
+    if cached and cached["question_number"] == question_number:
+        _prefetch_content_cache.pop(session_id, None)
+        logger.info("pool miss 후 캐시 재확인 적중: session=%s Q%d", session_id, question_number)
+        return _insert_question_content(session_id, cached, settings)
+
     # 3순위: prefetch 진행 중이면 최대 3초 대기
     event = _prefetch_events.get(session_id)
     if event:

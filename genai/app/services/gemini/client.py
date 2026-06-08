@@ -87,15 +87,24 @@ def gemini_generate_content(
     max_attempts = 4
     with _GEMINI_SEMAPHORE:  # 동시 호출 수 제한 (최대 5개)
         while True:
-            response = requests.post(
-                url,
-                headers={
-                    "x-goog-api-key": settings.gemini_api_key,
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-                timeout=settings.gemini_timeout_seconds,
-            )
+            try:
+                response = requests.post(
+                    url,
+                    headers={
+                        "x-goog-api-key": settings.gemini_api_key,
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                    timeout=settings.gemini_timeout_seconds,
+                )
+            except requests.Timeout as exc:
+                if attempt + 1 < max_attempts:
+                    log_event(logger, logging.WARNING, "gemini_timeout_retry",
+                              request_label=label, attempt=attempt + 1)
+                    time.sleep(3)
+                    attempt += 1
+                    continue
+                raise RuntimeError(f"Gemini API 타임아웃 ({max_attempts}회 재시도 초과)") from exc
             try:
                 response.raise_for_status()
                 break
