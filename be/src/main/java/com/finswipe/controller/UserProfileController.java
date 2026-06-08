@@ -44,6 +44,7 @@ public class UserProfileController {
               "authProvider": "google",
               "tickers": ["AAPL", "TSLA", "NVDA"],
               "level": 3,
+              "tendency": "모멘텀형 투자자",
               "newsSort": "time"
             }
             """)))
@@ -58,7 +59,7 @@ public class UserProfileController {
         }
         try {
             return jdbc.queryForObject(
-                    "SELECT tickers, level, email, display_name, login_id, auth_provider, news_sort FROM user_profiles WHERE id = CAST(? AS UUID)",
+                    "SELECT tickers, level, tendency, email, display_name, login_id, auth_provider, news_sort FROM user_profiles WHERE id = CAST(? AS UUID)",
                     (rs, row) -> {
                         List<String> tickers = parseTickers(rs.getString("tickers"));
                         Integer level = (Integer) rs.getObject("level");
@@ -70,6 +71,7 @@ public class UserProfileController {
                         body.put("authProvider", rs.getString("auth_provider"));
                         body.put("tickers", tickers);
                         body.put("level", level != null ? level : 0);
+                        body.put("tendency", rs.getString("tendency") != null ? rs.getString("tendency") : "탐색형 투자자");
                         body.put("newsSort", rs.getString("news_sort") != null ? rs.getString("news_sort") : "time");
                         return ResponseEntity.ok(body);
                     }, uid);
