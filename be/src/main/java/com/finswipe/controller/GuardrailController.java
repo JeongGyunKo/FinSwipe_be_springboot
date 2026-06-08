@@ -4,6 +4,7 @@ import com.finswipe.config.AppProperties;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +21,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/admin/guardrail")
 @RequiredArgsConstructor
+@Slf4j
 public class GuardrailController {
 
     private final JdbcTemplate jdbc;
@@ -76,7 +78,8 @@ public class GuardrailController {
 
             result.put("ai_evaluation", eval);
         } catch (Exception e) {
-            result.put("ai_evaluation", Map.of("error", e.getMessage()));
+            log.error("[guardrail] ai_evaluation 조회 오류", e);
+            result.put("ai_evaluation", Map.of("error", "조회 오류"));
         }
 
         // ── 필터링 효과 측정 ──────────────────────────────────────────
@@ -90,7 +93,8 @@ public class GuardrailController {
                     ? String.format("%.1f%%", cleanFiltered * 100.0 / total) : "N/A");
             result.put("filter_stats", filter);
         } catch (Exception e) {
-            result.put("filter_stats", Map.of("error", e.getMessage()));
+            log.error("[guardrail] filter_stats 조회 오류", e);
+            result.put("filter_stats", Map.of("error", "조회 오류"));
         }
 
         return ResponseEntity.ok(result);

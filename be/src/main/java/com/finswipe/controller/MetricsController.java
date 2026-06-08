@@ -55,7 +55,8 @@ public class MetricsController {
                     "SELECT COUNT(*) FROM news_articles WHERE created_at > NOW() - INTERVAL '24 hours'", Long.class));
             result.put("articles", articles);
         } catch (Exception e) {
-            result.put("articles", Map.of("error", e.getMessage()));
+            log.error("[metrics] articles 조회 오류", e);
+            result.put("articles", Map.of("error", "조회 오류"));
         }
 
         // ── 분석 성능 ──────────────────────────────────────────────────
@@ -73,7 +74,8 @@ public class MetricsController {
             analysis.put("analyzed_last_1h", recentAnalyzed);
             result.put("analysis", analysis);
         } catch (Exception e) {
-            result.put("analysis", Map.of("error", e.getMessage()));
+            log.error("[metrics] analysis 조회 오류", e);
+            result.put("analysis", Map.of("error", "조회 오류"));
         }
 
         // ── Gemini 비용 추정 ───────────────────────────────────────────
@@ -87,7 +89,8 @@ public class MetricsController {
             cost.put("monthly_at_100_articles_per_day_usd", Math.round(100 * 30 * costPerArticle * 100.0) / 100.0);
             result.put("gemini_cost_estimate", cost);
         } catch (Exception e) {
-            result.put("gemini_cost_estimate", Map.of("error", e.getMessage()));
+            log.error("[metrics] gemini_cost 계산 오류", e);
+            result.put("gemini_cost_estimate", Map.of("error", "계산 오류"));
         }
 
         // ── 캐시 통계 ──────────────────────────────────────────────────
@@ -117,7 +120,8 @@ public class MetricsController {
                     "SELECT COUNT(*) FROM user_profiles WHERE level IS NOT NULL", Long.class));
             result.put("users", users);
         } catch (Exception e) {
-            result.put("users", Map.of("error", e.getMessage()));
+            log.error("[metrics] users 조회 오류", e);
+            result.put("users", Map.of("error", "조회 오류"));
         }
 
         // ── 퀴즈 현황 ──────────────────────────────────────────────────
@@ -130,7 +134,8 @@ public class MetricsController {
                     "SELECT COUNT(*) FROM quiz_sessions WHERE analysis_depth = 'deep'", Long.class));
             result.put("quiz", quiz);
         } catch (Exception e) {
-            result.put("quiz", Map.of("error", e.getMessage()));
+            log.error("[metrics] quiz 조회 오류", e);
+            result.put("quiz", Map.of("error", "조회 오류"));
         }
 
         return ResponseEntity.ok(result);
