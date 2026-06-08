@@ -1,12 +1,28 @@
 from __future__ import annotations
 
+import uuid as _uuid_module
 from typing import Optional, Any
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
+
+
+def _validate_uuid_or_none(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return v
+    try:
+        _uuid_module.UUID(v)
+    except ValueError:
+        raise ValueError("UUID 형식이어야 합니다")
+    return v
 
 
 class CreateSessionRequest(BaseModel):
-    user_id: Optional[str] = None
+    user_id: Optional[str] = Field(default=None, max_length=36)
+
+    @field_validator("user_id")
+    @classmethod
+    def user_id_must_be_uuid(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_uuid_or_none(v)
 
 
 class SessionResponse(BaseModel):
@@ -32,8 +48,13 @@ class QuestionResponse(BaseModel):
 
 
 class SubmitAnswerRequest(BaseModel):
-    question_id: Optional[str] = None
-    answer: str
+    question_id: Optional[str] = Field(default=None, max_length=36)
+    answer: str = Field(..., max_length=1)
+
+    @field_validator("question_id")
+    @classmethod
+    def question_id_must_be_uuid(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_uuid_or_none(v)
 
     @field_validator("answer")
     @classmethod
