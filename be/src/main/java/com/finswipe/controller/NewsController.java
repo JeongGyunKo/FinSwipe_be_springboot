@@ -325,8 +325,9 @@ public class NewsController {
             long count = newsRepo.count();
             return ResponseEntity.ok(Map.of("status", "ok", "article_count", count));
         } catch (Exception e) {
+            log.error("[DB 연결 테스트] 오류", e);
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .body(Map.of("status", "error", "message", e.getMessage()));
+                    .body(Map.of("status", "error", "message", "DB 연결 오류"));
         }
     }
 
