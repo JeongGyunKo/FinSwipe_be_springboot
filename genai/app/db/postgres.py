@@ -120,6 +120,24 @@ def initialize_postgres_database(dsn: str | None = None) -> str:
                 ON enrichment_results(analyzed_at)
                 """
             )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS digest_cache (
+                    ticker TEXT NOT NULL,
+                    level INT NOT NULL,
+                    tendency TEXT NOT NULL,
+                    digest_json JSONB NOT NULL,
+                    generated_at TIMESTAMPTZ NOT NULL,
+                    PRIMARY KEY (ticker, level, tendency)
+                )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_digest_cache_generated_at
+                ON digest_cache(ticker, generated_at)
+                """
+            )
 
     return resolved_dsn
 

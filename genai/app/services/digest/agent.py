@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timezone
 
@@ -122,7 +123,8 @@ def _fetch_technicals(ticker: str) -> dict | None:
         import numpy as np
         import yfinance as yf
 
-        hist = yf.Ticker(ticker).history(period="3mo", interval="1d")
+        # 52주 위치 계산을 위해 1y 데이터 사용
+        hist = yf.Ticker(ticker).history(period="1y", interval="1d")
         if hist.empty or len(hist) < 26:
             return None
 
@@ -157,6 +159,33 @@ def _fetch_technicals(ticker: str) -> dict | None:
         signal_line = ema(macd_line, 9)
         histogram = round(float(macd_line[-1] - signal_line[-1]), 4)
 
+        # 볼린저밴드 (20일)
+        ma20 = float(prices[-20:].mean())
+        std20 = float(prices[-20:].std())
+        bb_upper = ma20 + 2 * std20
+        bb_lower = ma20 - 2 * std20
+        bb_width = bb_upper - bb_lower
+        bb_pct_b = round((prices[-1] - bb_lower) / bb_width * 100, 1) if bb_width > 0 else 50.0
+        if prices[-1] > bb_upper:
+            bb_position = "상단돌파"
+        elif prices[-1] < bb_lower:
+            bb_position = "하단돌파"
+        elif bb_pct_b >= 60:
+            bb_position = "상단"
+        elif bb_pct_b <= 40:
+            bb_position = "하단"
+        else:
+            bb_position = "중립"
+
+        # 20일 이동평균 대비 %
+        ma20_diff_pct = round((prices[-1] / ma20 - 1) * 100, 2)
+
+        # 52주 고저 위치
+        high_52w = float(prices.max())
+        low_52w = float(prices.min())
+        week52_range = high_52w - low_52w
+        week52_position_pct = round((prices[-1] - low_52w) / week52_range * 100, 1) if week52_range > 0 else 50.0
+
         return {
             "current_price": current_price,
             "change_pct_1d": change_1d,
@@ -170,10 +199,152 @@ def _fetch_technicals(ticker: str) -> dict | None:
                 "histogram": histogram,
                 "trend": "상승" if histogram > 0 else "하락",
             },
+            "BB": {
+                "upper": round(bb_upper, 2),
+                "lower": round(bb_lower, 2),
+                "pct_b": bb_pct_b,
+                "position": bb_position,
+            },
+            "MA20_diff_pct": ma20_diff_pct,
+            "week52": {
+                "high": round(high_52w, 2),
+                "low": round(low_52w, 2),
+                "position_pct": week52_position_pct,
+            },
         }
     except Exception as exc:
         logger.warning("[다이제스트] %s 기술적 지표 수집 실패: %s", ticker, exc)
         return None
+
+
+_UNSET = object()
+
+
+def _generate_single_ticker_digest(
+    ticker: str,
+    level: int,
+    tendency: str,
+    settings,
+    technicals=_UNSET,
+) -> dict:
+    """티커 1개에 대한 다이제스트를 생성한다.
+
+    technicals를 외부에서 주입하면 yfinance 호출을 생략한다
+    (digest_worker에서 티커당 1번만 호출하기 위해 사용).
+    """
+    articles = _fetch_ticker_articles(ticker, settings)
+    resolved_technicals = _fetch_technicals(ticker) if technicals is _UNSET else technicals
+
+    if not articles:
+        return {
+            "ticker": ticker,
+            "articles_count": 0,
+            "message": "오늘 관련 뉴스가 없습니다.",
+            "sentiment_overview": None,
+            "summary": None,
+            "technical_indicators": resolved_technicals,
+        }
+
+    overview = _sentiment_overview(articles)
+
+    try:
+        prompt = _build_digest_prompt(ticker, articles, level, tendency)
+        summary = gemini_generate_content(
+            system_prompt=_SYSTEM_PROMPT,
+            user_prompt=prompt,
+            model=settings.gemini_summary_model,
+            temperature=0.3,
+            request_label="daily_digest",
+        ).strip()
+    except Exception as exc:
+        logger.error("[다이제스트] %s 요약 생성 실패: %s", ticker, exc)
+        summary = None
+
+    return {
+        "ticker": ticker,
+        "articles_count": len(articles),
+        "sentiment_overview": overview,
+        "summary": summary,
+        "technical_indicators": resolved_technicals,
+    }
+
+
+def get_cached_ticker_digest(ticker: str, level: int, tendency: str, settings) -> dict | None:
+    """digest_cache에서 (ticker, level, tendency) 캐시를 조회한다."""
+    with connect_postgres(settings.postgres_dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT digest_json, generated_at FROM digest_cache
+                WHERE ticker = %s AND level = %s AND tendency = %s
+                """,
+                (ticker, level, tendency),
+            )
+            row = cur.fetchone()
+    if row is None:
+        return None
+    result = dict(row["digest_json"])
+    result["cached_at"] = row["generated_at"].isoformat()
+    return result
+
+
+def save_ticker_digest_cache(ticker: str, level: int, tendency: str, digest: dict, settings) -> None:
+    """(ticker, level, tendency) 다이제스트 결과를 digest_cache에 저장/갱신한다."""
+    payload = {k: v for k, v in digest.items() if k != "cached_at"}
+    with connect_postgres(settings.postgres_dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO digest_cache (ticker, level, tendency, digest_json, generated_at)
+                VALUES (%s, %s, %s, %s, NOW())
+                ON CONFLICT (ticker, level, tendency)
+                DO UPDATE SET digest_json = EXCLUDED.digest_json,
+                              generated_at = EXCLUDED.generated_at
+                """,
+                (ticker, level, tendency, json.dumps(payload, default=str)),
+            )
+        conn.commit()
+
+
+def generate_digest_from_cache(user_id: str) -> dict:
+    """캐시 우선 조회 후 캐시 미스 시 온디맨드 생성으로 폴백하는 다이제스트 반환."""
+    settings = get_settings()
+
+    profile = _fetch_user_profile(user_id, settings)
+    if profile is None:
+        return {"error": "사용자를 찾을 수 없습니다.", "digests": []}
+
+    tickers: list[str] = profile["tickers"]
+    level: int = profile["level"]
+    tendency: str = profile["tendency"]
+
+    if not tickers:
+        return {
+            "digests": [],
+            "user_level": level,
+            "user_tendency": tendency,
+            "message": "관심 티커가 없습니다. 티커를 먼저 추가하세요.",
+        }
+
+    digests = []
+    for ticker in tickers[:10]:
+        cached = get_cached_ticker_digest(ticker, level, tendency, settings)
+        if cached is not None:
+            digests.append(cached)
+        else:
+            result = _generate_single_ticker_digest(ticker, level, tendency, settings)
+            try:
+                save_ticker_digest_cache(ticker, level, tendency, result, settings)
+            except Exception as exc:
+                logger.warning("[다이제스트] %s 캐시 저장 실패: %s", ticker, exc)
+            digests.append(result)
+
+    return {
+        "digests": digests,
+        "user_level": level,
+        "user_tendency": tendency,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 def generate_digest(user_id: str) -> dict:
@@ -195,45 +366,10 @@ def generate_digest(user_id: str) -> dict:
             "message": "관심 티커가 없습니다. 티커를 먼저 추가하세요.",
         }
 
-    digests = []
-    for ticker in tickers[:10]:
-        articles = _fetch_ticker_articles(ticker, settings)
-
-        if not articles:
-            digests.append({
-                "ticker": ticker,
-                "articles_count": 0,
-                "message": "오늘 관련 뉴스가 없습니다.",
-                "sentiment_overview": None,
-                "summary": None,
-                "technical_indicators": _fetch_technicals(ticker),
-            })
-            continue
-
-        overview = _sentiment_overview(articles)
-
-        try:
-            prompt = _build_digest_prompt(ticker, articles, level, tendency)
-            summary = gemini_generate_content(
-                system_prompt=_SYSTEM_PROMPT,
-                user_prompt=prompt,
-                model=settings.gemini_summary_model,
-                temperature=0.3,
-                request_label="daily_digest",
-            ).strip()
-        except Exception as exc:
-            logger.error("[다이제스트] %s 요약 생성 실패: %s", ticker, exc)
-            summary = None
-
-        technicals = _fetch_technicals(ticker)
-
-        digests.append({
-            "ticker": ticker,
-            "articles_count": len(articles),
-            "sentiment_overview": overview,
-            "summary": summary,
-            "technical_indicators": technicals,
-        })
+    digests = [
+        _generate_single_ticker_digest(ticker, level, tendency, settings)
+        for ticker in tickers[:10]
+    ]
 
     return {
         "digests": digests,
