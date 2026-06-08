@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 public class NewsCollectorService {
 
     // 전체 뉴스 스캔 — 최대 페이지 수 (15분 주기, 페이지당 100개)
-    // 1콜 = 100기사, 15페이지 × 96사이클 = 1,440콜/일 (한도 50,000의 86%)
+    // 1콜 = 100기사, 최대 15페이지 × 96사이클 = 1,440콜/일, 20분 윈도우 적용 시 실측 ~350콜/일
     private static final int MAX_SCAN_PAGES = 15;
 
     // Python: CRYPTO_TICKERS
@@ -115,14 +115,14 @@ public class NewsCollectorService {
             List<Map<String, Object>> articles = fetchPage(page);
             if (articles.isEmpty()) break;
 
-            // createdAt 기준 30분 이전이면 중단 (publishDate는 과거 날짜일 수 있음)
+            // createdAt 기준 20분 이전이면 중단 (15분 주기 + 5분 안전 버퍼)
             Object lastDate = articles.get(articles.size() - 1).get("createdAt");
             if (lastDate == null) lastDate = articles.get(articles.size() - 1).get("publishDate");
             if (lastDate instanceof String dateStr) {
                 java.time.Instant ingested = java.time.Instant.parse(dateStr);
-                if (ingested.isBefore(java.time.Instant.now().minusSeconds(1800))) {
+                if (ingested.isBefore(java.time.Instant.now().minusSeconds(1200))) {
                     allRaw.addAll(articles);
-                    log.info("[Finlight] 페이지 {} — 30분 이전 수집 기사 도달, 스캔 종료", page);
+                    log.info("[Finlight] 페이지 {} — 20분 이전 수집 기사 도달, 스캔 종료", page);
                     break;
                 }
             }
@@ -181,7 +181,6 @@ public class NewsCollectorService {
         return deduplicated.stream().map(this::toEntity).filter(Objects::nonNull).toList();
     }
 
-    /** 특정 티커 직접 조회 — 텍스트 검색으로 누락되는 주요 종목 보완 */
     /** 미국 티커 목록 로드 (DB의 ticker_info 테이블 기준) */
     private Set<String> loadUsTickers() {
         try {
