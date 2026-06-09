@@ -43,6 +43,31 @@ public class HealthController {
         return ResponseEntity.ok(new HealthResponse(overall, dbStatus, genaiStatus));
     }
 
+    @GetMapping("/health/schema-debug")
+    public ResponseEntity<Map<String, Object>> schemaDebug() {
+        Map<String, Object> info = new java.util.LinkedHashMap<>();
+        try {
+            // 컬럼 존재 여부 확인
+            Integer colCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns " +
+                "WHERE table_name='news_articles' AND column_name IN ('event_category','sentiment_divergence','novelty_score')",
+                Integer.class);
+            info.put("enrichment_col_count", colCount);
+
+            // Flyway 마이그레이션 히스토리 (최근 5개)
+            try {
+                var rows = jdbcTemplate.queryForList(
+                    "SELECT version, description, success, installed_on FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 5");
+                info.put("flyway_history", rows);
+            } catch (Exception e) {
+                info.put("flyway_history_error", e.getMessage());
+            }
+        } catch (Exception e) {
+            info.put("error", e.getMessage());
+        }
+        return ResponseEntity.ok(info);
+    }
+
     private String checkDb() {
         try {
             jdbcTemplate.queryForObject("SELECT 1", Integer.class);
