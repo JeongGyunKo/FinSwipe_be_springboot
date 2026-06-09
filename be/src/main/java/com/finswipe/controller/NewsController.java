@@ -527,8 +527,8 @@ public class NewsController {
             @NotBlank @Size(min = 10, max = 500) String token) {}
 
     record NotificationSettingsRequest(
-            boolean notifyAllNews,
-            boolean notifySentimentNews) {}
+            @com.fasterxml.jackson.annotation.JsonProperty("notify_all_news") boolean notifyAllNews,
+            @com.fasterxml.jackson.annotation.JsonProperty("notify_sentiment_news") boolean notifySentimentNews) {}
 
     private String resolveUserId(Authentication auth) {
         if (auth != null && auth.getPrincipal() instanceof java.util.UUID) {
