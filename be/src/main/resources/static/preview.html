@@ -271,7 +271,11 @@ async function doKey() {
   try {
     const res = await fetch(`${API}/admin/users`, { headers: { 'X-Admin-Key': k } });
     if (res.status === 403) { err.textContent = '잘못된 Admin Key입니다.'; return; }
-    if (!res.ok) { err.textContent = `서버 오류 (${res.status})`; return; }
+    if (!res.ok) {
+      let msg = `서버 오류 (${res.status})`;
+      try { const b = await res.clone().json(); if (b.error) msg += ' — ' + b.error; } catch(_) {}
+      err.textContent = msg; return;
+    }
     adminKey = k;
     localStorage.setItem('fin_admin_key', k);
     const users = await res.json();
