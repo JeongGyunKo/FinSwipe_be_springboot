@@ -21,6 +21,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -28,8 +30,9 @@ import java.util.concurrent.atomic.AtomicReference;
 public class NotificationService {
 
     private static final String TOKEN_URL = "https://oauth2.googleapis.com/token";
-    private static final String FCM_SEND_URL = "https://fcm.googleapis.com/v1/projects/%s/messages:send";
+    private static final String FCM_BATCH_URL = "https://fcm.googleapis.com/batch";
     private static final String FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
+    private static final int BATCH_SIZE = 500;
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
@@ -109,7 +112,7 @@ public class NotificationService {
         }
     }
 
-    /** Python: send_push() */
+    /** Python: send_push() — 500개씩 FCM 배치 API로 발송 */
     public void sendPush(String title, String body, String serviceAccountJson,
                          List<String> tokens, Map<String, String> data) {
         if (serviceAccountJson == null || serviceAccountJson.isBlank()) {
@@ -120,51 +123,113 @@ public class NotificationService {
             log.info("[알림] 발송 대상 토큰 없음 → 스킵");
             return;
         }
-
         try {
-            log.debug("[알림] FCM JSON 길이={}", serviceAccountJson.length());
             Map<?, ?> info = objectMapper.readValue(serviceAccountJson, Map.class);
             String projectId = (String) info.get("project_id");
             String accessToken = getOrRefreshAccessToken(serviceAccountJson, info);
             if (accessToken == null) return;
 
-            String url = String.format(FCM_SEND_URL, projectId);
             int success = 0, failed = 0;
-
-            for (String token : tokens) {
-                Map<String, Object> notification = Map.of("title", title, "body", body);
-                Map<String, String> dataMap = new HashMap<>(data != null ? data : Map.of());
-                Map<String, Object> message = Map.of("token", token, "notification", notification, "data", dataMap);
-                String payload = objectMapper.writeValueAsString(Map.of("message", message));
-
-                HttpRequest req = HttpRequest.newBuilder()
-                        .uri(URI.create(url))
-                        .header("Authorization", "Bearer " + accessToken)
-                        .header("Content-Type", "application/json")
-                        .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
-                        .timeout(Duration.ofSeconds(10))
-                        .build();
-
-                HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-                if (resp.statusCode() == 200) {
-                    success++;
-                } else {
-                    failed++;
-                    String respBody = resp.body();
-                    log.warn("[알림] FCM 발송 실패: {} {}", resp.statusCode(),
-                            respBody.length() > 100 ? respBody.substring(0, 100) : respBody);
-                    // 만료/유효하지 않은 토큰 → DB에서 삭제
-                    if (resp.statusCode() == 404 || resp.statusCode() == 400) {
-                        jdbc.update("DELETE FROM device_tokens WHERE token = ?", token);
-                        log.info("[알림] 만료 토큰 삭제: {}…", token.length() > 20 ? token.substring(0, 20) : token);
-                    }
-                }
+            for (int i = 0; i < tokens.size(); i += BATCH_SIZE) {
+                List<String> batch = tokens.subList(i, Math.min(i + BATCH_SIZE, tokens.size()));
+                int[] counts = sendBatch(batch, title, body, data, projectId, accessToken, 0);
+                success += counts[0];
+                failed += counts[1];
             }
             log.info("[알림] 발송 완료 → 성공 {}개 / 실패 {}개", success, failed);
-
         } catch (Exception e) {
             log.error("[알림] 발송 오류: {}", e.getMessage());
         }
+    }
+
+    private int[] sendBatch(List<String> tokens, String title, String body,
+                             Map<String, String> data, String projectId,
+                             String accessToken, int retry) throws Exception {
+        String boundary = "finswipe_batch";
+        String subPath = "/v1/projects/" + projectId + "/messages:send";
+        StringBuilder sb = new StringBuilder();
+
+        for (int i = 0; i < tokens.size(); i++) {
+            Map<String, Object> msg = Map.of(
+                "token", tokens.get(i),
+                "notification", Map.of("title", title, "body", body),
+                "data", data != null ? new HashMap<>(data) : Map.of()
+            );
+            String payload = objectMapper.writeValueAsString(Map.of("message", msg));
+            sb.append("--").append(boundary).append("\r\n")
+              .append("Content-Type: application/http\r\n")
+              .append("Content-ID: <item").append(i).append(">\r\n\r\n")
+              .append("POST ").append(subPath).append(" HTTP/1.1\r\n")
+              .append("Content-Type: application/json\r\n\r\n")
+              .append(payload).append("\r\n");
+        }
+        sb.append("--").append(boundary).append("--");
+
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(FCM_BATCH_URL))
+                .header("Authorization", "Bearer " + accessToken)
+                .header("Content-Type", "multipart/mixed; boundary=" + boundary)
+                .POST(HttpRequest.BodyPublishers.ofString(sb.toString(), StandardCharsets.UTF_8))
+                .timeout(Duration.ofSeconds(30))
+                .build();
+
+        HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+
+        if (resp.statusCode() == 429) {
+            if (retry >= 3) {
+                log.error("[알림] FCM 배치 429 — 재시도 초과, {} 건 포기", tokens.size());
+                return new int[]{0, tokens.size()};
+            }
+            long waitMs = 10_000L * (retry + 1);
+            log.warn("[알림] FCM 배치 429 — {}ms 대기 후 재시도 ({}/3)", waitMs, retry + 1);
+            Thread.sleep(waitMs);
+            return sendBatch(tokens, title, body, data, projectId, accessToken, retry + 1);
+        }
+
+        if (resp.statusCode() != 200) {
+            log.error("[알림] FCM 배치 오류: status={}", resp.statusCode());
+            return new int[]{0, tokens.size()};
+        }
+
+        return parseBatchResponse(resp.body(), tokens,
+                resp.headers().firstValue("Content-Type").orElse(""));
+    }
+
+    private int[] parseBatchResponse(String body, List<String> tokens, String contentTypeHeader) {
+        String boundary = extractBoundary(contentTypeHeader);
+        if (boundary == null) {
+            log.warn("[알림] 배치 응답 boundary 파싱 실패");
+            return new int[]{tokens.size(), 0};
+        }
+
+        String[] parts = body.split("--" + Pattern.quote(boundary));
+        int success = 0, failed = 0;
+
+        for (String part : parts) {
+            if (part.isBlank() || part.trim().equals("--")) continue;
+
+            Matcher idxMatcher = Pattern.compile(
+                "Content-ID:\\s*response-<item(\\d+)>", Pattern.CASE_INSENSITIVE).matcher(part);
+            int idx = idxMatcher.find() ? Integer.parseInt(idxMatcher.group(1)) : -1;
+
+            if (part.contains("HTTP/1.1 200")) {
+                success++;
+            } else {
+                failed++;
+                if (idx >= 0 && idx < tokens.size() &&
+                        (part.contains("UNREGISTERED") || part.contains("INVALID_ARGUMENT")
+                         || part.contains("HTTP/1.1 404") || part.contains("HTTP/1.1 400"))) {
+                    jdbc.update("DELETE FROM device_tokens WHERE token = ?", tokens.get(idx));
+                    log.info("[알림] 만료 토큰 삭제");
+                }
+            }
+        }
+        return new int[]{success, failed};
+    }
+
+    private String extractBoundary(String contentType) {
+        Matcher m = Pattern.compile("boundary=\"?([^\"\\s;]+)\"?").matcher(contentType);
+        return m.find() ? m.group(1) : null;
     }
 
     /** 토큰 캐싱 래퍼 — 만료 5분 전까지 기존 토큰 재사용 */
