@@ -11,6 +11,41 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/analysis", tags=["agent"])
 
 
+# ── 헤드라인 번역 ────────────────────────────────────────────────────────────────
+
+class HeadlineTranslateItem(BaseModel):
+    id: str = Field(..., max_length=100)
+    headline: str = Field(..., max_length=2000)
+
+
+class HeadlineTranslateRequest(BaseModel):
+    items: list[HeadlineTranslateItem] = Field(..., max_length=30)
+
+
+class HeadlineTranslateResult(BaseModel):
+    id: str
+    headline_ko: str | None = None
+
+
+class HeadlineTranslateResponse(BaseModel):
+    results: list[HeadlineTranslateResult]
+
+
+@router.post("/translate-headlines")
+async def translate_headlines(body: HeadlineTranslateRequest) -> HeadlineTranslateResponse:
+    try:
+        from app.services.translation.headline_batch import translate_headlines_batch
+        raw = await asyncio.to_thread(translate_headlines_batch, body.items)
+        return HeadlineTranslateResponse(
+            results=[HeadlineTranslateResult(**r) for r in raw]
+        )
+    except Exception as exc:
+        logger.error("[헤드라인 번역] 실패: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail="헤드라인 번역 중 오류가 발생했습니다.") from exc
+
+
+# ── 개인화 분석 에이전트 ──────────────────────────────────────────────────────────
+
 class PersonalizedRequest(BaseModel):
     article_title: str = Field(..., max_length=1000)
     article_text: str = Field(..., max_length=100_000)

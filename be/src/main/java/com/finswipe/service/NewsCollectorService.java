@@ -54,6 +54,7 @@ public class NewsCollectorService {
 
     private final AtomicBoolean reanalysisRunning = new AtomicBoolean(false);
     private final AtomicBoolean freshAnalysisRunning = new AtomicBoolean(false);
+    private final AtomicBoolean headlineTranslationRunning = new AtomicBoolean(false);
 
     public NewsCollectorService(@Qualifier("finlightRestClient") RestClient finlightClient,
                                 NewsArticleRepository newsRepo,
@@ -652,6 +653,67 @@ public class NewsCollectorService {
                 log.error("[신규 티커] 소급 분석 실패: {}", e.getMessage());
             }
         });
+    }
+
+    /**
+     * 헤드라인 전용 번역 보정 — retry_count=3으로 막힌 관심 티커 기사 headline_ko를 경량 번역으로 채움.
+     * 전체 enrichment 없이 headline만 번역하므로 빠르고 저렴함.
+     */
+    public int translateMissingHeadlines() {
+        if (!headlineTranslationRunning.compareAndSet(false, true)) {
+            return 0;
+        }
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList("""
+                    WITH watched AS (
+                      SELECT array_agg(DISTINCT t) AS tickers
+                      FROM user_profiles, unnest(tickers) AS t
+                      WHERE tickers IS NOT NULL AND array_length(tickers, 1) > 0
+                    )
+                    SELECT na.id::text AS id, na.headline
+                    FROM news_articles na
+                    LEFT JOIN watched ON true
+                    WHERE na.headline_ko IS NULL
+                      AND na.content IS NOT NULL
+                      AND (na.sentiment_label IS NULL OR na.sentiment_label != '_clean_filtered')
+                      AND (watched.tickers IS NULL OR na.tickers && watched.tickers)
+                    ORDER BY na.published_at DESC
+                    LIMIT 20
+                    """);
+            if (rows.isEmpty()) return 0;
+
+            List<Map<String, String>> items = rows.stream()
+                    .filter(r -> r.get("id") != null && r.get("headline") != null)
+                    .map(r -> Map.of("id", r.get("id").toString(), "headline", r.get("headline").toString()))
+                    .toList();
+            if (items.isEmpty()) return 0;
+
+            Map<String, String> translations = analyzerService.translateHeadlinesBatch(items);
+            if (translations.isEmpty()) return 0;
+
+            int updated = 0;
+            for (Map.Entry<String, String> entry : translations.entrySet()) {
+                if (containsKorean(entry.getValue())) {
+                    try {
+                        int rows2 = jdbc.update(
+                                "UPDATE news_articles SET headline_ko = ? WHERE id = CAST(? AS uuid) AND headline_ko IS NULL",
+                                entry.getValue(), entry.getKey());
+                        updated += rows2;
+                    } catch (Exception e) {
+                        log.warn("[헤드라인 번역] DB 업데이트 실패 ({}): {}", entry.getKey(), e.getMessage());
+                    }
+                }
+            }
+            if (updated > 0) {
+                log.info("[헤드라인 번역] {}개 항목 처리 → {}개 headline_ko 저장", items.size(), updated);
+            }
+            return updated;
+        } catch (Exception e) {
+            log.error("[헤드라인 번역] 실패: {}", e.getMessage(), e);
+            return 0;
+        } finally {
+            headlineTranslationRunning.set(false);
+        }
     }
 
     /** Python: cleanup_old_content() */

@@ -61,6 +61,38 @@ public class AnalyzerService {
         }
     }
 
+    /**
+     * 헤드라인 전용 경량 번역 배치 — retry_count 관계없이 headline_ko만 채움.
+     * @return id → headline_ko 매핑 (번역 실패 항목 제외)
+     */
+    public Map<String, String> translateHeadlinesBatch(List<Map<String, String>> items) {
+        if (items.isEmpty()) return Map.of();
+        try {
+            String body = objectMapper.writeValueAsString(Map.of("items", items));
+            String response = genaiClient.post()
+                    .uri("/api/v1/analysis/translate-headlines")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .exchange((req, res) -> {
+                        byte[] bytes = res.getBody().readAllBytes();
+                        return bytes.length > 0 ? new String(bytes, java.nio.charset.StandardCharsets.UTF_8) : "{}";
+                    });
+            JsonNode root = objectMapper.readTree(response);
+            Map<String, String> result = new HashMap<>();
+            for (JsonNode r : root.path("results")) {
+                String id = r.path("id").asText(null);
+                String ko = r.path("headline_ko").asText(null);
+                if (id != null && ko != null && !ko.isBlank()) {
+                    result.put(id, ko);
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            log.warn("[헤드라인 번역] 배치 실패: {}", e.getMessage());
+            return Map.of();
+        }
+    }
+
     /** Python: analyze_news_batch() */
     public List<EnrichmentResult> analyzeBatch(List<NewsArticle> articles) {
         List<NewsArticle> valid = articles.stream()

@@ -42,6 +42,21 @@ public class NewsScheduler {
         });
     }
 
+    // 5분마다 헤드라인 번역 보정 — retry_count=3으로 막힌 관심 티커 기사 headline_ko 채움
+    @Scheduled(fixedDelay = 300_000, initialDelay = 120_000)
+    public void translateMissingHeadlines() {
+        Thread.ofVirtual().start(() -> {
+            try {
+                int count = collectorService.translateMissingHeadlines();
+                if (count > 0) {
+                    log.info("[Scheduler] 헤드라인 번역 보정 완료: {}개", count);
+                }
+            } catch (Exception e) {
+                log.error("[Scheduler] 헤드라인 번역 보정 실패", e);
+            }
+        });
+    }
+
     // 6시간마다 오래된 기사 정리 (Python: APScheduler 6hr interval)
     @Scheduled(fixedDelay = 21_600_000, initialDelay = 60_000)
     public void cleanupOldContent() {
