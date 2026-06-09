@@ -154,6 +154,34 @@ body { background: #e8edf2; font-family: -apple-system,'Pretendard','Apple SD Go
 
 #detail-section { display:none; }
 
+/* ── 섹션 구분 ── */
+.sect-block { display:flex; flex-direction:column; gap:7px; }
+.sect-divider { height:1px; background:#eff1f5; margin:2px 0; flex-shrink:0; }
+.sect-label {
+  font-size:11px; font-weight:800; color:#374151; letter-spacing:.02em;
+  display:flex; align-items:center; gap:5px;
+}
+.sect-label::before {
+  content:''; width:3px; height:11px; background:#2563eb; border-radius:2px; display:inline-block; flex-shrink:0;
+}
+
+/* 유저 프로필 바 */
+.user-profile-bar { display:flex; gap:5px; flex-wrap:wrap; }
+.upb-tag { font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; }
+.upb-tag.green { background:#f0fdf4; color:#16a34a; }
+.upb-tag.blue  { background:#eff6ff; color:#2563eb; }
+
+/* 보조지표 부가 수치 */
+.ind-sub-row {
+  display:flex; margin:4px 0 2px; background:#f1f5f9; border-radius:7px; overflow:hidden;
+}
+.ind-sub-item {
+  flex:1; text-align:center; padding:5px 3px; font-size:9.5px; color:#6b7a90;
+  border-right:1px solid #e2e8f0; line-height:1.4;
+}
+.ind-sub-item:last-child { border-right:none; }
+.ind-sub-item b { display:block; color:#1a1a2e; font-weight:700; font-size:10px; }
+
 /* ── 유저 카드 액션 버튼 ── */
 .uc-actions { display:flex; gap:5px; margin-top:7px; padding-top:7px; border-top:1px solid #f0f2f5; }
 .uc-edit-btn, .uc-del-btn {
@@ -516,8 +544,14 @@ function renderSummary(d) {
   const sentKo = ov.avg_score>0.3?'긍정':ov.avg_score<-0.3?'부정':'중립';
 
   document.getElementById('summary-content').innerHTML = `
-    <div>
-      <div class="lbl">어제 → 오늘 흐름</div>
+    ${(digestData?.user_level || digestData?.user_tendency) ? `
+    <div class="user-profile-bar">
+      ${digestData.user_level ? `<span class="upb-tag green">Lv${digestData.user_level} 맞춤</span>` : ''}
+      ${digestData.user_tendency ? `<span class="upb-tag blue">${digestData.user_tendency}</span>` : ''}
+    </div>` : ''}
+
+    <div class="sect-block">
+      <div class="sect-label">어제 → 오늘 흐름</div>
       <div class="flow-grid">
         <div class="fc ${fc1}">
           <div class="fc-date">${fmt(yday)} 마감</div>
@@ -532,16 +566,18 @@ function renderSummary(d) {
       </div>
     </div>
 
-    <div>
-      <div class="lbl">오늘의 종합 요약</div>
+    <div class="sect-divider"></div>
+
+    <div class="sect-block">
+      <div class="sect-label">오늘의 종합 요약</div>
       <div class="card">
         <div class="summary-text">${d.summary || '분석 데이터가 없습니다.'}</div>
-        <div class="badges">
+        <div class="badges" style="margin-top:9px;">
           ${ov.positive ? `<span class="badge b-pos">긍정 ${ov.positive}건</span>` : ''}
           ${ov.negative ? `<span class="badge b-neg">부정 ${ov.negative}건</span>` : ''}
           ${ov.neutral  ? `<span class="badge b-neu">중립 ${ov.neutral}건</span>` : ''}
           ${ti.RSI_signal ? `<span class="badge b-blue">RSI ${ti.RSI_signal}</span>` : ''}
-          ${digestData.user_tendency ? `<span class="badge b-blue">${digestData.user_tendency}</span>` : ''}
+          ${digestData?.user_tendency ? `<span class="badge b-blue">${digestData.user_tendency}</span>` : ''}
         </div>
       </div>
     </div>
@@ -553,19 +589,20 @@ function renderSummary(d) {
 function renderNewsSection(d) {
   const articles = d.news_articles || d.articles || [];
   if (!articles.length) return '';
-  return `<div>
-    <div class="lbl">주요 뉴스</div>
-    ${articles.slice(0,3).map(a => {
-      const sc = a.sentiment_label==='positive'?'b-pos':a.sentiment_label==='negative'?'b-neg':'b-neu';
-      const sk = a.sentiment_label==='positive'?'긍정':a.sentiment_label==='negative'?'부정':'중립';
-      const dt = a.published_at ? new Date(a.published_at).toLocaleDateString('ko-KR',{month:'numeric',day:'numeric'}) : '';
-      return `<div class="card" style="margin-bottom:6px;">
-        <div class="n-head"><span class="n-tag">${sk}</span><span class="n-time">${dt}</span></div>
-        <div class="n-hl">${a.headline_ko||a.headline||''}</div>
-        ${a.summary_ko?`<div class="n-body">${a.summary_ko}</div>`:''}
-      </div>`;
-    }).join('')}
-  </div>`;
+  return `
+    <div class="sect-divider"></div>
+    <div class="sect-block">
+      <div class="sect-label">주요 뉴스</div>
+      ${articles.slice(0,3).map(a => {
+        const sk = a.sentiment_label==='positive'?'긍정':a.sentiment_label==='negative'?'부정':'중립';
+        const dt = a.published_at ? new Date(a.published_at).toLocaleDateString('ko-KR',{month:'numeric',day:'numeric'}) : '';
+        return `<div class="card" style="margin-bottom:6px;">
+          <div class="n-head"><span class="n-tag">${sk}</span><span class="n-time">${dt}</span></div>
+          <div class="n-hl">${a.headline_ko||a.headline||''}</div>
+          ${a.summary_ko?`<div class="n-body">${a.summary_ko}</div>`:''}
+        </div>`;
+      }).join('')}
+    </div>`;
 }
 
 // ── 보조지표 탭 ──
@@ -589,28 +626,58 @@ function renderIndicator(d) {
   const bbLbl = bbPos>75?'상단 근접':bbPos<25?'하단 근접':'중립';
   const bbBadge = bbPos>75?'ib-warn':bbPos<25?'ib-bull':'ib-neu';
 
+  // MACD 추가 수치 (API가 제공하는 경우 표시)
+  const macdLine = macd.macd_line != null ? Number(macd.macd_line).toFixed(3) : null;
+  const sigLine  = macd.signal_line != null ? Number(macd.signal_line).toFixed(3) : null;
+  const histVal  = macd.histogram != null ? Number(macd.histogram) : null;
+  const histStr  = histVal != null ? (histVal>=0?'+':'')+histVal.toFixed(3) : null;
+
+  // 종합 신호 (RSI 위치 + MACD 추세 + 거래량 3가지)
+  const bullCnt = [rsi>50, trend.includes('상승'), vr>1.1].filter(Boolean).length;
+  const bearCnt = [rsi<50, trend.includes('하락'), vr<0.9].filter(Boolean).length;
+  const overallLbl = bullCnt>bearCnt?'강세 우세':bearCnt>bullCnt?'약세 우세':'혼조세';
+  const overallCls = overallLbl==='강세 우세'?'bull':overallLbl==='약세 우세'?'bear':'';
+  const overallBadge = overallLbl==='강세 우세'?'ib-bull':overallLbl==='약세 우세'?'ib-bear':'ib-neu';
+
   document.getElementById('indicator-content').innerHTML = `
     <div class="card">
       <div class="ind-head"><span class="ind-lbl">RSI (14일)</span><span class="ind-badge ${rsiBadge}">${rsiSig}</span></div>
       <div class="ind-val">${rsi.toFixed(1)}</div>
       <div class="bar"><div class="rsi-track"></div><div class="dot" style="left:${Math.min(rsi,100)}%"></div></div>
-      <div class="ticks"><span>0</span><span>30</span><span>50</span><span>70</span></div>
+      <div class="ticks"><span>0</span><span>30</span><span>50</span><span>70</span><span>100</span></div>
+      <div class="ind-sub-row">
+        <span class="ind-sub-item">과매도 기준<b>≤ 30</b></span>
+        <span class="ind-sub-item">현재<b style="color:${rsi>=70?'#ea580c':rsi<=30?'#16a34a':'#2563eb'}">${rsi.toFixed(1)}</b></span>
+        <span class="ind-sub-item">과매수 기준<b>≥ 70</b></span>
+      </div>
       <div class="ind-desc">${rsiDesc(rsi)}</div>
     </div>
 
     <div class="card">
-      <div class="ind-head"><span class="ind-lbl">MACD</span><span class="ind-badge ${mBadge}">${trend}</span></div>
+      <div class="ind-head"><span class="ind-lbl">MACD (12/26/9)</span><span class="ind-badge ${mBadge}">${trend}</span></div>
       <div class="ind-val ${mCls}">${mVal}</div>
-      <div class="macd-bars">${macdBars(macd.histogram??0)}</div>
+      <div class="macd-bars">${macdBars(histVal??0)}</div>
+      <div class="ind-sub-row">
+        ${macdLine ? `<span class="ind-sub-item">MACD<b>${macdLine}</b></span>` : ''}
+        ${sigLine  ? `<span class="ind-sub-item">Signal<b>${sigLine}</b></span>` : ''}
+        ${histStr  ? `<span class="ind-sub-item">Histogram<b style="color:${histVal>=0?'#16a34a':'#ef4444'}">${histStr}</b></span>`
+                   : `<span class="ind-sub-item">크로스<b>${trend.includes('상승')?'골든':'데드'}</b></span>`}
+        ${!macdLine && !sigLine ? `<span class="ind-sub-item">추세<b class="${mCls}">${mVal}</b></span>` : ''}
+      </div>
       <div class="ind-desc">${macdDesc(trend)}</div>
     </div>
 
     <div class="card">
-      <div class="ind-head"><span class="ind-lbl">볼린저밴드</span><span class="ind-badge ${bbBadge}">${bbLbl}</span></div>
+      <div class="ind-head"><span class="ind-lbl">볼린저밴드 (20일)</span><span class="ind-badge ${bbBadge}">${bbLbl}</span></div>
       <div class="ind-val">${bbLbl}</div>
       <div class="bar" style="overflow:visible;">
         <div style="position:absolute;top:0;left:20%;right:20%;height:100%;background:#dbeafe;border-radius:4px;"></div>
         <div class="dot" style="left:${bbPos}%;border-color:#6b7a90;"></div>
+      </div>
+      <div class="ind-sub-row">
+        <span class="ind-sub-item">하단 (지지)<b style="color:#16a34a">20%</b></span>
+        <span class="ind-sub-item">현재 위치<b>${bbPos.toFixed(0)}%</b></span>
+        <span class="ind-sub-item">상단 (저항)<b style="color:#ef4444">80%</b></span>
       </div>
       <div class="ind-desc">${bbDesc(bbPos)}</div>
     </div>
@@ -621,7 +688,27 @@ function renderIndicator(d) {
       <div class="bar" style="overflow:hidden;">
         <div style="height:100%;background:#93c5fd;border-radius:4px;width:${Math.min(vr*50,100)}%;"></div>
       </div>
+      <div class="ind-sub-row">
+        <span class="ind-sub-item">평균 대비<b>${vr.toFixed(2)}x</b></span>
+        <span class="ind-sub-item">변화율<b style="color:${vr>1.1?'#16a34a':vr<0.9?'#ef4444':'#6b7a90'}">${vp>0?'+':''}${vp}%</b></span>
+        <span class="ind-sub-item">신호<b>${vr>1.2?'관심집중':vr<0.8?'관망':'-'}</b></span>
+      </div>
       <div class="ind-desc">${volDesc(vr)}</div>
+    </div>
+
+    <div class="card" style="background:#f0f4ff;border-color:#c7d2fe;">
+      <div class="ind-head">
+        <span class="ind-lbl" style="color:#4f46e5;">종합 신호</span>
+        <span class="ind-badge ${overallBadge}">${overallLbl}</span>
+      </div>
+      <div class="ind-val ${overallCls}" style="font-size:20px;margin-bottom:6px;">${overallLbl}</div>
+      <div class="ind-sub-row" style="background:#e0e7ff;">
+        <span class="ind-sub-item">강세 지표<b style="color:#16a34a">${bullCnt} / 3</b></span>
+        <span class="ind-sub-item">약세 지표<b style="color:#ef4444">${bearCnt} / 3</b></span>
+      </div>
+      <div class="ind-desc" style="margin-top:6px;padding-top:6px;border-top:1px solid #c7d2fe;">
+        RSI · MACD · 거래량 세 지표를 종합한 단기 신호입니다. 투자 결정의 참고 지표로만 활용하세요.
+      </div>
     </div>
   `;
 }
