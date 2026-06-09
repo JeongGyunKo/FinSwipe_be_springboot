@@ -110,6 +110,69 @@ public class AdminController {
         }
     }
 
+    /** 유저 삭제 — 연관 데이터 포함 */
+    @DeleteMapping("/users/{userId}")
+    public ResponseEntity<Map<String, Object>> deleteUser(
+            @RequestHeader("X-Admin-Key") String adminKey,
+            @PathVariable String userId) {
+        requireAdmin(adminKey);
+        try {
+            java.util.UUID.fromString(userId);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "유효하지 않은 userId"));
+        }
+        try {
+            int quizQ = jdbc.update(
+                "DELETE FROM quiz_questions WHERE session_id IN (SELECT id FROM quiz_sessions WHERE user_id = ?)", userId);
+            int quizS = jdbc.update("DELETE FROM quiz_sessions WHERE user_id = ?", userId);
+            int reads = jdbc.update("DELETE FROM user_read_articles WHERE user_id = CAST(? AS UUID)", userId);
+            int tokens = jdbc.update("DELETE FROM device_tokens WHERE user_id = CAST(? AS UUID)", userId);
+            int profile = jdbc.update("DELETE FROM user_profiles WHERE id = CAST(? AS UUID)", userId);
+            if (profile == 0) return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "유저를 찾을 수 없습니다"));
+            log.info("[admin] 유저 삭제: userId={} quiz_sessions={} reads={} tokens={}", userId, quizS, reads, tokens);
+            return ResponseEntity.ok(Map.of("deleted", true, "quiz_sessions", quizS, "quiz_questions", quizQ, "read_articles", reads));
+        } catch (Exception e) {
+            log.error("[admin/delete] 실패: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
+    }
+
+    /** 유저 프로필 수정 — level / tendency / tickers */
+    @PatchMapping("/users/{userId}")
+    public ResponseEntity<Map<String, Object>> patchUser(
+            @RequestHeader("X-Admin-Key") String adminKey,
+            @PathVariable String userId,
+            @RequestBody Map<String, Object> body) {
+        requireAdmin(adminKey);
+        try {
+            java.util.UUID.fromString(userId);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "유효하지 않은 userId"));
+        }
+        try {
+            if (body.containsKey("level")) {
+                Object lvl = body.get("level");
+                Integer level = lvl == null ? null : ((Number) lvl).intValue();
+                jdbc.update("UPDATE user_profiles SET level = ?, updated_at = NOW() WHERE id = CAST(? AS UUID)", level, userId);
+            }
+            if (body.containsKey("tendency")) {
+                jdbc.update("UPDATE user_profiles SET tendency = ?, updated_at = NOW() WHERE id = CAST(? AS UUID)", body.get("tendency"), userId);
+            }
+            if (body.containsKey("tickers")) {
+                @SuppressWarnings("unchecked")
+                java.util.List<String> tickers = (java.util.List<String>) body.get("tickers");
+                String arr = tickers == null || tickers.isEmpty() ? "{}" :
+                    "{" + String.join(",", tickers) + "}";
+                jdbc.update("UPDATE user_profiles SET tickers = ?, updated_at = NOW() WHERE id = CAST(? AS UUID)", arr, userId);
+            }
+            log.info("[admin] 유저 수정: userId={} fields={}", userId, body.keySet());
+            return ResponseEntity.ok(Map.of("updated", true));
+        } catch (Exception e) {
+            log.error("[admin/patch] 실패: {}", e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
+    }
+
     private List<String> parseTickers(String raw) {
         if (raw == null || raw.equals("{}") || raw.isBlank()) return List.of();
         String inner = raw.substring(1, raw.length() - 1).trim();
