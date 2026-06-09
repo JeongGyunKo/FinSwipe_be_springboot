@@ -90,20 +90,19 @@ public class NotificationService {
 
     /** Python: _get_tokens_for_tickers() */
     private List<String> getTokensForTickers(List<String> tickers) {
+        return getTokensForTickers(tickers, false);
+    }
+
+    public List<String> getTokensForTickers(List<String> tickers, boolean sentimentOnly) {
         if (tickers == null || tickers.isEmpty()) return List.of();
         try {
-            // user_profiles에서 해당 티커 관심 등록 사용자 조회
             String tickerArray = "{" + String.join(",", tickers) + "}";
-            List<String> userIds = jdbc.queryForList(
-                    "SELECT id::text FROM user_profiles WHERE tickers && ?::text[]",
-                    String.class, tickerArray);
-            if (userIds.isEmpty()) return List.of();
-
-            // device_tokens에서 알림 활성화된 토큰 조회 — 파라미터화 쿼리로 SQL Injection 방지
-            String placeholders = String.join(",", java.util.Collections.nCopies(userIds.size(), "?"));
+            String settingCol = sentimentOnly ? "notify_sentiment_news" : "notify_all_news";
             return jdbc.queryForList(
-                    "SELECT token FROM device_tokens WHERE user_id::text IN (" + placeholders + ") AND notify_all_news = true",
-                    String.class, userIds.toArray());
+                    "SELECT dt.token FROM device_tokens dt " +
+                    "JOIN user_profiles up ON dt.user_id = up.id " +
+                    "WHERE up.tickers && ?::text[] AND up." + settingCol + " = true",
+                    String.class, tickerArray);
         } catch (Exception e) {
             log.error("[알림] 티커 기반 토큰 조회 실패: {}", e.getMessage());
             return List.of();
