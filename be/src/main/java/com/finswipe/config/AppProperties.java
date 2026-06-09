@@ -106,6 +106,7 @@ public class AppProperties {
         private String jwtSecret;
         private long accessTokenExpiryMs = 604800000L; // 7일
         private String googleClientId = "";
-        private String appBaseUrl = "http://localhost:8080";
+        private String appBaseUrl = "https://api.finswipe.co.kr";
+        private String frontendBaseUrl = "https://www.finswipe.co.kr";
     }
 }
