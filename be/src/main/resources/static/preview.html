@@ -153,6 +153,51 @@ body { background: #e8edf2; font-family: -apple-system,'Pretendard','Apple SD Go
 .disc { font-size:9px; color:#b0bbc9; line-height:1.5; padding:5px 13px 3px; border-top:1px solid #f0f2f5; flex-shrink:0; }
 
 #detail-section { display:none; }
+
+/* ── 유저 카드 액션 버튼 ── */
+.uc-actions { display:flex; gap:5px; margin-top:7px; padding-top:7px; border-top:1px solid #f0f2f5; }
+.uc-edit-btn, .uc-del-btn {
+  flex:1; padding:4px 8px; font-size:11px; font-weight:700; border-radius:7px;
+  border:none; cursor:pointer; transition:background .15s;
+}
+.uc-edit-btn { background:#eff6ff; color:#2563eb; }
+.uc-edit-btn:hover { background:#dbeafe; }
+.uc-del-btn { background:#fef2f2; color:#ef4444; }
+.uc-del-btn:hover { background:#fee2e2; }
+
+/* ── 모달 ── */
+.modal-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000;
+  display:flex; align-items:center; justify-content:center; padding:20px;
+}
+.modal-box {
+  background:#fff; border-radius:18px; padding:28px 24px; width:100%; max-width:360px;
+  box-shadow:0 8px 40px rgba(0,0,0,.18);
+}
+.modal-title { font-size:16px; font-weight:800; color:#1a1a2e; margin-bottom:8px; }
+.modal-sub { font-size:13px; color:#6b7a90; line-height:1.55; margin-bottom:4px; }
+.modal-actions { display:flex; gap:10px; margin-top:20px; }
+.modal-btn-cancel {
+  flex:1; padding:11px; background:#f1f5f9; border:none; border-radius:10px;
+  font-size:14px; font-weight:600; color:#6b7a90; cursor:pointer;
+}
+.modal-btn-danger {
+  flex:1; padding:11px; background:#ef4444; border:none; border-radius:10px;
+  font-size:14px; font-weight:700; color:#fff; cursor:pointer;
+}
+.modal-btn-danger:disabled, .modal-btn-primary:disabled { opacity:.6; cursor:default; }
+.modal-btn-primary {
+  flex:1; padding:11px; background:#2563eb; border:none; border-radius:10px;
+  font-size:14px; font-weight:700; color:#fff; cursor:pointer;
+}
+.modal-field { margin-bottom:14px; }
+.modal-label { font-size:12px; font-weight:700; color:#6b7a90; margin-bottom:6px; display:block; }
+.modal-select, .modal-input {
+  width:100%; padding:9px 12px; border:1.5px solid #e2e8f0; border-radius:9px;
+  font-size:14px; color:#1a1a2e; outline:none; background:#fff;
+  appearance:auto;
+}
+.modal-select:focus, .modal-input:focus { border-color:#2563eb; }
 </style>
 </head>
 <body>
@@ -250,9 +295,59 @@ body { background: #e8edf2; font-family: -apple-system,'Pretendard','Apple SD Go
   </div>
 </div>
 
+<!-- ── 삭제 확인 모달 ── -->
+<div id="delete-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeModal('delete-modal')">
+  <div class="modal-box">
+    <div class="modal-title">유저 삭제</div>
+    <div class="modal-sub" id="delete-modal-sub"></div>
+    <div class="modal-actions">
+      <button class="modal-btn-cancel" onclick="closeModal('delete-modal')">취소</button>
+      <button class="modal-btn-danger" id="delete-confirm-btn" onclick="confirmDelete()">삭제</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 유저 수정 모달 ── -->
+<div id="edit-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeModal('edit-modal')">
+  <div class="modal-box">
+    <div class="modal-title">유저 프로필 수정</div>
+    <div class="modal-field">
+      <label class="modal-label">레벨</label>
+      <select class="modal-select" id="edit-level">
+        <option value="">미설정</option>
+        <option value="1">1 — 입문</option>
+        <option value="2">2 — 초보</option>
+        <option value="3">3 — 중급</option>
+        <option value="4">4 — 고급</option>
+        <option value="5">5 — 전문가</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">성향</label>
+      <select class="modal-select" id="edit-tendency">
+        <option value="">미설정</option>
+        <option value="가치투자형 투자자">가치투자형 투자자</option>
+        <option value="모멘텀형 투자자">모멘텀형 투자자</option>
+        <option value="안정추구형 투자자">안정추구형 투자자</option>
+        <option value="거시경제형 투자자">거시경제형 투자자</option>
+        <option value="탐색형 투자자">탐색형 투자자</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">관심 티커 (쉼표로 구분)</label>
+      <input class="modal-input" id="edit-tickers" type="text" placeholder="AAPL,NVDA,TSLA">
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn-cancel" onclick="closeModal('edit-modal')">취소</button>
+      <button class="modal-btn-primary" id="edit-save-btn" onclick="saveEdits()">저장</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API = 'https://api.finswipe.co.kr';
 let adminKey = '', currentUser = null, digestData = null, currentTicker = '';
+let usersData = [], editTargetIdx = null, deleteTargetIdx = null;
 
 // 시계
 function tick() {
@@ -307,26 +402,31 @@ window.addEventListener('load', async () => {
 
 // ── 메인: 유저 목록 렌더 ──
 function showMain(users) {
+  usersData = users;
   document.getElementById('key-screen').style.display = 'none';
   document.getElementById('main-screen').style.display = 'block';
   const grid = document.getElementById('user-grid');
   if (!users.length) { grid.innerHTML = '<span style="color:#9aa5b4;font-size:13px;">등록된 유저가 없습니다.</span>'; return; }
-  grid.innerHTML = users.map(u => {
+  grid.innerHTML = users.map((u, i) => {
     const tickers = (u.tickers || []).slice(0,4);
     const levelBadge = u.level ? `<span class="tag green">Lv${u.level}</span>` : '';
     const tendency = u.tendency ? `<span class="tag blue" style="font-size:9px;">${u.tendency}</span>` : '';
     const tickerTags = tickers.map(t => `<span class="tag">${t}</span>`).join('');
-    return `<div class="user-card" onclick="selectUser(${JSON.stringify(JSON.stringify(u))})">
+    return `<div class="user-card" onclick="selectUser(${i})">
       <div class="uc-name">${u.displayName || u.email?.split('@')[0] || '유저'}</div>
       <div class="uc-email">${u.email || ''}</div>
       <div class="uc-tags">${levelBadge}${tendency}${tickerTags}${!tickers.length ? '<span class="tag">티커 없음</span>' : ''}</div>
+      <div class="uc-actions">
+        <button class="uc-edit-btn" onclick="openEditModal(${i},event)">수정</button>
+        <button class="uc-del-btn" onclick="openDeleteModal(${i},event)">삭제</button>
+      </div>
     </div>`;
   }).join('');
 }
 
 // ── 유저 선택 ──
-function selectUser(jsonStr) {
-  const u = JSON.parse(jsonStr);
+function selectUser(idx) {
+  const u = usersData[idx];
   currentUser = u;
   digestData = null;
 
@@ -538,6 +638,94 @@ function volDesc(r){ return r>1.2?'거래량이 평균보다 많아요. 큰 움�
 
 function setLoading(){ ['summary-content','indicator-content'].forEach(id=>document.getElementById(id).innerHTML='<div class="loading"><div class="spinner"></div>GenAI 분석 중... (최대 30초)</div>'); }
 function setMsg(msg){ ['summary-content','indicator-content'].forEach(id=>document.getElementById(id).innerHTML=`<div class="loading" style="color:#ef4444;">${msg}</div>`); }
+
+// ── 모달 공통 ──
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+// ── 삭제 ──
+function openDeleteModal(idx, event) {
+  event.stopPropagation();
+  deleteTargetIdx = idx;
+  const u = usersData[idx];
+  document.getElementById('delete-modal-sub').textContent =
+    `"${u.displayName || u.email}" 유저를 삭제합니다. 퀴즈 이력, 읽은 기사 등 모든 데이터가 함께 삭제되며 이 작업은 되돌릴 수 없습니다.`;
+  const btn = document.getElementById('delete-confirm-btn');
+  btn.textContent = '삭제'; btn.disabled = false;
+  document.getElementById('delete-modal').style.display = 'flex';
+}
+
+async function confirmDelete() {
+  const u = usersData[deleteTargetIdx];
+  const btn = document.getElementById('delete-confirm-btn');
+  btn.textContent = '삭제 중...'; btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/admin/users/${u.userId}`, {
+      method: 'DELETE',
+      headers: { 'X-Admin-Key': adminKey }
+    });
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
+      throw new Error(b.error || `서버 오류 (${res.status})`);
+    }
+    const wasSelected = currentUser && currentUser.userId === u.userId;
+    usersData.splice(deleteTargetIdx, 1);
+    closeModal('delete-modal');
+    showMain(usersData);
+    if (wasSelected) {
+      currentUser = null;
+      document.getElementById('detail-section').style.display = 'none';
+    }
+  } catch(e) {
+    alert('삭제 실패: ' + e.message);
+    btn.textContent = '삭제'; btn.disabled = false;
+  }
+}
+
+// ── 수정 ──
+function openEditModal(idx, event) {
+  event.stopPropagation();
+  editTargetIdx = idx;
+  const u = usersData[idx];
+  document.getElementById('edit-level').value = u.level ?? '';
+  document.getElementById('edit-tendency').value = u.tendency ?? '';
+  document.getElementById('edit-tickers').value = (u.tickers || []).join(',');
+  const btn = document.getElementById('edit-save-btn');
+  btn.textContent = '저장'; btn.disabled = false;
+  document.getElementById('edit-modal').style.display = 'flex';
+}
+
+async function saveEdits() {
+  const u = usersData[editTargetIdx];
+  const levelVal = document.getElementById('edit-level').value;
+  const tendency = document.getElementById('edit-tendency').value;
+  const tickersRaw = document.getElementById('edit-tickers').value.trim();
+  const body = {
+    level: levelVal !== '' ? parseInt(levelVal) : null,
+    tendency: tendency !== '' ? tendency : null,
+    tickers: tickersRaw ? tickersRaw.split(',').map(t => t.trim()).filter(Boolean) : []
+  };
+  const btn = document.getElementById('edit-save-btn');
+  btn.textContent = '저장 중...'; btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/admin/users/${u.userId}`, {
+      method: 'PATCH',
+      headers: { 'X-Admin-Key': adminKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
+      throw new Error(b.error || `서버 오류 (${res.status})`);
+    }
+    usersData[editTargetIdx] = { ...u, level: body.level, tendency: body.tendency, tickers: body.tickers };
+    closeModal('edit-modal');
+    const wasSelected = currentUser && currentUser.userId === u.userId;
+    showMain(usersData);
+    if (wasSelected) selectUser(editTargetIdx);
+  } catch(e) {
+    alert('수정 실패: ' + e.message);
+    btn.textContent = '저장'; btn.disabled = false;
+  }
+}
 </script>
 </body>
 </html>
