@@ -22,6 +22,13 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
             "img-src 'self' data:; " +
             "connect-src 'self'";
 
+    private static final String PREVIEW_CSP =
+            "default-src 'none'; " +
+            "style-src 'unsafe-inline'; " +
+            "script-src 'unsafe-inline'; " +
+            "connect-src 'self'; " +
+            "img-src 'self' data:";
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -35,6 +42,8 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         if (path.startsWith("/swagger-ui") || path.startsWith("/v3/api-docs")) {
             response.setHeader("Content-Security-Policy", SWAGGER_CSP);
+        } else if ("/preview.html".equals(path)) {
+            response.setHeader("Content-Security-Policy", PREVIEW_CSP);
         } else {
             response.setHeader("Content-Security-Policy", "default-src 'none'");
         }
