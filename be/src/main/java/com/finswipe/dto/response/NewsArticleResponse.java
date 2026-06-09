@@ -3,7 +3,6 @@ package com.finswipe.dto.response;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.finswipe.domain.entity.NewsArticle;
-import com.finswipe.util.HighlightUtil;
 import lombok.Getter;
 
 import java.time.OffsetDateTime;
@@ -32,11 +31,7 @@ public class NewsArticleResponse {
     private final Boolean isMixed;
     private final String headlineKo;
     private final List<String> summary3linesKo;
-    /** summary3linesKo 각 줄의 강조 구간 [[start,end], ...] 목록 */
-    private final List<List<int[]>> summaryHighlightRanges;
     private final String sentimentReason;
-    /** sentimentReason 텍스트의 강조 구간 */
-    private final List<int[]> sentimentReasonHighlightRanges;
     private final String eventCategory;
     private final Boolean sentimentDivergence;
     private final Double noveltyScore;
@@ -65,9 +60,7 @@ public class NewsArticleResponse {
         this.isMixed = article.getIsMixed();
         this.headlineKo = article.getHeadlineKo();
         this.summary3linesKo = article.getSummary3linesKo();
-        this.summaryHighlightRanges = HighlightUtil.computeRangesForLines(article.getSummary3linesKo());
         this.sentimentReason = article.getSentimentReason();
-        this.sentimentReasonHighlightRanges = HighlightUtil.computeRanges(article.getSentimentReason());
         this.eventCategory = article.getEventCategory();
         this.sentimentDivergence = article.getSentimentDivergence();
         this.noveltyScore = article.getNoveltyScore();
