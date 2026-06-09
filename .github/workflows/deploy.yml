@@ -87,10 +87,9 @@ jobs:
           sudo systemctl restart finswipe-genai-digest-worker
           echo "Digest Worker 재시작 완료"
 
-          # ── Nginx 설정 갱신 ─────────────────────────────────────────
-          sudo cp ~/finswipe/nginx/finswipe.conf /etc/nginx/sites-available/finswipe-api
+          # ── Nginx reload (서버 설정은 Certbot이 관리, 복사 불필요) ──
           sudo nginx -t && sudo systemctl reload nginx
-          echo "Nginx 설정 갱신 완료"
+          echo "Nginx reload 완료"
 
           echo "===== 배포 완료: $(date) ====="
           curl -s http://127.0.0.1:8080/health
