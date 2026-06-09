@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinSwipe 어드민 미리보기</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #e8edf2; font-family: -apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; min-height:100vh; }
+
+/* ── 어드민 키 화면 ── */
+#key-screen {
+  display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px;
+}
+.key-card {
+  background:#fff; border-radius:20px; padding:32px 28px; width:100%; max-width:360px;
+  box-shadow:0 4px 24px rgba(0,0,0,.10);
+}
+.key-logo { font-size:20px; font-weight:800; color:#1a1a2e; margin-bottom:4px; }
+.key-logo em { color:#2563eb; font-style:normal; }
+.key-sub  { font-size:12px; color:#9aa5b4; margin-bottom:24px; }
+.key-input {
+  width:100%; padding:11px 14px; border:1.5px solid #e2e8f0; border-radius:10px;
+  font-size:14px; outline:none; color:#1a1a2e; margin-bottom:12px;
+}
+.key-input:focus { border-color:#2563eb; }
+.key-btn {
+  width:100%; padding:12px; background:#2563eb; color:#fff; border:none;
+  border-radius:10px; font-size:14px; font-weight:700; cursor:pointer;
+}
+.key-btn:hover { background:#1d4ed8; }
+.key-err { font-size:12px; color:#ef4444; margin-top:8px; text-align:center; }
+
+/* ── 메인: 유저 목록 ── */
+#main-screen { display:none; padding:28px 20px 60px; max-width:900px; margin:0 auto; }
+.top-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
+.top-logo { font-size:18px; font-weight:800; color:#1a1a2e; }
+.top-logo em { color:#2563eb; font-style:normal; }
+.top-right { display:flex; align-items:center; gap:10px; }
+.change-key-btn {
+  font-size:12px; color:#9aa5b4; background:none; border:1px solid #e2e8f0;
+  border-radius:8px; padding:5px 12px; cursor:pointer;
+}
+
+.section-heading { font-size:13px; font-weight:700; color:#6b7a90; margin-bottom:12px; letter-spacing:.04em; }
+
+.user-grid { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:32px; }
+.user-card {
+  background:#fff; border-radius:14px; padding:14px 16px; cursor:pointer;
+  border:1.5px solid #e8edf2; transition:all .15s; min-width:180px;
+  display:flex; flex-direction:column; gap:4px;
+}
+.user-card:hover { border-color:#2563eb; box-shadow:0 2px 12px rgba(37,99,235,.12); }
+.user-card.selected { border-color:#2563eb; background:#eff6ff; }
+.uc-name  { font-size:14px; font-weight:700; color:#1a1a2e; }
+.uc-email { font-size:11px; color:#9aa5b4; }
+.uc-tags  { display:flex; gap:4px; flex-wrap:wrap; margin-top:4px; }
+.tag {
+  font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px;
+  background:#f1f5f9; color:#6b7a90;
+}
+.tag.blue { background:#eff6ff; color:#2563eb; }
+.tag.green { background:#f0fdf4; color:#16a34a; }
+.tag.orange { background:#fff7ed; color:#ea580c; }
+
+/* ── 티커 탭 ── */
+.ticker-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
+.ticker-btn {
+  padding:7px 16px; border-radius:20px; border:1.5px solid #dde3ea;
+  background:#fff; font-size:13px; font-weight:700; color:#6b7a90; cursor:pointer; transition:all .15s;
+}
+.ticker-btn:hover { border-color:#2563eb; color:#2563eb; }
+.ticker-btn.active { background:#2563eb; border-color:#2563eb; color:#fff; }
+
+/* ── 폰 2개 ── */
+.phones { display:flex; gap:20px; justify-content:flex-start; flex-wrap:wrap; }
+.phone-wrap { display:flex; flex-direction:column; align-items:center; }
+.phone-lbl { font-size:11px; color:#8a9ab0; font-weight:700; letter-spacing:.06em; margin-bottom:6px; text-transform:uppercase; }
+.phone { width:300px; background:#dde3ea; border-radius:30px; padding:7px; box-shadow:0 8px 28px rgba(0,0,0,.14); }
+.app { background:#fff; border-radius:24px; overflow:hidden; display:flex; flex-direction:column; height:590px; }
+
+/* 앱 내부 */
+.status-bar { padding:9px 15px 2px; font-size:10px; color:#9aa5b4; display:flex; justify-content:space-between; }
+.app-header { padding:5px 14px 9px; border-bottom:1px solid #f0f2f5; }
+.app-logo { font-size:16px; font-weight:800; color:#1a1a2e; display:flex; align-items:center; gap:4px; }
+.app-logo em { color:#2563eb; font-style:normal; }
+.app-ticker { font-size:19px; font-weight:800; color:#1a1a2e; margin-top:5px; }
+.app-price  { font-size:12px; color:#6b7a90; margin-top:1px; }
+
+.tab-bar { display:flex; border-bottom:1.5px solid #f0f2f5; padding:0 14px; flex-shrink:0; }
+.tab {
+  padding:8px 13px; font-size:12px; font-weight:600; color:#9aa5b4; cursor:pointer;
+  border-bottom:2.5px solid transparent; margin-bottom:-1.5px; white-space:nowrap; transition:all .15s;
+}
+.tab.active { color:#2563eb; border-bottom-color:#2563eb; }
+
+.content { flex:1; overflow-y:auto; padding:12px 13px 10px; display:flex; flex-direction:column; gap:11px; }
+.content::-webkit-scrollbar { width:3px; }
+.content::-webkit-scrollbar-thumb { background:#dce2ea; border-radius:2px; }
+
+/* 카드 공통 */
+.card { background:#f8f9fc; border-radius:12px; padding:11px 13px; border:1.5px solid #eff1f5; }
+.lbl { font-size:10px; font-weight:700; color:#9aa5b4; letter-spacing:.07em; text-transform:uppercase; margin-bottom:7px; }
+
+/* 요약 */
+.flow-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+.fc { background:#f8f9fc; border-radius:10px; padding:9px 10px; border-left:3px solid #e2e8f0; }
+.fc.pos { border-left-color:#22c55e; } .fc.neg { border-left-color:#ef4444; } .fc.neu { border-left-color:#9aa5b4; }
+.fc-date { font-size:9px; color:#9aa5b4; margin-bottom:2px; }
+.fc-title { font-size:11px; font-weight:700; color:#1a1a2e; line-height:1.3; }
+.fc-sub { font-size:10px; color:#9aa5b4; margin-top:2px; line-height:1.3; }
+.summary-text { font-size:11.5px; color:#374151; line-height:1.65; }
+.badges { display:flex; gap:5px; flex-wrap:wrap; margin-top:7px; }
+.badge { font-size:10px; font-weight:700; padding:3px 8px; border-radius:20px; }
+.b-pos { background:#f0fdf4; color:#16a34a; } .b-neg { background:#fef2f2; color:#ef4444; }
+.b-neu { background:#f1f5f9; color:#6b7a90; } .b-blue { background:#eff6ff; color:#2563eb; }
+
+/* 뉴스 */
+.n-head { display:flex; align-items:center; gap:5px; margin-bottom:4px; }
+.n-tag { font-size:10px; font-weight:700; color:#2563eb; background:#eff6ff; padding:2px 7px; border-radius:6px; }
+.n-time { font-size:10px; color:#9aa5b4; }
+.n-hl { font-size:12px; font-weight:700; color:#1a1a2e; line-height:1.4; margin-bottom:3px; }
+.n-body { font-size:11px; color:#6b7a90; line-height:1.5; }
+
+/* 보조지표 */
+.ind-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:5px; }
+.ind-lbl  { font-size:11px; font-weight:700; color:#9aa5b4; }
+.ind-badge { font-size:10px; font-weight:700; padding:3px 8px; border-radius:20px; }
+.ib-warn { background:#fff7ed; color:#ea580c; } .ib-bull { background:#f0fdf4; color:#16a34a; }
+.ib-bear { background:#fef2f2; color:#ef4444; } .ib-neu  { background:#f1f5f9; color:#6b7a90; }
+.ind-val { font-size:24px; font-weight:800; color:#1a1a2e; line-height:1; margin-bottom:6px; }
+.ind-val.bull { color:#16a34a; } .ind-val.bear { color:#ef4444; } .ind-val.blue { color:#2563eb; }
+.bar { height:7px; background:#e2e8f0; border-radius:4px; position:relative; overflow:visible; margin:4px 0 2px; }
+.rsi-track { position:absolute; inset:0; background:linear-gradient(90deg,#22c55e 0%,#eab308 55%,#ef4444 80%); border-radius:4px; }
+.dot { position:absolute; top:50%; width:11px; height:11px; background:#fff; border:2.5px solid #2563eb; border-radius:50%; transform:translate(-50%,-50%); }
+.ticks { display:flex; justify-content:space-between; font-size:9px; color:#b0bbc9; }
+.macd-bars { display:flex; align-items:flex-end; gap:2px; height:28px; margin:4px 0; }
+.mb { flex:1; border-radius:2px 2px 0 0; }
+.mb.p { background:#22c55e; } .mb.ps { background:#86efac; } .mb.ns { background:#fca5a5; } .mb.n { background:#ef4444; }
+.ind-desc { font-size:11px; color:#6b7a90; line-height:1.5; padding-top:6px; border-top:1px solid #eff1f5; }
+
+/* 로딩/에러 */
+.loading { display:flex; flex-direction:column; align-items:center; justify-content:center; flex:1; gap:8px; color:#9aa5b4; font-size:12px; }
+.spinner { width:24px; height:24px; border:3px solid #e2e8f0; border-top-color:#2563eb; border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* 하단 네비 */
+.nav { padding:8px 20px 11px; border-top:1.5px solid #f0f2f5; display:flex; justify-content:space-around; flex-shrink:0; }
+.ni { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:9px; color:#9aa5b4; cursor:pointer; }
+.ni.on { color:#2563eb; }
+.ni svg { width:19px; height:19px; }
+
+.disc { font-size:9px; color:#b0bbc9; line-height:1.5; padding:5px 13px 3px; border-top:1px solid #f0f2f5; flex-shrink:0; }
+
+#detail-section { display:none; }
+</style>
+</head>
+<body>
+
+<!-- ── 어드민 키 입력 ── -->
+<div id="key-screen">
+  <div class="key-card">
+    <div class="key-logo"><em>↗</em> FinSwipe <span style="font-size:13px;font-weight:400;color:#9aa5b4;">어드민 미리보기</span></div>
+    <div class="key-sub">Admin API Key를 입력하면 실데이터를 바로 확인할 수 있어요</div>
+    <input class="key-input" id="key-inp" type="password" placeholder="Admin API Key"
+           onkeydown="if(event.key==='Enter')doKey()">
+    <button class="key-btn" onclick="doKey()">확인</button>
+    <div class="key-err" id="key-err"></div>
+  </div>
+</div>
+
+<!-- ── 메인 ── -->
+<div id="main-screen">
+  <div class="top-bar">
+    <div class="top-logo"><em>↗</em> FinSwipe <span style="font-size:13px;font-weight:400;color:#9aa5b4;">어드민 미리보기</span></div>
+    <div class="top-right">
+      <button class="change-key-btn" onclick="resetKey()">키 변경</button>
+    </div>
+  </div>
+
+  <!-- 유저 목록 -->
+  <div class="section-heading">유저 선택</div>
+  <div class="user-grid" id="user-grid">
+    <div class="loading" style="width:100%;padding:20px 0;"><div class="spinner"></div>유저 목록 불러오는 중...</div>
+  </div>
+
+  <!-- 티커 + 폰 -->
+  <div id="detail-section">
+    <div class="section-heading" id="detail-heading">티커 선택</div>
+    <div class="ticker-row" id="ticker-row"></div>
+    <div class="phones">
+      <div class="phone-wrap">
+        <div class="phone-lbl">요약</div>
+        <div class="phone">
+          <div class="app">
+            <div class="status-bar"><span>메인(홈)</span><span id="s-time"></span></div>
+            <div class="app-header">
+              <div class="app-logo"><em>↗</em> FinSwipe</div>
+              <div class="app-ticker" id="s-ticker">-</div>
+              <div class="app-price" id="s-price"></div>
+            </div>
+            <div class="tab-bar">
+              <div class="tab">뉴스</div>
+              <div class="tab active">요약</div>
+              <div class="tab">보조지표</div>
+            </div>
+            <div class="content" id="summary-content">
+              <div class="loading"><div class="spinner"></div>티커를 선택해주세요</div>
+            </div>
+            <div class="disc">본 서비스는 투자 참고용 정보를 제공하며, 수익성을 보장하지 않습니다.</div>
+            <div class="nav">
+              <div class="ni on"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>홈</div>
+              <div class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>탐색</div>
+              <div class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>관심</div>
+              <div class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>나</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone-wrap">
+        <div class="phone-lbl">보조지표</div>
+        <div class="phone">
+          <div class="app">
+            <div class="status-bar"><span>메인(홈)</span><span id="i-time"></span></div>
+            <div class="app-header">
+              <div class="app-logo"><em>↗</em> FinSwipe</div>
+              <div class="app-ticker" id="i-ticker">-</div>
+              <div class="app-price" id="i-price"></div>
+            </div>
+            <div class="tab-bar">
+              <div class="tab">뉴스</div>
+              <div class="tab">요약</div>
+              <div class="tab active">보조지표</div>
+            </div>
+            <div class="content" id="indicator-content">
+              <div class="loading"><div class="spinner"></div>티커를 선택해주세요</div>
+            </div>
+            <div class="disc">본 서비스는 투자 참고용 정보를 제공하며, 수익성을 보장하지 않습니다.</div>
+            <div class="nav">
+              <div class="ni on"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>홈</div>
+              <div class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>탐색</div>
+              <div class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>관심</div>
+              <div class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>나</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'https://api.finswipe.co.kr';
+let adminKey = '', currentUser = null, digestData = null, currentTicker = '';
+
+// 시계
+function tick() {
+  const t = new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+  ['s-time','i-time'].forEach(id => { const el=document.getElementById(id); if(el) el.textContent=t; });
+}
+tick(); setInterval(tick, 30000);
+
+// ── 키 입력 ──
+async function doKey() {
+  const k = document.getElementById('key-inp').value.trim();
+  if (!k) return;
+  const err = document.getElementById('key-err');
+  err.textContent = '';
+  // 키 검증: /admin/metrics 로 테스트
+  try {
+    const res = await fetch(`${API}/admin/users`, { headers: { 'X-Admin-Key': k } });
+    if (res.status === 403) { err.textContent = '잘못된 Admin Key입니다.'; return; }
+    if (!res.ok) { err.textContent = `서버 오류 (${res.status})`; return; }
+    adminKey = k;
+    localStorage.setItem('fin_admin_key', k);
+    const users = await res.json();
+    showMain(users);
+  } catch(e) {
+    err.textContent = '연결 실패: ' + e.message;
+  }
+}
+
+function resetKey() {
+  adminKey = ''; localStorage.removeItem('fin_admin_key');
+  document.getElementById('main-screen').style.display = 'none';
+  document.getElementById('key-screen').style.display = 'flex';
+  document.getElementById('key-inp').value = '';
+}
+
+// 저장된 키 자동 시도
+window.addEventListener('load', async () => {
+  const saved = localStorage.getItem('fin_admin_key');
+  if (!saved) return;
+  document.getElementById('key-inp').value = saved;
+  try {
+    const res = await fetch(`${API}/admin/users`, { headers: { 'X-Admin-Key': saved } });
+    if (!res.ok) return;
+    adminKey = saved;
+    showMain(await res.json());
+  } catch(e) {}
+});
+
+// ── 메인: 유저 목록 렌더 ──
+function showMain(users) {
+  document.getElementById('key-screen').style.display = 'none';
+  document.getElementById('main-screen').style.display = 'block';
+  const grid = document.getElementById('user-grid');
+  if (!users.length) { grid.innerHTML = '<span style="color:#9aa5b4;font-size:13px;">등록된 유저가 없습니다.</span>'; return; }
+  grid.innerHTML = users.map(u => {
+    const tickers = (u.tickers || []).slice(0,4);
+    const levelBadge = u.level ? `<span class="tag green">Lv${u.level}</span>` : '';
+    const tendency = u.tendency ? `<span class="tag blue" style="font-size:9px;">${u.tendency}</span>` : '';
+    const tickerTags = tickers.map(t => `<span class="tag">${t}</span>`).join('');
+    return `<div class="user-card" onclick="selectUser(${JSON.stringify(JSON.stringify(u))})">
+      <div class="uc-name">${u.displayName || u.email?.split('@')[0] || '유저'}</div>
+      <div class="uc-email">${u.email || ''}</div>
+      <div class="uc-tags">${levelBadge}${tendency}${tickerTags}${!tickers.length ? '<span class="tag">티커 없음</span>' : ''}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── 유저 선택 ──
+function selectUser(jsonStr) {
+  const u = JSON.parse(jsonStr);
+  currentUser = u;
+  digestData = null;
+
+  // 유저 카드 선택 표시
+  document.querySelectorAll('.user-card').forEach(c => {
+    c.classList.toggle('selected', c.querySelector('.uc-email')?.textContent === (u.email || ''));
+  });
+
+  const tickers = u.tickers || [];
+  const detail = document.getElementById('detail-section');
+  detail.style.display = 'block';
+  document.getElementById('detail-heading').textContent =
+    `${u.displayName || u.email || '유저'} · ${u.tendency || '성향 미측정'} · Lv${u.level || '?'}`;
+
+  // 티커 버튼
+  const row = document.getElementById('ticker-row');
+  if (!tickers.length) {
+    row.innerHTML = '<span style="font-size:12px;color:#9aa5b4;">관심 티커가 없습니다.</span>';
+    setMsg('티커가 없습니다.'); return;
+  }
+  row.innerHTML = tickers.map((t,i) =>
+    `<button class="ticker-btn${i===0?' active':''}" onclick="selectTicker('${t}')">${t}</button>`
+  ).join('');
+
+  // 다이제스트 로드
+  loadDigest(u.userId);
+  selectTicker(tickers[0], false);
+}
+
+function selectTicker(ticker, rerender=true) {
+  currentTicker = ticker;
+  document.querySelectorAll('.ticker-btn').forEach(b => b.classList.toggle('active', b.textContent===ticker));
+  ['s-ticker','i-ticker'].forEach(id => document.getElementById(id).textContent = ticker);
+  ['s-price','i-price'].forEach(id => document.getElementById(id).textContent = '');
+  if (rerender && digestData) renderTicker(ticker);
+  else setLoading();
+}
+
+// ── 다이제스트 로드 ──
+async function loadDigest(userId) {
+  setLoading();
+  try {
+    const res = await fetch(`${API}/admin/user-digest`, {
+      method: 'POST',
+      headers: { 'X-Admin-Key': adminKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    digestData = await res.json();
+    renderTicker(currentTicker);
+  } catch(e) {
+    setMsg('다이제스트 로드 실패: ' + e.message);
+  }
+}
+
+function renderTicker(ticker) {
+  if (!digestData) return;
+  const digests = digestData.digests || [];
+  const d = digests.find(x => x.ticker === ticker) || digests[0];
+  if (!d) { setMsg('이 티커의 다이제스트가 없습니다.'); return; }
+  renderPriceHeader(d);
+  renderSummary(d);
+  renderIndicator(d);
+}
+
+// ── 헤더 가격 ──
+function renderPriceHeader(d) {
+  const ti = d.technical_indicators || {};
+  const p = ti.current_price ? `$${Number(ti.current_price).toFixed(2)}` : '';
+  const c = ti.change_pct_1d != null ? (ti.change_pct_1d>=0?`+${ti.change_pct_1d.toFixed(2)}%`:`${ti.change_pct_1d.toFixed(2)}%`) : '';
+  const col = ti.change_pct_1d > 0 ? '#16a34a' : ti.change_pct_1d < 0 ? '#ef4444' : '#6b7a90';
+  const html = p ? `${p} <span style="color:${col};font-weight:700;">${c}</span>` : '';
+  ['s-price','i-price'].forEach(id => document.getElementById(id).innerHTML = html);
+}
+
+// ── 요약 탭 ──
+function renderSummary(d) {
+  const ti = d.technical_indicators || {};
+  const ov = d.sentiment_overview || {};
+  const c1d = ti.change_pct_1d ?? 0;
+  const c1m = ti.change_pct_1m ?? 0;
+  const vr = ti.volume_ratio ?? 1;
+  const vp = ((vr-1)*100).toFixed(0);
+  const today = new Date(), yday = new Date(today); yday.setDate(today.getDate()-1);
+  const fmt = dt => `${(dt.getMonth()+1).toString().padStart(2,'0')}.${dt.getDate().toString().padStart(2,'0')}`;
+  const fc1 = c1d>=0?'pos':'neg', fc2 = vr>1.1?'pos':vr<0.9?'neg':'neu';
+  const sentKo = ov.avg_score>0.3?'긍정':ov.avg_score<-0.3?'부정':'중립';
+
+  document.getElementById('summary-content').innerHTML = `
+    <div>
+      <div class="lbl">어제 → 오늘 흐름</div>
+      <div class="flow-grid">
+        <div class="fc ${fc1}">
+          <div class="fc-date">${fmt(yday)} 마감</div>
+          <div class="fc-title">${c1d>=0?'+':''}${c1d.toFixed(2)}% ${c1d>=0?'상승':'하락'}</div>
+          <div class="fc-sub">1개월 ${c1m>=0?'+':''}${c1m.toFixed(1)}%</div>
+        </div>
+        <div class="fc ${fc2}">
+          <div class="fc-date">${fmt(today)} 오늘</div>
+          <div class="fc-title">거래량 ${vp>0?'+':''}${vp}%</div>
+          <div class="fc-sub">기사 ${d.articles_count||0}건 · ${sentKo}</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="lbl">오늘의 종합 요약</div>
+      <div class="card">
+        <div class="summary-text">${d.summary || '분석 데이터가 없습니다.'}</div>
+        <div class="badges">
+          ${ov.positive ? `<span class="badge b-pos">긍정 ${ov.positive}건</span>` : ''}
+          ${ov.negative ? `<span class="badge b-neg">부정 ${ov.negative}건</span>` : ''}
+          ${ov.neutral  ? `<span class="badge b-neu">중립 ${ov.neutral}건</span>` : ''}
+          ${ti.RSI_signal ? `<span class="badge b-blue">RSI ${ti.RSI_signal}</span>` : ''}
+          ${digestData.user_tendency ? `<span class="badge b-blue">${digestData.user_tendency}</span>` : ''}
+        </div>
+      </div>
+    </div>
+
+    ${renderNewsSection(d)}
+  `;
+}
+
+function renderNewsSection(d) {
+  const articles = d.news_articles || d.articles || [];
+  if (!articles.length) return '';
+  return `<div>
+    <div class="lbl">주요 뉴스</div>
+    ${articles.slice(0,3).map(a => {
+      const sc = a.sentiment_label==='positive'?'b-pos':a.sentiment_label==='negative'?'b-neg':'b-neu';
+      const sk = a.sentiment_label==='positive'?'긍정':a.sentiment_label==='negative'?'부정':'중립';
+      const dt = a.published_at ? new Date(a.published_at).toLocaleDateString('ko-KR',{month:'numeric',day:'numeric'}) : '';
+      return `<div class="card" style="margin-bottom:6px;">
+        <div class="n-head"><span class="n-tag">${sk}</span><span class="n-time">${dt}</span></div>
+        <div class="n-hl">${a.headline_ko||a.headline||''}</div>
+        ${a.summary_ko?`<div class="n-body">${a.summary_ko}</div>`:''}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+// ── 보조지표 탭 ──
+function renderIndicator(d) {
+  const ti = d.technical_indicators || {};
+  const rsi = ti.RSI ?? 50;
+  const rsiSig = ti.RSI_signal || '중립';
+  const macd = ti.MACD || {};
+  const trend = macd.trend || '-';
+  const vr = ti.volume_ratio ?? 1;
+  const vp = ((vr-1)*100).toFixed(0);
+
+  const rsiBadge = rsi>=70?'ib-warn':rsi<=30?'ib-bull':'ib-neu';
+  const mBadge = trend.includes('상승')?'ib-bull':trend.includes('하락')?'ib-bear':'ib-neu';
+  const mVal = trend.includes('상승')?'강세':trend.includes('하락')?'약세':'중립';
+  const mCls = mVal==='강세'?'bull':mVal==='약세'?'bear':'';
+  const vBadge = vr>1.2?'ib-bull':vr<0.8?'ib-warn':'ib-neu';
+  const vLbl = vr>1.2?'거래 활발':vr<0.8?'관망세':'평균';
+  const c1m = ti.change_pct_1m??0;
+  const bbPos = Math.min(Math.max(50+c1m*2,8),92);
+  const bbLbl = bbPos>75?'상단 근접':bbPos<25?'하단 근접':'중립';
+  const bbBadge = bbPos>75?'ib-warn':bbPos<25?'ib-bull':'ib-neu';
+
+  document.getElementById('indicator-content').innerHTML = `
+    <div class="card">
+      <div class="ind-head"><span class="ind-lbl">RSI (14일)</span><span class="ind-badge ${rsiBadge}">${rsiSig}</span></div>
+      <div class="ind-val">${rsi.toFixed(1)}</div>
+      <div class="bar"><div class="rsi-track"></div><div class="dot" style="left:${Math.min(rsi,100)}%"></div></div>
+      <div class="ticks"><span>0</span><span>30</span><span>50</span><span>70</span></div>
+      <div class="ind-desc">${rsiDesc(rsi)}</div>
+    </div>
+
+    <div class="card">
+      <div class="ind-head"><span class="ind-lbl">MACD</span><span class="ind-badge ${mBadge}">${trend}</span></div>
+      <div class="ind-val ${mCls}">${mVal}</div>
+      <div class="macd-bars">${macdBars(macd.histogram??0)}</div>
+      <div class="ind-desc">${macdDesc(trend)}</div>
+    </div>
+
+    <div class="card">
+      <div class="ind-head"><span class="ind-lbl">볼린저밴드</span><span class="ind-badge ${bbBadge}">${bbLbl}</span></div>
+      <div class="ind-val">${bbLbl}</div>
+      <div class="bar" style="overflow:visible;">
+        <div style="position:absolute;top:0;left:20%;right:20%;height:100%;background:#dbeafe;border-radius:4px;"></div>
+        <div class="dot" style="left:${bbPos}%;border-color:#6b7a90;"></div>
+      </div>
+      <div class="ind-desc">${bbDesc(bbPos)}</div>
+    </div>
+
+    <div class="card">
+      <div class="ind-head"><span class="ind-lbl">거래량</span><span class="ind-badge ${vBadge}">${vLbl}</span></div>
+      <div class="ind-val blue">${vp>0?'+':''}${vp}%</div>
+      <div class="bar" style="overflow:hidden;">
+        <div style="height:100%;background:#93c5fd;border-radius:4px;width:${Math.min(vr*50,100)}%;"></div>
+      </div>
+      <div class="ind-desc">${volDesc(vr)}</div>
+    </div>
+  `;
+}
+
+function macdBars(latestH) {
+  const v=[0.8,0.6,0.9,0.7,0.5,0.3,latestH>0?0.2:-0.2,latestH>0?0.4:-0.5];
+  const mx=Math.max(...v.map(Math.abs),0.1);
+  return v.map(x=>{const h=Math.round(Math.abs(x)/mx*24)+3,c=x>0.3?'p':x>0?'ps':x>-0.3?'ns':'n';return`<div class="mb ${c}" style="height:${h}px;"></div>`;}).join('');
+}
+function rsiDesc(r){ return r>=70?`RSI ${r.toFixed(1)} — 과매수 구간이에요. 조정이 올 수 있으니 주의하세요.`:r<=30?`RSI ${r.toFixed(1)} — 과매도 구간이에요. 반등 가능성을 볼 수 있어요.`:`RSI ${r.toFixed(1)} — 안정적인 구간이에요.`; }
+function macdDesc(t){ return t.includes('상승')?'모멘텀이 상승 방향으로 강화되고 있어요.':t.includes('하락')?'모멘텀이 약화되어 하락 추세 전환 중이에요.':'방향성이 아직 명확하지 않은 상태예요.'; }
+function bbDesc(p){ return p>75?'볼린저밴드 상단 근접 — 과열 가능성이 있어요.':p<25?'볼린저밴드 하단 근접 — 지지 구간으로 볼 수 있어요.':'밴드 중간 구간 — 안정적인 흐름이에요.'; }
+function volDesc(r){ return r>1.2?'거래량이 평균보다 많아요. 큰 움직임의 신호예요.':r<0.8?'거래량이 적어요. 많은 투자자가 관망 중이에요.':'거래량이 평균 수준이에요.'; }
+
+function setLoading(){ ['summary-content','indicator-content'].forEach(id=>document.getElementById(id).innerHTML='<div class="loading"><div class="spinner"></div>GenAI 분석 중... (최대 30초)</div>'); }
+function setMsg(msg){ ['summary-content','indicator-content'].forEach(id=>document.getElementById(id).innerHTML=`<div class="loading" style="color:#ef4444;">${msg}</div>`); }
+</script>
+</body>
+</html>
