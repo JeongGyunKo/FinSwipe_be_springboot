@@ -39,7 +39,7 @@ public class AuthController {
     public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest body) {
         try {
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(authService.register(body.email(), body.password(), body.displayName()));
+                    .body(authService.register(body.email(), body.password(), body.displayName(), body.loginId()));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

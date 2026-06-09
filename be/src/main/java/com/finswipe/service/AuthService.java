@@ -24,13 +24,20 @@ public class AuthService {
     private final BCryptPasswordEncoder passwordEncoder;
 
     // ── 이메일/비밀번호 회원가입 ──────────────────────────────────────────────
-    public Map<String, Object> register(String email, String password, String displayName) {
+    public Map<String, Object> register(String email, String password, String displayName, String loginId) {
         String normalized = email.strip().toLowerCase();
+        String normalizedLoginId = loginId.strip().toLowerCase();
 
-        Integer count = jdbc.queryForObject(
+        Integer emailCount = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM user_profiles WHERE email = ?", Integer.class, normalized);
-        if (count != null && count > 0) {
+        if (emailCount != null && emailCount > 0) {
             throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
+        }
+
+        Integer loginIdCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_profiles WHERE login_id = ?", Integer.class, normalizedLoginId);
+        if (loginIdCount != null && loginIdCount > 0) {
+            throw new IllegalArgumentException("이미 사용 중인 아이디입니다.");
         }
 
         UUID userId = UUID.randomUUID();
@@ -40,9 +47,9 @@ public class AuthService {
         jdbc.update("""
                 INSERT INTO user_profiles
                     (id, email, display_name, password_hash, auth_provider, email_verified,
-                     email_verify_token, created_at, updated_at)
-                VALUES (?, ?, ?, ?, 'email', false, ?, NOW(), NOW())
-                """, userId, normalized, displayName, hash, verifyToken);
+                     email_verify_token, login_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, 'email', false, ?, ?, NOW(), NOW())
+                """, userId, normalized, displayName, hash, verifyToken, normalizedLoginId);
 
         emailService.sendVerificationEmail(normalized, verifyToken);
         log.info("[Auth] 회원가입 완료");
