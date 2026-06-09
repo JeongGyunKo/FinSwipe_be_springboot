@@ -352,7 +352,7 @@ def _generate_single_ticker_digest(
         "sentiment_overview": overview,
         "summary": summary,
         "sections": sections,
-        "news_articles": [_serialize_article(a) for a in articles[:5]],
+        "news_articles": [_serialize_article(a) for a in articles if a.get("headline_ko")][:5],
         "technical_indicators": resolved_technicals,
     }
 
