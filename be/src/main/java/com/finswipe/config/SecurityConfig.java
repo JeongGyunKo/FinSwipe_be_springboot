@@ -47,6 +47,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/news/*/read").authenticated()
                 .requestMatchers(HttpMethod.POST, "/news/device-token").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/news/device-token").authenticated()
+                .requestMatchers(HttpMethod.GET, "/news/notification-settings").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/news/notification-settings").authenticated()
                 // 명시되지 않은 모든 경로 차단 (기본값 공개 방지)
                 .anyRequest().denyAll()
             )

@@ -314,6 +314,51 @@ public class NewsController {
         }
     }
 
+    // ===================== Notification Settings =====================
+
+    @Operation(summary = "알림 설정 조회", description = "현재 유저의 알림 설정을 반환합니다.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            { "notify_all_news": true, "notify_sentiment_news": true }
+            """)))
+    @SecurityRequirement(name = "bearerAuth")
+    @GetMapping("/notification-settings")
+    public ResponseEntity<Map<String, Object>> getNotificationSettings(Authentication auth) {
+        String uid = resolveUserId(auth);
+        if (uid == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        try {
+            Map<String, Object> settings = jdbc.queryForMap(
+                    "SELECT notify_all_news, notify_sentiment_news FROM user_profiles WHERE id = CAST(? AS UUID)",
+                    uid);
+            return ResponseEntity.ok(settings);
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of("notify_all_news", true, "notify_sentiment_news", true));
+        }
+    }
+
+    @Operation(summary = "알림 설정 업데이트", description = "모든 알림받기, 감성 알림받기 설정을 변경합니다.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            { "ok": true }
+            """)))
+    @SecurityRequirement(name = "bearerAuth")
+    @PutMapping("/notification-settings")
+    public ResponseEntity<Map<String, Boolean>> updateNotificationSettings(
+            Authentication auth,
+            @RequestBody NotificationSettingsRequest body) {
+        String uid = resolveUserId(auth);
+        if (uid == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        try {
+            jdbc.update("""
+                    UPDATE user_profiles
+                    SET notify_all_news = ?, notify_sentiment_news = ?
+                    WHERE id = CAST(? AS UUID)
+                    """, body.notifyAllNews(), body.notifySentimentNews(), uid);
+            return ResponseEntity.ok(Map.of("ok", true));
+        } catch (Exception e) {
+            log.error("[알림설정] 업데이트 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("ok", false));
+        }
+    }
+
     // ===================== Admin Endpoints =====================
 
     /** GET /news/test — DB 연결 테스트 (Python: GET) */
@@ -480,4 +525,15 @@ public class NewsController {
 
     record DeviceTokenDeleteRequest(
             @NotBlank @Size(min = 10, max = 500) String token) {}
+
+    record NotificationSettingsRequest(
+            boolean notifyAllNews,
+            boolean notifySentimentNews) {}
+
+    private String resolveUserId(Authentication auth) {
+        if (auth != null && auth.getPrincipal() instanceof java.util.UUID) {
+            return auth.getPrincipal().toString();
+        }
+        return null;
+    }
 }

@@ -1,0 +1,3 @@
+ALTER TABLE user_profiles
+    ADD COLUMN IF NOT EXISTS notify_all_news       BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS notify_sentiment_news BOOLEAN NOT NULL DEFAULT TRUE;
