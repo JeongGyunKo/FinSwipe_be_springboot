@@ -608,7 +608,7 @@ function renderSummary(d) {
 }
 
 function renderNewsSection(d) {
-  const articles = d.news_articles || d.articles || [];
+  const articles = (d.news_articles || d.articles || []).filter(a => a.headline_ko);
   if (!articles.length) return '';
   return `
     <div>
