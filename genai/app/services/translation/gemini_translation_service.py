@@ -511,6 +511,23 @@ def _prepare_translation_input(text: str, *, char_limit: int) -> str:
     return truncated or normalized[:char_limit]
 
 
+def translate_titles(titles: list[str], *, tickers: list[str] | None = None) -> list[str | None]:
+    """영어 헤드라인 목록을 한국어로 번역. 번역 실패 항목은 None 반환."""
+    valid_indices = [i for i, t in enumerate(titles) if t and t.strip()]
+    if not valid_indices or not gemini_is_enabled():
+        return [None] * len(titles)
+    tasks = [_TranslationTask(key=f"t{i}", text=titles[i]) for i in valid_indices]
+    try:
+        translations = _translate_tasks(tasks, tickers=tickers)
+    except Exception:
+        logger.exception("Headline batch translation failed.")
+        return [None] * len(titles)
+    result: list[str | None] = [None] * len(titles)
+    for i in valid_indices:
+        result[i] = translations.get(f"t{i}") or None
+    return result
+
+
 def _polish_korean_financial_text(text: str) -> str:
     polished = text.strip()
     replacements = (
