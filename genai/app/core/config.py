@@ -120,8 +120,8 @@ def get_settings() -> AppSettings:
         sentiment_negative_score_threshold=float(
             os.getenv("GENAI_SENTIMENT_NEGATIVE_SCORE_THRESHOLD", "-8")
         ),
-        sentiment_max_input_chars=int(os.getenv("GENAI_SENTIMENT_MAX_INPUT_CHARS", "12000")),
-        xai_max_input_chars=int(os.getenv("GENAI_XAI_MAX_INPUT_CHARS", "9000")),
+        sentiment_max_input_chars=int(os.getenv("GENAI_SENTIMENT_MAX_INPUT_CHARS", "50000")),
+        xai_max_input_chars=int(os.getenv("GENAI_XAI_MAX_INPUT_CHARS", "50000")),
         fail_on_suspicious_gpu_runtime=_env_flag(
             "GENAI_FAIL_ON_SUSPICIOUS_GPU_RUNTIME",
             default=False,
