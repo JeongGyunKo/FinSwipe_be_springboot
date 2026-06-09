@@ -88,7 +88,7 @@ jobs:
           echo "Digest Worker 재시작 완료"
 
           # ── Nginx 설정 갱신 ─────────────────────────────────────────
-          sudo cp ~/finswipe/nginx/finswipe.conf /etc/nginx/sites-available/finswipe
+          sudo cp ~/finswipe/nginx/finswipe.conf /etc/nginx/sites-available/finswipe-api
           sudo nginx -t && sudo systemctl reload nginx
           echo "Nginx 설정 갱신 완료"
 
