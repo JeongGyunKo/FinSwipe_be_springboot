@@ -62,7 +62,8 @@ public class UserProfileController {
                     "SELECT tickers, level, tendency, email, display_name, login_id, auth_provider, news_sort FROM user_profiles WHERE id = CAST(? AS UUID)",
                     (rs, row) -> {
                         List<String> tickers = parseTickers(rs.getString("tickers"));
-                        Integer level = (Integer) rs.getObject("level");
+                        Object rawLevel = rs.getObject("level");
+                        Integer level = rawLevel != null ? ((Number) rawLevel).intValue() : null;
                         java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
                         body.put("userId", uid);
                         body.put("email", rs.getString("email"));
@@ -79,7 +80,7 @@ public class UserProfileController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "사용자를 찾을 수 없습니다"));
         } catch (Exception e) {
-            log.error("[프로필] 조회 실패: {}", e.getMessage());
+            log.error("[프로필] 조회 실패 [{}]: {}", e.getClass().getSimpleName(), e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "서버 오류"));
         }
