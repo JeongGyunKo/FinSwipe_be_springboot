@@ -542,64 +542,83 @@ function renderSummary(d) {
   const fmt = dt => `${(dt.getMonth()+1).toString().padStart(2,'0')}.${dt.getDate().toString().padStart(2,'0')}`;
   const fc1 = c1d>=0?'pos':'neg', fc2 = vr>1.1?'pos':vr<0.9?'neg':'neu';
   const sentKo = ov.avg_score>0.3?'긍정':ov.avg_score<-0.3?'부정':'중립';
+  const secs = d.sections || null;
 
-  document.getElementById('summary-content').innerHTML = `
-    ${(digestData?.user_level || digestData?.user_tendency) ? `
-    <div class="user-profile-bar">
-      ${digestData.user_level ? `<span class="upb-tag green">Lv${digestData.user_level} 맞춤</span>` : ''}
-      ${digestData.user_tendency ? `<span class="upb-tag blue">${digestData.user_tendency}</span>` : ''}
-    </div>` : ''}
+  // ── 가격/수급 흐름 카드 ──
+  const flowHtml = `
+    <div class="flow-grid">
+      <div class="fc ${fc1}">
+        <div class="fc-date">${fmt(yday)} 마감</div>
+        <div class="fc-title">${c1d>=0?'+':''}${c1d.toFixed(2)}% ${c1d>=0?'상승':'하락'}</div>
+        <div class="fc-sub">1개월 ${c1m>=0?'+':''}${c1m.toFixed(1)}%</div>
+      </div>
+      <div class="fc ${fc2}">
+        <div class="fc-date">${fmt(today)} 오늘</div>
+        <div class="fc-title">거래량 ${vp>0?'+':''}${vp}%</div>
+        <div class="fc-sub">기사 ${d.articles_count||0}건 · ${sentKo}</div>
+      </div>
+    </div>`;
 
-    <div class="sect-block">
-      <div class="sect-label">어제 → 오늘 흐름</div>
-      <div class="flow-grid">
-        <div class="fc ${fc1}">
-          <div class="fc-date">${fmt(yday)} 마감</div>
-          <div class="fc-title">${c1d>=0?'+':''}${c1d.toFixed(2)}% ${c1d>=0?'상승':'하락'}</div>
-          <div class="fc-sub">1개월 ${c1m>=0?'+':''}${c1m.toFixed(1)}%</div>
-        </div>
-        <div class="fc ${fc2}">
-          <div class="fc-date">${fmt(today)} 오늘</div>
-          <div class="fc-title">거래량 ${vp>0?'+':''}${vp}%</div>
-          <div class="fc-sub">기사 ${d.articles_count||0}건 · ${sentKo}</div>
+  // ── 섹션별 요약 (구조화된 경우) ──
+  let analysisHtml = '';
+  if (secs && (secs['어제의_핵심'] || secs['주가_반응'] || secs['오늘_전망'])) {
+    analysisHtml = `
+      <div>
+        <div class="lbl">어제의 핵심</div>
+        <div class="card"><div class="summary-text">${secs['어제의_핵심'] || '-'}</div></div>
+      </div>
+      <div>
+        <div class="lbl">주가 반응</div>
+        <div class="card">
+          <div class="summary-text">${secs['주가_반응'] || '-'}</div>
+          <div class="badges" style="margin-top:7px;">
+            ${ov.positive ? `<span class="badge b-pos">긍정 ${ov.positive}건</span>` : ''}
+            ${ov.negative ? `<span class="badge b-neg">부정 ${ov.negative}건</span>` : ''}
+            ${ov.neutral  ? `<span class="badge b-neu">중립 ${ov.neutral}건</span>` : ''}
+            ${ti.RSI_signal ? `<span class="badge b-blue">RSI ${ti.RSI_signal}</span>` : ''}
+          </div>
         </div>
       </div>
-    </div>
-
-    <div class="sect-divider"></div>
-
-    <div class="sect-block">
-      <div class="sect-label">오늘의 종합 요약</div>
-      <div class="card">
-        <div class="summary-text">${d.summary || '분석 데이터가 없습니다.'}</div>
-        <div class="badges" style="margin-top:9px;">
-          ${ov.positive ? `<span class="badge b-pos">긍정 ${ov.positive}건</span>` : ''}
-          ${ov.negative ? `<span class="badge b-neg">부정 ${ov.negative}건</span>` : ''}
-          ${ov.neutral  ? `<span class="badge b-neu">중립 ${ov.neutral}건</span>` : ''}
-          ${ti.RSI_signal ? `<span class="badge b-blue">RSI ${ti.RSI_signal}</span>` : ''}
-          ${digestData?.user_tendency ? `<span class="badge b-blue">${digestData.user_tendency}</span>` : ''}
+      <div>
+        <div class="lbl">오늘 전망</div>
+        <div class="card" style="border-left:3px solid #2563eb;">
+          <div class="summary-text">${secs['오늘_전망'] || '-'}</div>
+          ${digestData?.user_tendency ? `<div class="badges" style="margin-top:7px;"><span class="badge b-blue">${digestData.user_tendency}</span></div>` : ''}
         </div>
-      </div>
-    </div>
+      </div>`;
+  } else {
+    // 구조화 실패 시 fallback
+    analysisHtml = `
+      <div>
+        <div class="lbl">오늘의 종합 요약</div>
+        <div class="card">
+          <div class="summary-text">${d.summary || '분석 데이터가 없습니다.'}</div>
+          <div class="badges" style="margin-top:9px;">
+            ${ov.positive ? `<span class="badge b-pos">긍정 ${ov.positive}건</span>` : ''}
+            ${ov.negative ? `<span class="badge b-neg">부정 ${ov.negative}건</span>` : ''}
+            ${ov.neutral  ? `<span class="badge b-neu">중립 ${ov.neutral}건</span>` : ''}
+            ${ti.RSI_signal ? `<span class="badge b-blue">RSI ${ti.RSI_signal}</span>` : ''}
+          </div>
+        </div>
+      </div>`;
+  }
 
-    ${renderNewsSection(d)}
-  `;
+  document.getElementById('summary-content').innerHTML =
+    flowHtml + analysisHtml + renderNewsSection(d);
 }
 
 function renderNewsSection(d) {
   const articles = d.news_articles || d.articles || [];
   if (!articles.length) return '';
   return `
-    <div class="sect-divider"></div>
-    <div class="sect-block">
-      <div class="sect-label">주요 뉴스</div>
+    <div>
+      <div class="lbl">주요 뉴스</div>
       ${articles.slice(0,3).map(a => {
         const sk = a.sentiment_label==='positive'?'긍정':a.sentiment_label==='negative'?'부정':'중립';
         const dt = a.published_at ? new Date(a.published_at).toLocaleDateString('ko-KR',{month:'numeric',day:'numeric'}) : '';
         return `<div class="card" style="margin-bottom:6px;">
           <div class="n-head"><span class="n-tag">${sk}</span><span class="n-time">${dt}</span></div>
           <div class="n-hl">${a.headline_ko||a.headline||''}</div>
-          ${a.summary_ko?`<div class="n-body">${a.summary_ko}</div>`:''}
         </div>`;
       }).join('')}
     </div>`;
