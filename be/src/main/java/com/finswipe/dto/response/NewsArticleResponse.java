@@ -32,6 +32,9 @@ public class NewsArticleResponse {
     private final String headlineKo;
     private final List<String> summary3linesKo;
     private final String sentimentReason;
+    private final String eventCategory;
+    private final Boolean sentimentDivergence;
+    private final Double noveltyScore;
     @JsonProperty("is_read")
     private final boolean isRead;
 
@@ -58,6 +61,9 @@ public class NewsArticleResponse {
         this.headlineKo = article.getHeadlineKo();
         this.summary3linesKo = article.getSummary3linesKo();
         this.sentimentReason = article.getSentimentReason();
+        this.eventCategory = article.getEventCategory();
+        this.sentimentDivergence = article.getSentimentDivergence();
+        this.noveltyScore = article.getNoveltyScore();
         this.isRead = isRead;
     }
 }

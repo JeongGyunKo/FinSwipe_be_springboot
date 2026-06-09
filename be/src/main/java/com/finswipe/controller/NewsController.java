@@ -251,6 +251,50 @@ public class NewsController {
         return ResponseEntity.ok(analyzerService.checkHealth());
     }
 
+    @Operation(summary = "티커 7일 감성 트렌드", description = "최근 7일간 날짜별 감성 통계. 감성 점수 평균 및 positive/negative/neutral 건수 포함.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            {
+              "ticker": "AAPL",
+              "trend": [
+                { "date": "2026-06-03", "articleCount": 5, "avgScore": 4.2, "positive": 3, "negative": 1, "neutral": 1 }
+              ]
+            }
+            """)))
+    @GetMapping("/tickers/{ticker}/sentiment-trend")
+    public ResponseEntity<Map<String, Object>> getSentimentTrend(
+            @PathVariable @Size(min = 1, max = 10) String ticker) {
+        String t = ticker.strip().toUpperCase();
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT
+                    (DATE_TRUNC('day', published_at AT TIME ZONE 'America/New_York'))::date AS date,
+                    COUNT(*)                                                                AS article_count,
+                    AVG(sentiment_score)                                                   AS avg_score,
+                    COUNT(*) FILTER (WHERE sentiment_label = 'positive')                   AS positive,
+                    COUNT(*) FILTER (WHERE sentiment_label = 'negative')                   AS negative,
+                    COUNT(*) FILTER (WHERE sentiment_label = 'neutral')                    AS neutral
+                FROM news_articles
+                WHERE tickers && CAST(ARRAY[?] AS text[])
+                  AND sentiment_label IS NOT NULL
+                  AND published_at >= NOW() - INTERVAL '7 days'
+                GROUP BY 1
+                ORDER BY 1 ASC
+                """, t);
+
+        List<Map<String, Object>> trend = rows.stream().map(r -> {
+            Map<String, Object> entry = new java.util.LinkedHashMap<>();
+            entry.put("date", r.get("date") != null ? r.get("date").toString() : null);
+            entry.put("articleCount", r.get("article_count"));
+            Double avg = r.get("avg_score") instanceof Number n ? n.doubleValue() : null;
+            entry.put("avgScore", avg != null ? Math.round(avg * 100.0) / 100.0 : null);
+            entry.put("positive", r.get("positive"));
+            entry.put("negative", r.get("negative"));
+            entry.put("neutral", r.get("neutral"));
+            return entry;
+        }).toList();
+
+        return ResponseEntity.ok(Map.of("ticker", t, "trend", trend));
+    }
+
     // ===================== Device Token Endpoints =====================
 
     @Operation(summary = "FCM 토큰 등록", description = "푸시 알림 수신을 위한 FCM 디바이스 토큰 등록. platform: web|ios|android")
