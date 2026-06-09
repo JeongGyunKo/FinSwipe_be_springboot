@@ -35,7 +35,6 @@ DEFAULT_MAX_CHUNKS: Final[int] = 8
 TITLE_WEIGHT: Final[float] = 1.25
 
 _MODEL_LOCK = threading.Lock()
-_INFERENCE_LOCK = threading.Lock()  # Fast Tokenizer(Rust RefCell)는 멀티스레드 비안전 — 추론 직렬화
 _TOKENIZER = None
 _MODEL = None
 
@@ -82,16 +81,15 @@ def analyze_sentiment(
         )
 
     tokenizer, model = _get_finbert_components()
-    with _INFERENCE_LOCK:
-        chunk_results = _predict_chunks(
-            title=title,
-            article_text=cleaned_text,
-            tokenizer=tokenizer,
-            model=model,
-            max_chunk_tokens=max_chunk_tokens,
-            positive_score_threshold=settings.sentiment_positive_score_threshold,
-            negative_score_threshold=settings.sentiment_negative_score_threshold,
-        )
+    chunk_results = _predict_chunks(
+        title=title,
+        article_text=cleaned_text,
+        tokenizer=tokenizer,
+        model=model,
+        max_chunk_tokens=max_chunk_tokens,
+        positive_score_threshold=settings.sentiment_positive_score_threshold,
+        negative_score_threshold=settings.sentiment_negative_score_threshold,
+    )
     return aggregate_chunk_results(
         chunk_results,
         strategy=aggregation_strategy,
@@ -106,15 +104,14 @@ def predict_text_probabilities(texts: list[str]) -> list[SentimentProbabilities]
         return []
 
     tokenizer, model = _get_finbert_components()
-    with _INFERENCE_LOCK:
-        return [
-            _score_text(
-                text=text,
-                tokenizer=tokenizer,
-                model=model,
-            )
-            for text in texts
-        ]
+    return [
+        _score_text(
+            text=text,
+            tokenizer=tokenizer,
+            model=model,
+        )
+        for text in texts
+    ]
 
 
 def score_text_with_attentions(text: str) -> AttentionScoreResult:
@@ -132,40 +129,39 @@ def score_text_with_attentions(text: str) -> AttentionScoreResult:
         )
 
     tokenizer, model = _get_finbert_components()
-    with _INFERENCE_LOCK:
-        encoded = tokenizer(
-            stripped,
-            truncation=True,
-            max_length=512,
-            return_tensors="pt",
-            return_offsets_mapping=True,
+    encoded = tokenizer(
+        stripped,
+        truncation=True,
+        max_length=512,
+        return_tensors="pt",
+        return_offsets_mapping=True,
+    )
+    offset_mapping = encoded.pop("offset_mapping")[0].tolist()
+    input_ids = encoded["input_ids"][0].tolist()
+    tokens = tokenizer.convert_ids_to_tokens(input_ids)
+    sequence_length = len(tokens)
+    truncated = bool(sequence_length >= 512)
+
+    with torch.no_grad():
+        outputs = model(**encoded, output_attentions=True)
+        logits = outputs.logits[0]
+        probabilities = torch.softmax(logits, dim=0).tolist()
+
+    attentions = outputs.attentions
+    if not attentions:
+        raise RuntimeError("FinBERT attention outputs were unavailable.")
+
+    last_layer = attentions[-1][0]
+    cls_attention = last_layer[:, 0, :].mean(dim=0).tolist()
+    token_scores = [
+        AttentionTokenScore(
+            token=token,
+            start_char=(offset[0] if offset[1] > offset[0] else None),
+            end_char=(offset[1] if offset[1] > offset[0] else None),
+            attention_weight=float(weight),
         )
-        offset_mapping = encoded.pop("offset_mapping")[0].tolist()
-        input_ids = encoded["input_ids"][0].tolist()
-        tokens = tokenizer.convert_ids_to_tokens(input_ids)
-        sequence_length = len(tokens)
-        truncated = bool(sequence_length >= 512)
-
-        with torch.no_grad():
-            outputs = model(**encoded, output_attentions=True)
-            logits = outputs.logits[0]
-            probabilities = torch.softmax(logits, dim=0).tolist()
-
-        attentions = outputs.attentions
-        if not attentions:
-            raise RuntimeError("FinBERT attention outputs were unavailable.")
-
-        last_layer = attentions[-1][0]
-        cls_attention = last_layer[:, 0, :].mean(dim=0).tolist()
-        token_scores = [
-            AttentionTokenScore(
-                token=token,
-                start_char=(offset[0] if offset[1] > offset[0] else None),
-                end_char=(offset[1] if offset[1] > offset[0] else None),
-                attention_weight=float(weight),
-            )
-            for token, offset, weight in zip(tokens, offset_mapping, cls_attention, strict=True)
-        ]
+        for token, offset, weight in zip(tokens, offset_mapping, cls_attention, strict=True)
+    ]
 
     return AttentionScoreResult(
         probabilities=SentimentProbabilities(
@@ -185,10 +181,12 @@ def _get_finbert_components():
 
     with _MODEL_LOCK:
         if _TOKENIZER is None:
+            # use_fast=False: Python 토크나이저 → GIL로 스레드 안전, 병렬 추론 가능
+            # use_fast=True(Rust)는 RefCell로 동시 호출 시 "Already borrowed" 패닉 발생
             _TOKENIZER = AutoTokenizer.from_pretrained(
                 MODEL_NAME,
                 revision=MODEL_REVISION,
-                use_fast=True,
+                use_fast=False,
             )
         if _MODEL is None:
             _MODEL = AutoModelForSequenceClassification.from_pretrained(
