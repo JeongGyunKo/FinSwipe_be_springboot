@@ -128,6 +128,8 @@ class EnrichmentOrchestrator:
         sentiment_result = None
         xai_result = None
         sentiment_reason: str | None = None
+        event_category: str | None = None
+        sentiment_divergence: bool | None = None
         article_mixed = None
         ticker_mixed = None
 
@@ -144,6 +146,8 @@ class EnrichmentOrchestrator:
                     tracker=tracker,
                 )
                 if sentiment_result is not None:
+                    sentiment_divergence = _compute_sentiment_divergence(sentiment_result)
+
                     if self._include_xai:
                         xai_result = self._run_xai_stage(
                             request=request,
@@ -157,9 +161,9 @@ class EnrichmentOrchestrator:
                             "XAI disabled — using sentiment_reason instead.",
                         )
 
-                    # 감성 설명 + 요약 병렬 실행 (각 ~5초 → 합계 ~5초로 단축)
+                    # 감성 설명 + 요약 + 이벤트 분류 병렬 실행
                     from concurrent.futures import ThreadPoolExecutor
-                    with ThreadPoolExecutor(max_workers=2) as pool:
+                    with ThreadPoolExecutor(max_workers=3) as pool:
                         reason_future = pool.submit(
                             self._run_sentiment_explain_stage,
                             request=request,
@@ -172,8 +176,14 @@ class EnrichmentOrchestrator:
                             cleaned_text=cleaned_text,
                             tracker=tracker,
                         )
+                        event_future = pool.submit(
+                            self._run_event_classify_stage,
+                            request=request,
+                            cleaned_text=cleaned_text,
+                        )
                         sentiment_reason = reason_future.result()
                         summary_3lines = summary_future.result()
+                        event_category = event_future.result()
 
                     article_mixed, ticker_mixed = self._run_mixed_detection_stage(
                         request=request,
@@ -190,11 +200,21 @@ class EnrichmentOrchestrator:
                         PipelineStageName.MIXED_DETECTION,
                         "Skipped because sentiment analysis did not produce a result.",
                     )
-                    summary_3lines = self._run_summary_stage(
-                        request=request,
-                        cleaned_text=cleaned_text,
-                        tracker=tracker,
-                    )
+                    from concurrent.futures import ThreadPoolExecutor
+                    with ThreadPoolExecutor(max_workers=2) as pool:
+                        summary_future = pool.submit(
+                            self._run_summary_stage,
+                            request=request,
+                            cleaned_text=cleaned_text,
+                            tracker=tracker,
+                        )
+                        event_future = pool.submit(
+                            self._run_event_classify_stage,
+                            request=request,
+                            cleaned_text=cleaned_text,
+                        )
+                        summary_3lines = summary_future.result()
+                        event_category = event_future.result()
         else:
             self._skip_after_fetch_failure(tracker)
 
@@ -209,6 +229,8 @@ class EnrichmentOrchestrator:
             sentiment_result=sentiment_result,
             xai_result=xai_result,
             sentiment_reason=sentiment_reason,
+            event_category=event_category,
+            sentiment_divergence=sentiment_divergence,
             article_mixed=article_mixed,
             ticker_mixed=ticker_mixed,
         )
@@ -675,6 +697,22 @@ class EnrichmentOrchestrator:
             log_event(logger, logging.WARNING, "sentiment_explain_failed", error=str(exc))
             return None
 
+    def _run_event_classify_stage(
+        self,
+        *,
+        request: ArticleEnrichmentRequest,
+        cleaned_text: str,
+    ) -> str | None:
+        from app.services.event_classifier import classify_event_category
+        try:
+            return classify_event_category(
+                title=request.title,
+                article_text=cleaned_text,
+            )
+        except Exception as exc:
+            log_event(logger, logging.WARNING, "event_classify_failed", error=str(exc))
+            return None
+
     def _build_payload(
         self,
         *,
@@ -688,6 +726,8 @@ class EnrichmentOrchestrator:
         sentiment_result,
         xai_result,
         sentiment_reason: str | None = None,
+        event_category: str | None = None,
+        sentiment_divergence: bool | None = None,
         article_mixed,
         ticker_mixed,
     ) -> EnrichmentStoragePayload:
@@ -712,6 +752,8 @@ class EnrichmentOrchestrator:
                 sentiment_result=sentiment_result,
                 xai_result=xai_result,
                 sentiment_reason=sentiment_reason,
+                event_category=event_category,
+                sentiment_divergence=sentiment_divergence,
                 article_mixed=article_mixed,
                 ticker_mixed=ticker_mixed,
                 tickers=request.ticker,
@@ -870,3 +912,26 @@ class EnrichmentOrchestrator:
     ) -> None:
         for stage in stages:
             tracker.skip(stage, message)
+
+
+def _compute_sentiment_divergence(sentiment_result: SentimentResult) -> bool | None:
+    """타이틀 청크 감성이 본문 청크 지배 감성과 다를 때 True 반환."""
+    from app.schemas.sentiment import SentimentChunkSource
+    chunks = sentiment_result.chunk_results
+    if not chunks:
+        return None
+
+    title_chunks = [c for c in chunks if c.source == SentimentChunkSource.TITLE]
+    body_chunks = [c for c in chunks if c.source == SentimentChunkSource.BODY]
+
+    if not title_chunks or not body_chunks:
+        return None
+
+    title_label = title_chunks[0].label
+
+    label_weights: dict[str, float] = {}
+    for c in body_chunks:
+        label_weights[c.label.value] = label_weights.get(c.label.value, 0.0) + c.weight
+
+    body_label = max(label_weights, key=label_weights.get)
+    return title_label.value != body_label

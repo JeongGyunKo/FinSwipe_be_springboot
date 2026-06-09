@@ -450,6 +450,7 @@ public class NewsCollectorService {
         int saved = 0, skipped = 0;
         for (NewsArticle article : articles) {
             try {
+                article.setNoveltyScore(computeNoveltyScore(article));
                 NewsArticle persisted = newsRepo.save(article);
                 article.setId(persisted.getId());
                 saved++;
@@ -459,6 +460,47 @@ public class NewsCollectorService {
             }
         }
         return Map.of("saved", saved, "skipped", skipped);
+    }
+
+    /**
+     * 최근 24시간 동일 티커 기사 헤드라인과 Jaccard 유사도를 비교해 참신도 계산.
+     * 1.0 = 완전히 새로운 기사, 0.0 = 거의 동일한 기사 이미 존재
+     */
+    private double computeNoveltyScore(NewsArticle article) {
+        try {
+            if (article.getHeadline() == null || article.getHeadline().isBlank()) return 1.0;
+            if (article.getTickers() == null || article.getTickers().isEmpty()) return 1.0;
+
+            String tickersParam = "{" + String.join(",", article.getTickers()) + "}";
+            List<String> recentHeadlines = jdbc.queryForList("""
+                    SELECT headline FROM news_articles
+                    WHERE tickers && CAST(? AS text[])
+                      AND published_at >= NOW() - INTERVAL '24 hours'
+                    LIMIT 50
+                    """, String.class, tickersParam);
+
+            if (recentHeadlines.isEmpty()) return 1.0;
+
+            Set<String> tokens = tokenizeHeadline(article.getHeadline());
+            double maxSimilarity = 0.0;
+            for (String existing : recentHeadlines) {
+                if (existing == null) continue;
+                double sim = jaccardSimilarity(tokens, tokenizeHeadline(existing));
+                if (sim > maxSimilarity) maxSimilarity = sim;
+            }
+            return Math.round((1.0 - maxSimilarity) * 100.0) / 100.0;
+        } catch (Exception e) {
+            log.debug("[novelty] 계산 실패, 기본값 1.0 사용: {}", e.getMessage());
+            return 1.0;
+        }
+    }
+
+    private Set<String> tokenizeHeadline(String headline) {
+        Set<String> words = new java.util.HashSet<>();
+        for (String w : headline.toLowerCase().split("[\\W_]+")) {
+            if (w.length() > 2) words.add(w);
+        }
+        return words;
     }
 
     /** 신규 수집 기사 분석 — FCM 알림 발송 포함, 최우선 실행 */
@@ -578,6 +620,12 @@ public class NewsCollectorService {
                     article.setHeadlineKo(headlineKo);
                     article.setSummary3linesKo(summaryKo);
                     article.setSentimentReason(result.getSentimentReason());
+                    if (result.getEventCategory() != null) {
+                        article.setEventCategory(result.getEventCategory());
+                    }
+                    if (result.getSentimentDivergence() != null) {
+                        article.setSentimentDivergence(result.getSentimentDivergence());
+                    }
                     newsRepo.save(article);
                     log.debug("[DB] 저장: {}", truncate(link));
                 }

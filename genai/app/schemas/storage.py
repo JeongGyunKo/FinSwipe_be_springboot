@@ -139,6 +139,14 @@ class EnrichmentStoragePayload(SchemaModel):
         default=None,
         description="Natural language Korean explanation of why this article received its sentiment score.",
     )
+    event_category: str | None = Field(
+        default=None,
+        description="Article event type: earnings, guidance, analyst, product, ma, macro, regulatory, other.",
+    )
+    sentiment_divergence: bool | None = Field(
+        default=None,
+        description="True when the title sentiment label differs from the body's dominant sentiment label.",
+    )
     localized: LocalizedArticleContent | None = Field(
         default=None,
         description="Stored localized display payload to avoid repeated translation calls.",

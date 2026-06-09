@@ -80,6 +80,15 @@ public class NewsArticle {
     @Column(name = "sentiment_reason", columnDefinition = "text")
     private String sentimentReason;
 
+    @Column(name = "event_category")
+    private String eventCategory;
+
+    @Column(name = "sentiment_divergence")
+    private Boolean sentimentDivergence;
+
+    @Column(name = "novelty_score")
+    private Double noveltyScore;
+
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
 
