@@ -1,5 +1,6 @@
 package com.finswipe.controller;
 
+import com.finswipe.config.AppProperties;
 import com.finswipe.dto.request.*;
 import com.finswipe.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +17,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
+
 import java.util.List;
 import java.util.Map;
 
@@ -28,6 +31,7 @@ public class AuthController {
 
     private final JdbcTemplate jdbc;
     private final AuthService authService;
+    private final AppProperties props;
 
     // ── 회원가입 ──────────────────────────────────────────────────────────────
 
@@ -95,17 +99,19 @@ public class AuthController {
 
     // ── 이메일 인증 ───────────────────────────────────────────────────────────
 
-    @Operation(summary = "이메일 인증 확인", description = "인증 메일의 링크에 포함된 token으로 계정 활성화")
-    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
-            { "message": "이메일 인증이 완료되었습니다." }
-            """)))
+    @Operation(summary = "이메일 인증 확인", description = "인증 메일의 링크에 포함된 token으로 계정 활성화 후 로그인 페이지로 리다이렉트")
     @GetMapping("/verify-email")
-    public ResponseEntity<Map<String, Object>> verifyEmail(@RequestParam String token) {
+    public ResponseEntity<Void> verifyEmail(@RequestParam String token) {
+        String frontendBase = props.getAuth().getFrontendBaseUrl();
         try {
             authService.verifyEmail(token);
-            return ResponseEntity.ok(Map.of("message", "이메일 인증이 완료되었습니다."));
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .location(URI.create(frontendBase + "/login?verified=true"))
+                    .build();
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .location(URI.create(frontendBase + "/login?error=invalid_token"))
+                    .build();
         }
     }
 
