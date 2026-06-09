@@ -39,30 +39,36 @@ public class AdminController {
     public ResponseEntity<List<Map<String, Object>>> users(
             @RequestHeader("X-Admin-Key") String adminKey) {
         requireAdmin(adminKey);
-        List<Map<String, Object>> rows = jdbc.query(
-                """
-                SELECT id, email, display_name, login_id, auth_provider,
-                       tickers, level, tendency, news_sort, created_at
-                FROM user_profiles
-                ORDER BY created_at DESC
-                LIMIT 200
-                """,
-                (rs, i) -> {
-                    Map<String, Object> m = new LinkedHashMap<>();
-                    m.put("userId",       rs.getString("id"));
-                    m.put("email",        rs.getString("email"));
-                    m.put("displayName",  rs.getString("display_name"));
-                    m.put("loginId",      rs.getString("login_id"));
-                    m.put("authProvider", rs.getString("auth_provider"));
-                    m.put("level",        rs.getObject("level"));
-                    m.put("tendency",     rs.getString("tendency"));
-                    m.put("newsSort",     rs.getString("news_sort"));
-                    // tickers: PostgreSQL array → List
-                    String raw = rs.getString("tickers");
-                    m.put("tickers", parseTickers(raw));
-                    return m;
-                });
-        return ResponseEntity.ok(rows);
+        try {
+            List<Map<String, Object>> rows = jdbc.query(
+                    """
+                    SELECT id, email, display_name, login_id, auth_provider,
+                           tickers, level, tendency, news_sort, created_at
+                    FROM user_profiles
+                    ORDER BY created_at DESC
+                    LIMIT 200
+                    """,
+                    (rs, i) -> {
+                        Map<String, Object> m = new LinkedHashMap<>();
+                        m.put("userId",       rs.getString("id"));
+                        m.put("email",        rs.getString("email"));
+                        m.put("displayName",  rs.getString("display_name"));
+                        m.put("loginId",      rs.getString("login_id"));
+                        m.put("authProvider", rs.getString("auth_provider"));
+                        m.put("level",        rs.getObject("level"));
+                        m.put("tendency",     rs.getString("tendency"));
+                        m.put("newsSort",     rs.getString("news_sort"));
+                        String raw = rs.getString("tickers");
+                        m.put("tickers", parseTickers(raw));
+                        return m;
+                    });
+            return ResponseEntity.ok(rows);
+        } catch (Exception e) {
+            log.error("[admin/users] 조회 실패 [{}]: {}", e.getClass().getSimpleName(), e.getMessage(), e);
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+                    e.getClass().getSimpleName() + ": " + e.getMessage());
+        }
     }
 
     /** 특정 유저의 다이제스트 — GenAI 프록시 */
