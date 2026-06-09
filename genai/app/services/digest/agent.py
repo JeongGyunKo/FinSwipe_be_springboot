@@ -31,15 +31,21 @@ _TENDENCY_FOCUS = {
 _DEFAULT_TENDENCY_FOCUS = _TENDENCY_FOCUS["탐색형 투자자"]
 
 _SYSTEM_PROMPT = """당신은 개인화 금융 뉴스 분석 전문가입니다.
-특정 종목에 대해 오늘 하루(어제 장 마감 이후~현재) 나온 뉴스를 종합 분석하여
-해당 투자자의 성향과 지식 레벨에 맞는 일일 요약을 제공합니다.
+종목의 뉴스와 기술적 지표를 분석해 투자자 맞춤 일일 브리핑을 제공합니다.
+
+반드시 아래 JSON 형식으로만 답변하세요 (코드블록 없이, 순수 JSON만):
+{
+  "어제의_핵심": "어제 이 종목에서 일어난 핵심 이벤트와 뉴스 흐름 — 2~3문장",
+  "주가_반응": "어제 뉴스에 주가가 어떻게 반응했는지, RSI·MACD 등 기술적 지표와 연결해 해석 — 2~3문장",
+  "오늘_전망": "어제 흐름을 바탕으로 오늘 주목할 포인트, 이 투자자 성향에서 봐야 할 것 — 2~3문장"
+}
 
 규칙:
-- 반드시 한국어로 답변하세요
-- 3~5문장으로 핵심만 짚어주세요
-- 오늘의 주요 이벤트가 무엇인지, 이 투자자 입장에서 어떻게 봐야 하는지 중심으로 작성하세요
-- 단순 뉴스 나열이 아니라 종합적 시각으로 작성하세요
-- 긍정/부정 뉴스가 섞인 경우 전체 흐름을 균형 있게 정리하세요"""
+- 반드시 한국어로 답변
+- 각 섹션은 2~3문장, 핵심만 간결하게
+- 투자자의 레벨과 성향에 맞게 작성
+- 기술적 지표(RSI·MACD·볼린저밴드·거래량 수치)를 실제 분석에 활용
+- JSON 외 다른 텍스트 출력 금지"""
 
 
 def _fetch_user_profile(user_id: str, settings) -> dict | None:
@@ -92,7 +98,13 @@ def _sentiment_overview(articles: list[dict]) -> dict:
     }
 
 
-def _build_digest_prompt(ticker: str, articles: list[dict], level: int, tendency: str) -> str:
+def _build_digest_prompt(
+    ticker: str,
+    articles: list[dict],
+    level: int,
+    tendency: str,
+    technicals: dict | None = None,
+) -> str:
     lines = []
     for i, a in enumerate(articles[:8], 1):
         title = (a.get("headline_ko") or a.get("headline") or "").strip()
@@ -107,14 +119,53 @@ def _build_digest_prompt(ticker: str, articles: list[dict], level: int, tendency
     focus = _TENDENCY_FOCUS.get(tendency, _DEFAULT_TENDENCY_FOCUS)
     label_str = _LEVEL_LABELS.get(level, "중급")
 
+    ti_block = ""
+    if technicals:
+        c1d = technicals.get("change_pct_1d")
+        c1m = technicals.get("change_pct_1m")
+        rsi = technicals.get("RSI")
+        rsi_sig = technicals.get("RSI_signal", "")
+        macd = technicals.get("MACD") or {}
+        macd_trend = macd.get("trend", "")
+        macd_hist = macd.get("histogram")
+        vr = technicals.get("volume_ratio")
+        bb = technicals.get("BB") or {}
+        bb_pos = bb.get("position", "")
+        bb_pct = bb.get("pct_b")
+        w52 = technicals.get("week52") or {}
+        w52_pct = w52.get("position_pct")
+        ma20 = technicals.get("MA20_diff_pct")
+
+        parts = []
+        if c1d is not None:
+            parts.append(f"1일 변동 {c1d:+.2f}%")
+        if c1m is not None:
+            parts.append(f"1개월 {c1m:+.2f}%")
+        if rsi is not None:
+            parts.append(f"RSI {rsi:.1f}({rsi_sig})")
+        if macd_trend and macd_hist is not None:
+            parts.append(f"MACD {macd_trend}(hist {macd_hist:+.4f})")
+        if bb_pos and bb_pct is not None:
+            parts.append(f"볼린저밴드 {bb_pos}({bb_pct:.0f}%)")
+        if vr is not None:
+            parts.append(f"거래량 평균대비 {vr:.2f}x")
+        if w52_pct is not None:
+            parts.append(f"52주 위치 {w52_pct:.0f}%")
+        if ma20 is not None:
+            parts.append(f"MA20 대비 {ma20:+.2f}%")
+
+        if parts:
+            ti_block = "\n[기술적 지표] " + " / ".join(parts)
+
     return (
         f"[종목] {ticker}\n"
-        f"[사용자 프로필] 지식 레벨: {level}/5 ({label_str}) / 투자 성향: {tendency}\n\n"
-        f"[오늘 뉴스 {len(articles)}건]\n"
+        f"[사용자 프로필] 레벨: {level}/5 ({label_str}) / 성향: {tendency}\n\n"
+        f"[어제 뉴스 {len(articles)}건]\n"
         + "\n".join(lines)
+        + ti_block
         + f"\n\n[분석 깊이] {depth}\n"
         f"[성향 초점] {focus}\n\n"
-        f"위 내용을 종합하여 오늘 {ticker}에 대한 맞춤 일일 요약을 작성하세요."
+        f"위 정보를 바탕으로 {ticker} 일일 브리핑 JSON을 작성하세요."
     )
 
 
@@ -235,6 +286,16 @@ def _generate_single_ticker_digest(
     articles = _fetch_ticker_articles(ticker, settings)
     resolved_technicals = _fetch_technicals(ticker) if technicals is _UNSET else technicals
 
+    def _serialize_article(a: dict) -> dict:
+        pub = a.get("published_at")
+        return {
+            "headline_ko": a.get("headline_ko"),
+            "headline": a.get("headline"),
+            "sentiment_label": a.get("sentiment_label"),
+            "sentiment_score": float(a.get("sentiment_score") or 0),
+            "published_at": pub.isoformat() if pub else None,
+        }
+
     if not articles:
         return {
             "ticker": ticker,
@@ -242,29 +303,56 @@ def _generate_single_ticker_digest(
             "message": "오늘 관련 뉴스가 없습니다.",
             "sentiment_overview": None,
             "summary": None,
+            "sections": None,
+            "news_articles": [],
             "technical_indicators": resolved_technicals,
         }
 
     overview = _sentiment_overview(articles)
 
+    sections = None
+    summary = None
     try:
-        prompt = _build_digest_prompt(ticker, articles, level, tendency)
-        summary = gemini_generate_content(
+        prompt = _build_digest_prompt(ticker, articles, level, tendency, resolved_technicals)
+        raw = gemini_generate_content(
             system_prompt=_SYSTEM_PROMPT,
             user_prompt=prompt,
             model=settings.gemini_summary_model,
             temperature=0.3,
             request_label="daily_digest",
         ).strip()
+
+        # ```json ... ``` 코드블록 제거
+        clean = raw
+        if clean.startswith("```"):
+            parts = clean.split("```")
+            clean = parts[1] if len(parts) > 1 else clean
+            if clean.startswith("json"):
+                clean = clean[4:]
+        clean = clean.strip()
+
+        try:
+            parsed = json.loads(clean)
+            sections = {
+                "어제의_핵심": parsed.get("어제의_핵심", ""),
+                "주가_반응": parsed.get("주가_반응", ""),
+                "오늘_전망": parsed.get("오늘_전망", ""),
+            }
+            summary = " ".join(filter(None, sections.values()))
+        except json.JSONDecodeError:
+            logger.warning("[다이제스트] %s JSON 파싱 실패, 원문 사용", ticker)
+            summary = raw
+
     except Exception as exc:
         logger.error("[다이제스트] %s 요약 생성 실패: %s", ticker, exc)
-        summary = None
 
     return {
         "ticker": ticker,
         "articles_count": len(articles),
         "sentiment_overview": overview,
         "summary": summary,
+        "sections": sections,
+        "news_articles": [_serialize_article(a) for a in articles[:5]],
         "technical_indicators": resolved_technicals,
     }
 
