@@ -43,6 +43,17 @@ public class HealthController {
         return ResponseEntity.ok(new HealthResponse(overall, dbStatus, genaiStatus));
     }
 
+    @GetMapping("/health/migration-files")
+    public ResponseEntity<java.util.List<String>> migrationFiles() throws Exception {
+        var resolver = new org.springframework.core.io.support.PathMatchingResourcePatternResolver();
+        var resources = resolver.getResources("classpath:db/migration/V*.sql");
+        var names = java.util.Arrays.stream(resources)
+                .map(r -> r.getFilename())
+                .sorted()
+                .toList();
+        return ResponseEntity.ok(names);
+    }
+
     @GetMapping("/health/schema-debug")
     public ResponseEntity<Map<String, Object>> schemaDebug() {
         Map<String, Object> info = new java.util.LinkedHashMap<>();

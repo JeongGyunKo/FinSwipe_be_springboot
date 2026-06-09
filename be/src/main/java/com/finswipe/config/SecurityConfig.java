@@ -31,7 +31,7 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // 공개 엔드포인트
-                .requestMatchers("/", "/health", "/health/detail", "/health/schema-debug").permitAll()
+                .requestMatchers("/", "/health", "/health/detail", "/health/schema-debug", "/health/migration-files").permitAll()
                 .requestMatchers("/auth/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/news/latest", "/news/tickers", "/news/search",
                         "/news/genai/health").permitAll()
