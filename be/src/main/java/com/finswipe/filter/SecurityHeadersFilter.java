@@ -29,6 +29,13 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
             "connect-src 'self'; " +
             "img-src 'self' data:";
 
+    private static final String ADMIN_CSP =
+            "default-src 'none'; " +
+            "script-src 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; " +
+            "style-src 'unsafe-inline' https://cdn.tailwindcss.com; " +
+            "connect-src 'self' https://api.finswipe.co.kr; " +
+            "img-src 'self' data:";
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -44,6 +51,8 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
             response.setHeader("Content-Security-Policy", SWAGGER_CSP);
         } else if ("/preview.html".equals(path)) {
             response.setHeader("Content-Security-Policy", PREVIEW_CSP);
+        } else if ("/admin.html".equals(path)) {
+            response.setHeader("Content-Security-Policy", ADMIN_CSP);
         } else {
             response.setHeader("Content-Security-Policy", "default-src 'none'");
         }
