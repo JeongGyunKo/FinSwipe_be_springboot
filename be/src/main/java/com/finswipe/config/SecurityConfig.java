@@ -36,7 +36,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/news/latest", "/news/tickers", "/news/search",
                         "/news/tickers/*/sentiment-trend", "/news/genai/health").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                .requestMatchers("/preview.html").permitAll()
+                .requestMatchers("/preview.html", "/admin.html").permitAll()
                 // 어드민 (X-Admin-Key 별도 검증)
                 .requestMatchers("/news/collect", "/news/reanalyze", "/news/analyze/**",
                         "/news/diagnose", "/news/test", "/news/jobs/**").permitAll()

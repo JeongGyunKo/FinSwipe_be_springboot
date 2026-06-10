@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FinSwipe Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>[x-cloak]{display:none!important}</style>
+</head>
+<body class="bg-gray-50" x-data="app()" x-cloak>
+
+<!-- 로그인 -->
+<div x-show="!auth" class="min-h-screen flex items-center justify-center bg-gray-900">
+  <div class="bg-gray-800 rounded-2xl p-10 w-96 shadow-2xl">
+    <h1 class="text-white text-2xl font-bold mb-1">FinSwipe</h1>
+    <p class="text-gray-400 text-sm mb-8">Admin Dashboard</p>
+    <input x-model="key" type="password" placeholder="Admin Key"
+      class="w-full bg-gray-700 text-white rounded-lg px-4 py-3 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      @keyup.enter="login()" />
+    <button @click="login()"
+      class="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 font-semibold transition">로그인</button>
+    <p x-show="loginErr" class="text-red-400 text-sm mt-3 text-center" x-text="loginErr"></p>
+  </div>
+</div>
+
+<!-- 메인 -->
+<div x-show="auth" class="flex h-screen overflow-hidden">
+
+  <!-- 사이드바 -->
+  <aside class="w-56 bg-gray-900 text-white flex flex-col flex-shrink-0">
+    <div class="px-6 py-5 border-b border-gray-700">
+      <h1 class="text-base font-bold text-white">FinSwipe</h1>
+      <p class="text-xs text-gray-500 mt-0.5">Admin</p>
+    </div>
+    <nav class="flex-1 px-3 py-4 space-y-0.5">
+      <template x-for="m in menus" :key="m.id">
+        <button @click="tab = m.id; onTabChange(m.id)"
+          :class="tab === m.id ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'"
+          class="w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium transition flex items-center gap-2.5">
+          <span x-text="m.icon" class="text-base"></span>
+          <span x-text="m.label"></span>
+        </button>
+      </template>
+    </nav>
+    <div class="px-4 py-4 border-t border-gray-700">
+      <button @click="logout()" class="text-gray-600 hover:text-white text-xs transition">로그아웃</button>
+    </div>
+  </aside>
+
+  <!-- 콘텐츠 -->
+  <main class="flex-1 overflow-y-auto">
+
+    <!-- 대시보드 -->
+    <div x-show="tab === 'dashboard'" class="p-8">
+      <h2 class="text-xl font-bold text-gray-800 mb-6">대시보드</h2>
+      <!-- 시스템 상태 -->
+      <div class="grid grid-cols-4 gap-4 mb-5">
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+          <p class="text-xs text-gray-400 mb-2">API 상태</p>
+          <p :class="health?.status==='ok'?'text-green-500':'text-red-500'" class="text-xl font-bold" x-text="health?.status ?? '—'"></p>
+        </div>
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+          <p class="text-xs text-gray-400 mb-2">DB 상태</p>
+          <p :class="health?.db==='ok'?'text-green-500':'text-red-500'" class="text-xl font-bold" x-text="health?.db ?? '—'"></p>
+        </div>
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+          <p class="text-xs text-gray-400 mb-2">GenAI 상태</p>
+          <p :class="health?.genai==='ok'?'text-green-500':'text-yellow-500'" class="text-xl font-bold" x-text="health?.genai ?? '—'"></p>
+        </div>
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+          <p class="text-xs text-gray-400 mb-2">전체 기사</p>
+          <p class="text-xl font-bold text-gray-800" x-text="articleCount ?? '—'"></p>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-4 mb-6">
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+          <p class="text-xs text-gray-400 mb-2">전체 유저</p>
+          <p class="text-xl font-bold text-gray-800" x-text="users.length || 0"></p>
+        </div>
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+          <p class="text-xs text-gray-400 mb-2">레벨 설정 유저</p>
+          <p class="text-xl font-bold text-gray-800" x-text="users.filter(u=>u.level).length"></p>
+        </div>
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+          <p class="text-xs text-gray-400 mb-2">성향 설정 유저</p>
+          <p class="text-xl font-bold text-gray-800" x-text="users.filter(u=>u.tendency).length"></p>
+        </div>
+      </div>
+      <!-- 빠른 작업 -->
+      <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <h3 class="font-semibold text-gray-700 mb-4">빠른 작업</h3>
+        <div class="flex gap-3 flex-wrap">
+          <button @click="collect()" :disabled="collecting"
+            class="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition">
+            <span x-text="collecting ? '수집 중...' : '뉴스 수집'"></span>
+          </button>
+          <button @click="reanalyze(50)" :disabled="reanalyzing"
+            class="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition">
+            <span x-text="reanalyzing ? '처리 중...' : '미분석 재분석 (50건)'"></span>
+          </button>
+          <button @click="loadDashboard()"
+            class="bg-gray-500 hover:bg-gray-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition">상태 새로고침</button>
+        </div>
+        <div x-show="actionMsg" class="mt-3 bg-gray-50 rounded-lg px-4 py-2.5 text-xs text-gray-600 font-mono" x-text="actionMsg"></div>
+      </div>
+    </div>
+
+    <!-- 유저 관리 -->
+    <div x-show="tab === 'users'" class="p-8">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-xl font-bold text-gray-800">유저 관리</h2>
+        <div class="flex items-center gap-3">
+          <span class="text-sm text-gray-400" x-text="`총 ${users.length}명`"></span>
+          <button @click="loadUsers()" class="text-sm text-blue-600 hover:text-blue-800">새로고침</button>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-100">
+              <tr>
+                <th class="text-left px-5 py-3 text-gray-500 font-medium whitespace-nowrap">이메일</th>
+                <th class="text-left px-5 py-3 text-gray-500 font-medium whitespace-nowrap">이름</th>
+                <th class="text-center px-5 py-3 text-gray-500 font-medium">레벨</th>
+                <th class="text-left px-5 py-3 text-gray-500 font-medium whitespace-nowrap">성향</th>
+                <th class="text-left px-5 py-3 text-gray-500 font-medium">관심 티커</th>
+                <th class="text-left px-5 py-3 text-gray-500 font-medium">로그인</th>
+                <th class="text-center px-5 py-3 text-gray-500 font-medium">액션</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="u in users" :key="u.userId">
+                <tr class="border-b border-gray-50 hover:bg-gray-50 transition">
+                  <td class="px-5 py-3 text-gray-800 text-xs" x-text="u.email"></td>
+                  <td class="px-5 py-3 text-gray-600 text-xs" x-text="u.displayName || '—'"></td>
+                  <td class="px-5 py-3 text-center">
+                    <span x-show="u.level" :class="levelBadge(u.level)" class="px-2 py-0.5 rounded-full text-xs font-semibold" x-text="`Lv.${u.level}`"></span>
+                    <span x-show="!u.level" class="text-gray-300 text-xs">—</span>
+                  </td>
+                  <td class="px-5 py-3 text-gray-500 text-xs" x-text="u.tendency || '—'"></td>
+                  <td class="px-5 py-3">
+                    <div class="flex gap-1 flex-wrap">
+                      <template x-for="t in (u.tickers || [])" :key="t">
+                        <span class="bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-medium" x-text="t"></span>
+                      </template>
+                      <span x-show="!u.tickers?.length" class="text-gray-300 text-xs">—</span>
+                    </div>
+                  </td>
+                  <td class="px-5 py-3 text-gray-400 text-xs" x-text="u.authProvider"></td>
+                  <td class="px-5 py-3 text-center">
+                    <div class="flex gap-2 justify-center">
+                      <button @click="openEdit(u)" class="text-blue-600 hover:text-blue-800 text-xs font-medium">수정</button>
+                      <button @click="openDigest(u)" class="text-green-600 hover:text-green-800 text-xs font-medium">다이제스트</button>
+                      <button @click="confirmDelete(u)" class="text-red-500 hover:text-red-700 text-xs font-medium">삭제</button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <div x-show="users.length === 0" class="py-16 text-center text-gray-400 text-sm">유저 없음</div>
+      </div>
+    </div>
+
+    <!-- 뉴스 관리 -->
+    <div x-show="tab === 'news'" class="p-8">
+      <h2 class="text-xl font-bold text-gray-800 mb-6">뉴스 관리</h2>
+      <div class="grid grid-cols-2 gap-4 mb-6">
+        <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <h3 class="font-semibold text-gray-700 mb-1">뉴스 수집</h3>
+          <p class="text-xs text-gray-400 mb-4">외부 소스에서 최신 뉴스를 즉시 수집합니다</p>
+          <button @click="collect()" :disabled="collecting"
+            class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition">
+            <span x-text="collecting ? '수집 중...' : '수집 시작'"></span>
+          </button>
+        </div>
+        <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <h3 class="font-semibold text-gray-700 mb-1">미분석 재분석</h3>
+          <p class="text-xs text-gray-400 mb-3">분석 안 된 기사를 GenAI로 재분석합니다</p>
+          <div class="flex gap-2">
+            <input x-model.number="reanalyzeLimit" type="number" min="1" max="200"
+              class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-20 focus:outline-none focus:ring-2 focus:ring-purple-400" />
+            <button @click="reanalyze(reanalyzeLimit)" :disabled="reanalyzing"
+              class="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition">
+              <span x-text="reanalyzing ? '처리 중...' : '재분석 시작'"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div x-show="actionMsg" class="mb-4 bg-white rounded-lg px-4 py-3 text-xs text-gray-600 font-mono border border-gray-100" x-text="actionMsg"></div>
+      <!-- 최신 기사 -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-semibold text-gray-700">최신 기사 <span class="text-gray-400 text-xs font-normal" x-text="`${newsArticles.length}건`"></span></h3>
+          <button @click="loadNews()" class="text-sm text-blue-600 hover:text-blue-800">새로고침</button>
+        </div>
+        <div class="space-y-0 max-h-[500px] overflow-y-auto">
+          <template x-for="a in newsArticles" :key="a.id">
+            <div class="flex items-start gap-3 py-3 border-b border-gray-50 last:border-0">
+              <span :class="sentimentDot(a.sentimentLabel)" class="mt-1.5 w-2 h-2 rounded-full flex-shrink-0"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm text-gray-800 leading-snug" x-text="a.headlineKo || a.headline"></p>
+                <div class="flex gap-3 mt-1 flex-wrap">
+                  <span class="text-xs text-gray-400" x-text="a.publishedAt ? new Date(a.publishedAt).toLocaleString('ko') : ''"></span>
+                  <span class="text-xs text-gray-400" x-text="(a.tickers||[]).join(', ')"></span>
+                  <span class="text-xs" :class="a.sentimentLabel==='positive'?'text-green-500':a.sentimentLabel==='negative'?'text-red-500':'text-gray-400'" x-text="a.sentimentLabel || ''"></span>
+                </div>
+              </div>
+              <a :href="a.sourceUrl" target="_blank" class="text-xs text-blue-400 hover:text-blue-600 flex-shrink-0">원문↗</a>
+            </div>
+          </template>
+          <div x-show="newsArticles.length === 0" class="py-10 text-center text-gray-400 text-sm">기사 없음</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 작업 상태 -->
+    <div x-show="tab === 'jobs'" class="p-8">
+      <h2 class="text-xl font-bold text-gray-800 mb-6">작업 상태</h2>
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div class="flex gap-2 mb-5">
+          <input x-model="jobIdInput" type="text" placeholder="Job ID 입력"
+            class="border border-gray-200 rounded-lg px-4 py-2.5 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            @keyup.enter="checkJob()" />
+          <button @click="checkJob()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition">조회</button>
+        </div>
+        <div x-show="jobResult" class="bg-gray-50 rounded-xl p-5 text-xs font-mono text-gray-700 whitespace-pre-wrap overflow-x-auto" x-text="JSON.stringify(jobResult, null, 2)"></div>
+        <div x-show="!jobResult" class="py-12 text-center text-gray-400 text-sm">
+          <p>재분석 실행 시 반환된 Job ID를 입력하세요</p>
+          <p class="text-xs text-gray-300 mt-1">뉴스 관리 → 재분석 시작 → Job ID 자동 복사됨</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 감성 트렌드 -->
+    <div x-show="tab === 'trend'" class="p-8">
+      <h2 class="text-xl font-bold text-gray-800 mb-6">감성 트렌드</h2>
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div class="flex gap-3 mb-6">
+          <input x-model="trendTicker" type="text" placeholder="티커 입력 (예: AAPL)"
+            class="border border-gray-200 rounded-lg px-4 py-2.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-400 uppercase"
+            @input="trendTicker = $event.target.value.toUpperCase()"
+            @keyup.enter="loadTrend()" />
+          <button @click="loadTrend()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition">조회</button>
+        </div>
+        <div x-show="trendData">
+          <canvas id="trendChart"></canvas>
+        </div>
+        <div x-show="!trendData" class="py-16 text-center text-gray-400 text-sm">티커를 입력하고 조회하세요</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- 수정 모달 -->
+<div x-show="editModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50" @click="editModal = false">
+  <div class="bg-white rounded-2xl p-8 w-[440px] shadow-2xl" @click.stop>
+    <h3 class="font-bold text-gray-800 text-lg mb-1">유저 수정</h3>
+    <p class="text-xs text-gray-400 mb-6" x-text="editTarget?.email"></p>
+    <div class="space-y-4">
+      <div>
+        <label class="text-sm text-gray-600 font-medium block mb-1.5">레벨 (1 ~ 5)</label>
+        <input x-model.number="editTarget.level" type="number" min="1" max="5"
+          class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      </div>
+      <div>
+        <label class="text-sm text-gray-600 font-medium block mb-1.5">성향</label>
+        <select x-model="editTarget.tendency" class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <option value="">미설정</option>
+          <option>탐색형 투자자</option>
+          <option>가치투자형</option>
+          <option>모멘텀형</option>
+          <option>배당형</option>
+          <option>성장주형</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-sm text-gray-600 font-medium block mb-1.5">관심 티커 (쉼표 구분)</label>
+        <input :value="(editTarget.tickers||[]).join(',')"
+          @input="editTarget.tickers = $event.target.value.split(',').map(t=>t.trim().toUpperCase()).filter(Boolean)"
+          type="text" placeholder="AAPL, TSLA, NVDA"
+          class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      </div>
+    </div>
+    <div class="flex gap-3 mt-6">
+      <button @click="saveEdit()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2.5 text-sm font-semibold transition">저장</button>
+      <button @click="editModal = false" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg py-2.5 text-sm font-semibold transition">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 다이제스트 모달 -->
+<div x-show="digestModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50" @click="digestModal = false">
+  <div class="bg-white rounded-2xl p-8 w-[560px] max-h-[80vh] flex flex-col shadow-2xl" @click.stop>
+    <h3 class="font-bold text-gray-800 text-lg mb-1">유저 다이제스트</h3>
+    <p class="text-xs text-gray-400 mb-5" x-text="digestTarget?.email"></p>
+    <div class="flex-1 overflow-y-auto">
+      <div x-show="digestLoading" class="py-10 text-center text-gray-400 text-sm">로딩 중...</div>
+      <div x-show="digestResult && !digestLoading" class="bg-gray-50 rounded-xl p-4 text-xs font-mono text-gray-700 whitespace-pre-wrap overflow-x-auto" x-text="JSON.stringify(digestResult, null, 2)"></div>
+    </div>
+    <button @click="digestModal = false" class="mt-5 w-full bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg py-2.5 text-sm font-semibold transition">닫기</button>
+  </div>
+</div>
+
+<!-- 삭제 확인 모달 -->
+<div x-show="deleteModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50" @click="deleteModal = false">
+  <div class="bg-white rounded-2xl p-8 w-88 shadow-2xl text-center" @click.stop>
+    <p class="text-3xl mb-4">⚠️</p>
+    <h3 class="font-bold text-gray-800 text-lg mb-2">유저 삭제</h3>
+    <p class="text-gray-500 text-sm mb-1" x-text="deleteTarget?.email"></p>
+    <p class="text-gray-400 text-xs mb-6">퀴즈, 읽기 기록, 디바이스 토큰 포함 모두 삭제됩니다</p>
+    <div class="flex gap-3">
+      <button @click="doDelete()" class="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-lg py-2.5 text-sm font-semibold transition">삭제</button>
+      <button @click="deleteModal = false" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg py-2.5 text-sm font-semibold transition">취소</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'https://api.finswipe.co.kr';
+
+function app() {
+  return {
+    auth: false, key: '', loginErr: '', tab: 'dashboard',
+    menus: [
+      { id: 'dashboard', label: '대시보드',    icon: '◉' },
+      { id: 'users',     label: '유저 관리',   icon: '👤' },
+      { id: 'news',      label: '뉴스 관리',   icon: '📰' },
+      { id: 'jobs',      label: '작업 상태',   icon: '⚙️' },
+      { id: 'trend',     label: '감성 트렌드', icon: '📈' },
+    ],
+
+    health: null, articleCount: null,
+    collecting: false, reanalyzing: false, actionMsg: '',
+    reanalyzeLimit: 50,
+
+    users: [],
+    editModal: false, editTarget: {},
+    deleteModal: false, deleteTarget: null,
+    digestModal: false, digestTarget: null, digestResult: null, digestLoading: false,
+
+    newsArticles: [],
+    jobIdInput: '', jobResult: null,
+    trendTicker: 'AAPL', trendData: null, chart: null,
+
+    h(extra = {}) {
+      return { headers: { 'X-Admin-Key': this.key }, ...extra };
+    },
+
+    async login() {
+      this.loginErr = '';
+      try {
+        const r = await fetch(`${API}/admin/users`, this.h());
+        if (r.ok) {
+          this.users = await r.json();
+          this.auth = true;
+          sessionStorage.setItem('adminKey', this.key);
+          this.loadDashboard();
+        } else {
+          this.loginErr = r.status === 403 ? '잘못된 어드민 키입니다' : `오류 ${r.status}`;
+        }
+      } catch (e) { this.loginErr = '연결 실패: ' + e.message; }
+    },
+
+    logout() {
+      sessionStorage.removeItem('adminKey');
+      this.auth = false; this.key = '';
+    },
+
+    init() {
+      const saved = sessionStorage.getItem('adminKey');
+      if (saved) { this.key = saved; this.login(); }
+    },
+
+    onTabChange(id) {
+      if (id === 'users')     this.loadUsers();
+      if (id === 'news')      this.loadNews();
+      if (id === 'dashboard') this.loadDashboard();
+    },
+
+    async loadDashboard() {
+      const [h, t] = await Promise.allSettled([
+        fetch(`${API}/health/detail`).then(r => r.json()),
+        fetch(`${API}/news/test`, this.h()).then(r => r.json()),
+      ]);
+      this.health = h.status === 'fulfilled' ? h.value : null;
+      this.articleCount = t.status === 'fulfilled' ? t.value.article_count : '—';
+      if (!this.users.length) this.loadUsers();
+    },
+
+    async loadUsers() {
+      try {
+        const r = await fetch(`${API}/admin/users`, this.h());
+        if (r.ok) this.users = await r.json();
+      } catch {}
+    },
+
+    async loadNews() {
+      try {
+        const r = await fetch(`${API}/news/latest?limit=50`);
+        if (r.ok) { const d = await r.json(); this.newsArticles = d.data || []; }
+      } catch {}
+    },
+
+    async collect() {
+      this.collecting = true; this.actionMsg = '';
+      try {
+        const r = await fetch(`${API}/news/collect`, { ...this.h(), method: 'POST' });
+        const d = await r.json();
+        this.actionMsg = '수집 완료: ' + JSON.stringify(d);
+      } catch (e) { this.actionMsg = '수집 실패: ' + e.message; }
+      finally { this.collecting = false; }
+    },
+
+    async reanalyze(limit) {
+      this.reanalyzing = true; this.actionMsg = '';
+      try {
+        const r = await fetch(`${API}/news/reanalyze?limit=${limit}`, { ...this.h(), method: 'POST' });
+        const d = await r.json();
+        this.jobIdInput = d.job_id || '';
+        this.actionMsg = `재분석 시작됨 — Job ID: ${d.job_id}`;
+      } catch (e) { this.actionMsg = '재분석 실패: ' + e.message; }
+      finally { this.reanalyzing = false; }
+    },
+
+    async checkJob() {
+      if (!this.jobIdInput.trim()) return;
+      try {
+        const r = await fetch(`${API}/news/jobs/${this.jobIdInput.trim()}`, this.h());
+        this.jobResult = await r.json();
+      } catch (e) { this.jobResult = { error: e.message }; }
+    },
+
+    openEdit(u) {
+      this.editTarget = JSON.parse(JSON.stringify(u));
+      this.editModal = true;
+    },
+
+    async saveEdit() {
+      try {
+        const body = {};
+        if (this.editTarget.level !== undefined) body.level = this.editTarget.level || null;
+        if (this.editTarget.tendency !== undefined) body.tendency = this.editTarget.tendency;
+        if (this.editTarget.tickers !== undefined) body.tickers = this.editTarget.tickers;
+        const r = await fetch(`${API}/admin/users/${this.editTarget.userId}`, {
+          method: 'PATCH',
+          headers: { 'X-Admin-Key': this.key, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error(`${r.status}`);
+        this.editModal = false;
+        await this.loadUsers();
+      } catch (e) { alert('수정 실패: ' + e.message); }
+    },
+
+    async openDigest(u) {
+      this.digestTarget = u;
+      this.digestResult = null;
+      this.digestLoading = true;
+      this.digestModal = true;
+      try {
+        const r = await fetch(`${API}/admin/user-digest`, {
+          method: 'POST',
+          headers: { 'X-Admin-Key': this.key, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: u.userId }),
+        });
+        this.digestResult = await r.json();
+      } catch (e) { this.digestResult = { error: e.message }; }
+      finally { this.digestLoading = false; }
+    },
+
+    confirmDelete(u) { this.deleteTarget = u; this.deleteModal = true; },
+
+    async doDelete() {
+      try {
+        await fetch(`${API}/admin/users/${this.deleteTarget.userId}`, { ...this.h(), method: 'DELETE' });
+        this.deleteModal = false;
+        await this.loadUsers();
+      } catch (e) { alert('삭제 실패: ' + e.message); }
+    },
+
+    async loadTrend() {
+      if (!this.trendTicker) return;
+      try {
+        const r = await fetch(`${API}/news/tickers/${this.trendTicker}/sentiment-trend`);
+        const d = await r.json();
+        this.trendData = d.trend || [];
+        this.$nextTick(() => this.drawChart());
+      } catch {}
+    },
+
+    drawChart() {
+      const ctx = document.getElementById('trendChart');
+      if (!ctx) return;
+      if (this.chart) this.chart.destroy();
+      const labels = this.trendData.map(d => d.date);
+      this.chart = new Chart(ctx, {
+        data: {
+          labels,
+          datasets: [
+            { type: 'bar',  label: '긍정',     data: this.trendData.map(d => d.positive),   backgroundColor: '#22c55e99', stack: 's' },
+            { type: 'bar',  label: '부정',     data: this.trendData.map(d => d.negative),   backgroundColor: '#ef444499', stack: 's' },
+            { type: 'bar',  label: '중립',     data: this.trendData.map(d => d.neutral),    backgroundColor: '#94a3b899', stack: 's' },
+            { type: 'line', label: '평균 점수', data: this.trendData.map(d => d.avgScore),  borderColor: '#3b82f6', backgroundColor: 'transparent', yAxisID: 'y2', tension: 0.3, pointRadius: 4 },
+          ],
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y:  { stacked: true, title: { display: true, text: '기사 수' } },
+            y2: { position: 'right', title: { display: true, text: '평균 점수' }, grid: { drawOnChartArea: false } },
+          },
+        },
+      });
+    },
+
+    levelBadge(l) {
+      return ['','bg-gray-100 text-gray-600','bg-blue-100 text-blue-700','bg-green-100 text-green-700','bg-purple-100 text-purple-700','bg-yellow-100 text-yellow-700'][l] || 'bg-gray-100 text-gray-600';
+    },
+    sentimentDot(l) {
+      return l === 'positive' ? 'bg-green-500' : l === 'negative' ? 'bg-red-500' : 'bg-gray-300';
+    },
+  };
+}
+</script>
+</body>
+</html>
