@@ -435,7 +435,14 @@ function app() {
       } catch (e) { this.jobResult = { error: e.message }; }
     },
 
+    closeAllModals() {
+      this.editModal = false;
+      this.digestModal = false;
+      this.deleteModal = false;
+    },
+
     openEdit(u) {
+      this.closeAllModals();
       this.editTarget = JSON.parse(JSON.stringify(u));
       this.editModal = true;
     },
@@ -458,6 +465,7 @@ function app() {
     },
 
     async openDigest(u) {
+      this.closeAllModals();
       this.digestTarget = u;
       this.digestResult = null;
       this.digestLoading = true;
@@ -473,7 +481,7 @@ function app() {
       finally { this.digestLoading = false; }
     },
 
-    confirmDelete(u) { this.deleteTarget = u; this.deleteModal = true; },
+    confirmDelete(u) { this.closeAllModals(); this.deleteTarget = u; this.deleteModal = true; },
 
     async doDelete() {
       try {
