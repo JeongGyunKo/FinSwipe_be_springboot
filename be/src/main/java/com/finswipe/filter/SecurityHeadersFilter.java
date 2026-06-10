@@ -51,7 +51,7 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
             response.setHeader("Content-Security-Policy", SWAGGER_CSP);
         } else if ("/preview.html".equals(path)) {
             response.setHeader("Content-Security-Policy", PREVIEW_CSP);
-        } else if ("/admin.html".equals(path)) {
+        } else if ("/admin.html".equals(path) || "/digest.html".equals(path)) {
             response.setHeader("Content-Security-Policy", ADMIN_CSP);
         } else {
             response.setHeader("Content-Security-Policy", "default-src 'none'");
