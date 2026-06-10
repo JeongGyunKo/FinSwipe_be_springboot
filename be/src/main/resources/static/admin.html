@@ -7,153 +7,354 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-  <style>[x-cloak]{display:none!important}</style>
-</head>
-<body class="bg-gray-50" x-data="app()" x-cloak>
+  <style>
+    [x-cloak]{display:none!important}
 
-<!-- 로그인 -->
-<div x-show="!auth" class="min-h-screen flex items-center justify-center bg-gray-900">
-  <div class="bg-gray-800 rounded-2xl p-10 w-96 shadow-2xl">
-    <h1 class="text-white text-2xl font-bold mb-1">FinSwipe</h1>
-    <p class="text-gray-400 text-sm mb-8">Admin Dashboard</p>
-    <input x-model="key" type="password" placeholder="Admin Key"
-      class="w-full bg-gray-700 text-white rounded-lg px-4 py-3 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      @keyup.enter="login()" />
-    <button @click="login()"
-      class="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 font-semibold transition">로그인</button>
-    <p x-show="loginErr" class="text-red-400 text-sm mt-3 text-center" x-text="loginErr"></p>
+    /* 폰트 */
+    body { font-family: -apple-system, 'Apple SD Gothic Neo', 'Pretendard', sans-serif; }
+
+    /* 로그인 배경 블롭 애니메이션 */
+    @keyframes blob { 0%,100%{transform:scale(1) translate(0,0)} 50%{transform:scale(1.12) translate(24px,-18px)} }
+    .blob1 { position:absolute; width:560px; height:560px; border-radius:50%;
+             background:radial-gradient(circle, rgba(37,99,235,0.18), transparent 70%);
+             top:-140px; left:-140px; animation:blob 9s ease-in-out infinite; }
+    .blob2 { position:absolute; width:480px; height:480px; border-radius:50%;
+             background:radial-gradient(circle, rgba(124,58,237,0.14), transparent 70%);
+             bottom:-100px; right:-80px; animation:blob 12s ease-in-out infinite reverse; }
+
+    /* 글래스 카드 */
+    .glass {
+      background: rgba(255,255,255,0.07);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+    }
+    .input-glass {
+      background: rgba(255,255,255,0.09);
+      border: 1.5px solid rgba(255,255,255,0.13);
+      color: #fff;
+      border-radius: 14px;
+      padding: 13px 16px;
+      font-size: 14px;
+      width: 100%;
+      outline: none;
+      transition: border-color .2s, background .2s;
+    }
+    .input-glass::placeholder { color: rgba(255,255,255,0.32); }
+    .input-glass:focus { border-color: #3b82f6; background: rgba(255,255,255,0.14); }
+
+    /* 사이드바 */
+    .nav-item {
+      display:flex; align-items:center; gap:10px;
+      padding: 9px 14px; border-radius: 12px;
+      font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: all .18s; width:100%;
+      text-align:left; border:none;
+    }
+    .nav-item.inactive { color: rgba(255,255,255,0.45); background:transparent; }
+    .nav-item.inactive:hover { color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.06); }
+    .nav-item.active {
+      color: #fff;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      box-shadow: 0 4px 14px rgba(37,99,235,0.38);
+    }
+
+    /* 스탯 카드 상단 컬러 스트립 */
+    .stat-card { position:relative; overflow:hidden; }
+    .stat-card::after {
+      content:''; position:absolute; top:0; left:0; right:0; height:3px; border-radius:0;
+    }
+    .sc-green::after  { background: linear-gradient(90deg,#22c55e,#16a34a); }
+    .sc-blue::after   { background: linear-gradient(90deg,#3b82f6,#2563eb); }
+    .sc-purple::after { background: linear-gradient(90deg,#a855f7,#7c3aed); }
+    .sc-amber::after  { background: linear-gradient(90deg,#f59e0b,#d97706); }
+    .sc-red::after    { background: linear-gradient(90deg,#ef4444,#dc2626); }
+    .sc-slate::after  { background: linear-gradient(90deg,#94a3b8,#64748b); }
+
+    /* 카드 호버 */
+    .card-lift { transition: transform .18s, box-shadow .18s; }
+    .card-lift:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0,0,0,0.09); }
+
+    /* 버튼 그라디언트 */
+    .btn-blue {
+      background: linear-gradient(135deg,#3b82f6,#2563eb);
+      box-shadow: 0 2px 10px rgba(37,99,235,0.32);
+      color:#fff; border:none; font-weight:600; cursor:pointer;
+      transition: all .18s;
+    }
+    .btn-blue:hover { box-shadow: 0 4px 16px rgba(37,99,235,0.45); transform:translateY(-1px); }
+    .btn-blue:disabled { background:#e2e8f0; box-shadow:none; color:#94a3b8; transform:none; }
+
+    .btn-purple {
+      background: linear-gradient(135deg,#a855f7,#7c3aed);
+      box-shadow: 0 2px 10px rgba(124,58,237,0.28);
+      color:#fff; border:none; font-weight:600; cursor:pointer;
+      transition: all .18s;
+    }
+    .btn-purple:hover { box-shadow: 0 4px 16px rgba(124,58,237,0.4); transform:translateY(-1px); }
+    .btn-purple:disabled { background:#e2e8f0; box-shadow:none; color:#94a3b8; transform:none; }
+
+    /* 모달 배경 */
+    .modal-bg {
+      background: rgba(15,23,42,0.5);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+
+    /* 스크롤바 */
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:#e2e8f0; border-radius:4px; }
+
+    /* 테이블 행 호버 */
+    .trow:hover { background: #f0f7ff; }
+    .trow { transition: background .12s; }
+
+    /* 액션 버튼 */
+    .act-btn {
+      font-size:11px; font-weight:600; padding:5px 10px;
+      border-radius:8px; border:none; cursor:pointer; transition:all .15s;
+    }
+  </style>
+</head>
+<body class="bg-slate-50" x-data="app()" x-cloak>
+
+<!-- ══════════════════ 로그인 ══════════════════ -->
+<div x-show="!auth"
+     x-transition:leave="transition duration-150"
+     x-transition:leave-end="opacity-0"
+     class="fixed inset-0 flex items-center justify-center overflow-hidden"
+     style="background: linear-gradient(140deg, #0f172a 0%, #1e1b4b 55%, #0f172a 100%);">
+  <div class="blob1"></div>
+  <div class="blob2"></div>
+
+  <div class="glass border border-white/10 rounded-3xl relative z-10 shadow-2xl" style="width:380px;padding:44px 40px;">
+    <!-- 로고 -->
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+      <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 14px rgba(37,99,235,0.45);">
+        <span style="color:#fff;font-size:18px;font-weight:900;line-height:1;">↗</span>
+      </div>
+      <div>
+        <p style="color:#fff;font-size:18px;font-weight:800;line-height:1.2;letter-spacing:-.01em;">Fin<span style="color:#60a5fa;">Swipe</span></p>
+        <p style="color:rgba(255,255,255,0.35);font-size:11px;font-weight:500;letter-spacing:.08em;margin-top:1px;">ADMIN DASHBOARD</p>
+      </div>
+    </div>
+
+    <div style="height:1px;background:rgba(255,255,255,0.08);margin:24px 0;"></div>
+
+    <input x-model="key" type="password" class="input-glass" placeholder="Admin Key"
+           @keyup.enter="login()" style="margin-bottom:12px;" />
+    <button @click="login()" class="btn-blue" style="width:100%;padding:14px;border-radius:14px;font-size:14px;">
+      로그인
+    </button>
+    <p x-show="loginErr" class="text-red-400 text-sm mt-3 text-center font-medium" x-text="loginErr"></p>
   </div>
 </div>
 
-<!-- 메인 -->
+<!-- ══════════════════ 메인 레이아웃 ══════════════════ -->
 <div x-show="auth" class="flex h-screen overflow-hidden">
 
-  <!-- 사이드바 -->
-  <aside class="w-56 bg-gray-900 text-white flex flex-col flex-shrink-0">
-    <div class="px-6 py-5 border-b border-gray-700">
-      <h1 class="text-base font-bold text-white">FinSwipe</h1>
-      <p class="text-xs text-gray-500 mt-0.5">Admin</p>
+  <!-- ─── 사이드바 ─── -->
+  <aside class="flex flex-col flex-shrink-0" style="width:220px;background:#0f172a;">
+    <!-- 로고 -->
+    <div style="padding:22px 20px 18px;border-bottom:1px solid rgba(255,255,255,0.06);">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(37,99,235,0.4);">
+          <span style="color:#fff;font-size:14px;font-weight:900;">↗</span>
+        </div>
+        <div>
+          <p style="color:#fff;font-size:13px;font-weight:800;line-height:1.2;">FinSwipe</p>
+          <p style="color:rgba(255,255,255,0.28);font-size:9.5px;font-weight:600;letter-spacing:.08em;">ADMIN</p>
+        </div>
+      </div>
     </div>
-    <nav class="flex-1 px-3 py-4 space-y-0.5">
+
+    <!-- 메뉴 -->
+    <nav style="flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:2px;">
       <template x-for="m in menus" :key="m.id">
         <button @click="tab = m.id; onTabChange(m.id)"
-          :class="tab === m.id ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'"
-          class="w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium transition flex items-center gap-2.5">
-          <span x-text="m.icon" class="text-base"></span>
+          :class="tab === m.id ? 'nav-item active' : 'nav-item inactive'">
+          <span x-text="m.icon" style="width:18px;text-align:center;font-size:15px;"></span>
           <span x-text="m.label"></span>
         </button>
       </template>
     </nav>
-    <div class="px-4 py-4 border-t border-gray-700">
-      <button @click="logout()" class="text-gray-600 hover:text-white text-xs transition">로그아웃</button>
+
+    <!-- 하단 -->
+    <div style="padding:14px 12px;border-top:1px solid rgba(255,255,255,0.06);">
+      <button @click="logout()" class="nav-item inactive" style="width:100%;">
+        <span style="font-size:13px;">←</span>
+        <span>로그아웃</span>
+      </button>
     </div>
   </aside>
 
-  <!-- 콘텐츠 -->
-  <main class="flex-1 overflow-y-auto">
+  <!-- ─── 콘텐츠 영역 ─── -->
+  <main class="flex-1 overflow-y-auto" style="background:#f8fafc;">
 
-    <!-- 대시보드 -->
-    <div x-show="tab === 'dashboard'" class="p-8">
-      <h2 class="text-xl font-bold text-gray-800 mb-6">대시보드</h2>
-      <!-- 시스템 상태 -->
-      <div class="grid grid-cols-4 gap-4 mb-5">
-        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <p class="text-xs text-gray-400 mb-2">API 상태</p>
-          <p :class="health?.status==='ok'?'text-green-500':'text-red-500'" class="text-xl font-bold" x-text="health?.status ?? '—'"></p>
+    <!-- ▌ 대시보드 ▌ -->
+    <div x-show="tab === 'dashboard'" style="padding:36px 40px;max-width:960px;">
+      <div style="margin-bottom:32px;">
+        <h2 style="font-size:22px;font-weight:800;color:#0f172a;line-height:1.2;">대시보드</h2>
+        <p style="color:#94a3b8;font-size:13px;margin-top:4px;">시스템 상태 및 빠른 작업</p>
+      </div>
+
+      <!-- 상태 카드 4개 -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px;">
+        <div class="stat-card card-lift"
+             :class="health?.status==='ok'?'sc-green':'sc-red'"
+             style="background:#fff;border-radius:18px;padding:20px;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+          <div style="font-size:22px;margin-bottom:10px;">🔗</div>
+          <p style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">API 상태</p>
+          <p :class="health?.status==='ok'?'text-green-500':'text-red-500'" style="font-size:18px;font-weight:800;" x-text="health?.status ?? '—'"></p>
         </div>
-        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <p class="text-xs text-gray-400 mb-2">DB 상태</p>
-          <p :class="health?.db==='ok'?'text-green-500':'text-red-500'" class="text-xl font-bold" x-text="health?.db ?? '—'"></p>
+        <div class="stat-card card-lift"
+             :class="health?.db==='ok'?'sc-green':'sc-red'"
+             style="background:#fff;border-radius:18px;padding:20px;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+          <div style="font-size:22px;margin-bottom:10px;">🗄️</div>
+          <p style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">DB 상태</p>
+          <p :class="health?.db==='ok'?'text-green-500':'text-red-500'" style="font-size:18px;font-weight:800;" x-text="health?.db ?? '—'"></p>
         </div>
-        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <p class="text-xs text-gray-400 mb-2">GenAI 상태</p>
-          <p :class="health?.genai==='ok'?'text-green-500':'text-yellow-500'" class="text-xl font-bold" x-text="health?.genai ?? '—'"></p>
+        <div class="stat-card card-lift"
+             :class="health?.genai==='ok'?'sc-green':'sc-amber'"
+             style="background:#fff;border-radius:18px;padding:20px;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+          <div style="font-size:22px;margin-bottom:10px;">🤖</div>
+          <p style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">GenAI 상태</p>
+          <p :class="health?.genai==='ok'?'text-green-500':'text-amber-500'" style="font-size:18px;font-weight:800;" x-text="health?.genai ?? '—'"></p>
         </div>
-        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <p class="text-xs text-gray-400 mb-2">전체 기사</p>
-          <p class="text-xl font-bold text-gray-800" x-text="articleCount ?? '—'"></p>
+        <div class="stat-card sc-blue card-lift"
+             style="background:#fff;border-radius:18px;padding:20px;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+          <div style="font-size:22px;margin-bottom:10px;">📰</div>
+          <p style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">전체 기사</p>
+          <p style="font-size:18px;font-weight:800;color:#0f172a;" x-text="articleCount ?? '—'"></p>
         </div>
       </div>
-      <div class="grid grid-cols-3 gap-4 mb-6">
-        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <p class="text-xs text-gray-400 mb-2">전체 유저</p>
-          <p class="text-xl font-bold text-gray-800" x-text="users.length || 0"></p>
+
+      <!-- 유저 카드 3개 -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;">
+        <div class="stat-card sc-purple card-lift"
+             style="background:#fff;border-radius:18px;padding:20px;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+          <div style="font-size:22px;margin-bottom:10px;">👥</div>
+          <p style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">전체 유저</p>
+          <p style="font-size:18px;font-weight:800;color:#0f172a;" x-text="users.length || 0"></p>
         </div>
-        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <p class="text-xs text-gray-400 mb-2">레벨 설정 유저</p>
-          <p class="text-xl font-bold text-gray-800" x-text="users.filter(u=>u.level).length"></p>
+        <div class="stat-card sc-blue card-lift"
+             style="background:#fff;border-radius:18px;padding:20px;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+          <div style="font-size:22px;margin-bottom:10px;">📊</div>
+          <p style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">레벨 설정 유저</p>
+          <p style="font-size:18px;font-weight:800;color:#0f172a;" x-text="users.filter(u=>u.level).length"></p>
         </div>
-        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <p class="text-xs text-gray-400 mb-2">성향 설정 유저</p>
-          <p class="text-xl font-bold text-gray-800" x-text="users.filter(u=>u.tendency).length"></p>
+        <div class="stat-card sc-slate card-lift"
+             style="background:#fff;border-radius:18px;padding:20px;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+          <div style="font-size:22px;margin-bottom:10px;">🎯</div>
+          <p style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">성향 설정 유저</p>
+          <p style="font-size:18px;font-weight:800;color:#0f172a;" x-text="users.filter(u=>u.tendency).length"></p>
         </div>
       </div>
+
       <!-- 빠른 작업 -->
-      <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-        <h3 class="font-semibold text-gray-700 mb-4">빠른 작업</h3>
-        <div class="flex gap-3 flex-wrap">
-          <button @click="collect()" :disabled="collecting"
-            class="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition">
-            <span x-text="collecting ? '수집 중...' : '뉴스 수집'"></span>
+      <div style="background:#fff;border-radius:20px;padding:24px 26px;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+        <p style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:4px;">빠른 작업</p>
+        <p style="font-size:12px;color:#94a3b8;margin-bottom:18px;">서버 작업을 즉시 실행합니다</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button @click="collect()" :disabled="collecting" class="btn-blue"
+            style="padding:10px 20px;border-radius:12px;font-size:13px;">
+            <span x-text="collecting ? '⏳ 수집 중...' : '📥 뉴스 수집'"></span>
           </button>
-          <button @click="reanalyze(50)" :disabled="reanalyzing"
-            class="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition">
-            <span x-text="reanalyzing ? '처리 중...' : '미분석 재분석 (50건)'"></span>
+          <button @click="reanalyze(50)" :disabled="reanalyzing" class="btn-purple"
+            style="padding:10px 20px;border-radius:12px;font-size:13px;">
+            <span x-text="reanalyzing ? '⏳ 처리 중...' : '🔄 미분석 재분석 (50건)'"></span>
           </button>
           <button @click="loadDashboard()"
-            class="bg-gray-500 hover:bg-gray-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition">상태 새로고침</button>
+            style="padding:10px 20px;border-radius:12px;font-size:13px;font-weight:600;background:#f1f5f9;color:#475569;border:none;cursor:pointer;transition:background .15s;"
+            onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">
+            🔃 새로고침
+          </button>
         </div>
-        <div x-show="actionMsg" class="mt-3 bg-gray-50 rounded-lg px-4 py-2.5 text-xs text-gray-600 font-mono" x-text="actionMsg"></div>
+        <div x-show="actionMsg" x-transition
+             style="margin-top:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:11px 14px;font-size:11.5px;color:#64748b;font-family:monospace;"
+             x-text="actionMsg"></div>
       </div>
     </div>
 
-    <!-- 유저 관리 -->
-    <div x-show="tab === 'users'" class="p-8">
-      <div class="flex justify-between items-center mb-6">
-        <h2 class="text-xl font-bold text-gray-800">유저 관리</h2>
-        <div class="flex items-center gap-3">
-          <span class="text-sm text-gray-400" x-text="`총 ${users.length}명`"></span>
-          <button @click="loadUsers()" class="text-sm text-blue-600 hover:text-blue-800">새로고침</button>
+    <!-- ▌ 유저 관리 ▌ -->
+    <div x-show="tab === 'users'" style="padding:36px 40px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px;">
+        <div>
+          <h2 style="font-size:22px;font-weight:800;color:#0f172a;">유저 관리</h2>
+          <p style="color:#94a3b8;font-size:13px;margin-top:4px;" x-text="`총 ${users.length}명의 유저`"></p>
         </div>
+        <button @click="loadUsers()"
+          style="font-size:12px;font-weight:600;color:#2563eb;background:#eff6ff;border:none;border-radius:10px;padding:8px 16px;cursor:pointer;transition:background .15s;"
+          onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">
+          🔃 새로고침
+        </button>
       </div>
-      <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th class="text-left px-5 py-3 text-gray-500 font-medium whitespace-nowrap">이메일</th>
-                <th class="text-left px-5 py-3 text-gray-500 font-medium whitespace-nowrap">이름</th>
-                <th class="text-center px-5 py-3 text-gray-500 font-medium">레벨</th>
-                <th class="text-left px-5 py-3 text-gray-500 font-medium whitespace-nowrap">성향</th>
-                <th class="text-left px-5 py-3 text-gray-500 font-medium">관심 티커</th>
-                <th class="text-left px-5 py-3 text-gray-500 font-medium">로그인</th>
-                <th class="text-center px-5 py-3 text-gray-500 font-medium">액션</th>
+
+      <div style="background:#fff;border-radius:20px;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(0,0,0,0.05);overflow:hidden;">
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr style="background:#f8fafc;border-bottom:1px solid #f1f5f9;">
+                <th style="text-align:left;padding:14px 20px;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;">유저</th>
+                <th style="text-align:center;padding:14px 20px;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.07em;text-transform:uppercase;">레벨</th>
+                <th style="text-align:left;padding:14px 20px;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.07em;text-transform:uppercase;">성향</th>
+                <th style="text-align:left;padding:14px 20px;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.07em;text-transform:uppercase;">관심 티커</th>
+                <th style="text-align:left;padding:14px 20px;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.07em;text-transform:uppercase;">로그인</th>
+                <th style="text-align:center;padding:14px 20px;font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.07em;text-transform:uppercase;">액션</th>
               </tr>
             </thead>
             <tbody>
               <template x-for="u in users" :key="u.userId">
-                <tr class="border-b border-gray-50 hover:bg-gray-50 transition">
-                  <td class="px-5 py-3 text-gray-800 text-xs" x-text="u.email"></td>
-                  <td class="px-5 py-3 text-gray-600 text-xs" x-text="u.displayName || '—'"></td>
-                  <td class="px-5 py-3 text-center">
-                    <span x-show="u.level" :class="levelBadge(u.level)" class="px-2 py-0.5 rounded-full text-xs font-semibold" x-text="`Lv.${u.level}`"></span>
-                    <span x-show="!u.level" class="text-gray-300 text-xs">—</span>
-                  </td>
-                  <td class="px-5 py-3 text-gray-500 text-xs" x-text="u.tendency || '—'"></td>
-                  <td class="px-5 py-3">
-                    <div class="flex gap-1 flex-wrap">
-                      <template x-for="t in (u.tickers || [])" :key="t">
-                        <span class="bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-medium" x-text="t"></span>
-                      </template>
-                      <span x-show="!u.tickers?.length" class="text-gray-300 text-xs">—</span>
+                <tr class="trow" style="border-bottom:1px solid #f8fafc;">
+                  <!-- 유저 (아바타 + 이름) -->
+                  <td style="padding:14px 20px;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                      <div style="width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;flex-shrink:0;"
+                           :style="`background: linear-gradient(135deg, ${avatarColor(u.email)})`"
+                           x-text="(u.displayName || u.email || '?')[0].toUpperCase()"></div>
+                      <div>
+                        <p style="font-size:13px;font-weight:600;color:#1e293b;" x-text="u.displayName || u.email?.split('@')[0] || '—'"></p>
+                        <p style="font-size:11px;color:#94a3b8;margin-top:1px;" x-text="u.email"></p>
+                      </div>
                     </div>
                   </td>
-                  <td class="px-5 py-3 text-gray-400 text-xs" x-text="u.authProvider"></td>
-                  <td class="px-5 py-3 text-center">
-                    <div class="flex gap-2 justify-center">
-                      <button @click="openEdit(u)" class="text-blue-600 hover:text-blue-800 text-xs font-medium">수정</button>
-                      <button @click="openDigest(u)" class="text-green-600 hover:text-green-800 text-xs font-medium">다이제스트</button>
-                      <button @click="confirmDelete(u)" class="text-red-500 hover:text-red-700 text-xs font-medium">삭제</button>
+                  <!-- 레벨 -->
+                  <td style="padding:14px 20px;text-align:center;">
+                    <span x-show="u.level" :class="levelBadge(u.level)"
+                          style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;"
+                          x-text="`Lv.${u.level}`"></span>
+                    <span x-show="!u.level" style="color:#e2e8f0;font-size:12px;">—</span>
+                  </td>
+                  <!-- 성향 -->
+                  <td style="padding:14px 20px;">
+                    <span x-show="u.tendency"
+                          style="background:#f5f3ff;color:#7c3aed;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;"
+                          x-text="u.tendency"></span>
+                    <span x-show="!u.tendency" style="color:#e2e8f0;font-size:12px;">—</span>
+                  </td>
+                  <!-- 티커 -->
+                  <td style="padding:14px 20px;">
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                      <template x-for="t in (u.tickers || [])" :key="t">
+                        <span style="background:#eff6ff;color:#2563eb;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;" x-text="t"></span>
+                      </template>
+                      <span x-show="!u.tickers?.length" style="color:#e2e8f0;font-size:12px;">—</span>
+                    </div>
+                  </td>
+                  <!-- 로그인 방식 -->
+                  <td style="padding:14px 20px;color:#94a3b8;font-size:12px;" x-text="u.authProvider || '—'"></td>
+                  <!-- 액션 버튼 -->
+                  <td style="padding:14px 20px;">
+                    <div style="display:flex;gap:5px;justify-content:center;">
+                      <button @click="openEdit(u)" class="act-btn"
+                        style="background:#eff6ff;color:#2563eb;"
+                        onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">수정</button>
+                      <button @click="openDigest(u)" class="act-btn"
+                        style="background:#f0fdf4;color:#16a34a;"
+                        onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">다이제스트</button>
+                      <button @click="confirmDelete(u)" class="act-btn"
+                        style="background:#fef2f2;color:#ef4444;"
+                        onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#fef2f2'">삭제</button>
                     </div>
                   </td>
                 </tr>
@@ -161,115 +362,173 @@
             </tbody>
           </table>
         </div>
-        <div x-show="users.length === 0" class="py-16 text-center text-gray-400 text-sm">유저 없음</div>
+        <div x-show="users.length === 0"
+             style="padding:60px;text-align:center;color:#94a3b8;font-size:13px;">
+          유저 없음
+        </div>
       </div>
     </div>
 
-    <!-- 뉴스 관리 -->
-    <div x-show="tab === 'news'" class="p-8">
-      <h2 class="text-xl font-bold text-gray-800 mb-6">뉴스 관리</h2>
-      <div class="grid grid-cols-2 gap-4 mb-6">
-        <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <h3 class="font-semibold text-gray-700 mb-1">뉴스 수집</h3>
-          <p class="text-xs text-gray-400 mb-4">외부 소스에서 최신 뉴스를 즉시 수집합니다</p>
-          <button @click="collect()" :disabled="collecting"
-            class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition">
-            <span x-text="collecting ? '수집 중...' : '수집 시작'"></span>
+    <!-- ▌ 뉴스 관리 ▌ -->
+    <div x-show="tab === 'news'" style="padding:36px 40px;max-width:960px;">
+      <div style="margin-bottom:28px;">
+        <h2 style="font-size:22px;font-weight:800;color:#0f172a;">뉴스 관리</h2>
+        <p style="color:#94a3b8;font-size:13px;margin-top:4px;">뉴스 수집 및 분석 작업을 관리합니다</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <!-- 수집 카드 -->
+        <div style="background:#fff;border-radius:20px;padding:24px;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+          <div style="font-size:26px;margin-bottom:12px;">📥</div>
+          <p style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:4px;">뉴스 수집</p>
+          <p style="font-size:12px;color:#94a3b8;margin-bottom:20px;">외부 소스에서 최신 뉴스를 즉시 수집합니다</p>
+          <button @click="collect()" :disabled="collecting" class="btn-blue"
+            style="width:100%;padding:11px;border-radius:12px;font-size:13px;">
+            <span x-text="collecting ? '⏳ 수집 중...' : '수집 시작'"></span>
           </button>
         </div>
-        <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <h3 class="font-semibold text-gray-700 mb-1">미분석 재분석</h3>
-          <p class="text-xs text-gray-400 mb-3">분석 안 된 기사를 GenAI로 재분석합니다</p>
-          <div class="flex gap-2">
+        <!-- 재분석 카드 -->
+        <div style="background:#fff;border-radius:20px;padding:24px;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+          <div style="font-size:26px;margin-bottom:12px;">🔄</div>
+          <p style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:4px;">미분석 재분석</p>
+          <p style="font-size:12px;color:#94a3b8;margin-bottom:16px;">분석 안 된 기사를 GenAI로 재분석합니다</p>
+          <div style="display:flex;gap:8px;">
             <input x-model.number="reanalyzeLimit" type="number" min="1" max="200"
-              class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-20 focus:outline-none focus:ring-2 focus:ring-purple-400" />
-            <button @click="reanalyze(reanalyzeLimit)" :disabled="reanalyzing"
-              class="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition">
-              <span x-text="reanalyzing ? '처리 중...' : '재분석 시작'"></span>
+              style="width:68px;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-size:13px;color:#1e293b;outline:none;"
+              onfocus="this.style.borderColor='#a855f7'" onblur="this.style.borderColor='#e2e8f0'" />
+            <button @click="reanalyze(reanalyzeLimit)" :disabled="reanalyzing" class="btn-purple"
+              style="flex:1;padding:10px;border-radius:12px;font-size:13px;">
+              <span x-text="reanalyzing ? '⏳ 처리 중...' : '재분석 시작'"></span>
             </button>
           </div>
         </div>
       </div>
-      <div x-show="actionMsg" class="mb-4 bg-white rounded-lg px-4 py-3 text-xs text-gray-600 font-mono border border-gray-100" x-text="actionMsg"></div>
+
+      <div x-show="actionMsg" x-transition
+           style="margin-bottom:14px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:12px 16px;font-size:11.5px;color:#64748b;font-family:monospace;"
+           x-text="actionMsg"></div>
+
       <!-- 최신 기사 -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="font-semibold text-gray-700">최신 기사 <span class="text-gray-400 text-xs font-normal" x-text="`${newsArticles.length}건`"></span></h3>
-          <button @click="loadNews()" class="text-sm text-blue-600 hover:text-blue-800">새로고침</button>
+      <div style="background:#fff;border-radius:20px;padding:24px;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+          <div>
+            <p style="font-size:14px;font-weight:700;color:#1e293b;">최신 기사</p>
+            <p style="font-size:12px;color:#94a3b8;margin-top:2px;" x-text="`${newsArticles.length}건`"></p>
+          </div>
+          <button @click="loadNews()"
+            style="font-size:12px;font-weight:600;color:#2563eb;background:#eff6ff;border:none;border-radius:10px;padding:7px 14px;cursor:pointer;transition:background .15s;"
+            onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">새로고침</button>
         </div>
-        <div class="space-y-0 max-h-[500px] overflow-y-auto">
+        <div style="max-height:520px;overflow-y:auto;">
           <template x-for="a in newsArticles" :key="a.id">
-            <div class="flex items-start gap-3 py-3 border-b border-gray-50 last:border-0">
-              <span :class="sentimentDot(a.sentimentLabel)" class="mt-1.5 w-2 h-2 rounded-full flex-shrink-0"></span>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm text-gray-800 leading-snug" x-text="a.headlineKo || a.headline"></p>
-                <div class="flex gap-3 mt-1 flex-wrap">
-                  <span class="text-xs text-gray-400" x-text="a.publishedAt ? new Date(a.publishedAt).toLocaleString('ko') : ''"></span>
-                  <span class="text-xs text-gray-400" x-text="(a.tickers||[]).join(', ')"></span>
-                  <span class="text-xs" :class="a.sentimentLabel==='positive'?'text-green-500':a.sentimentLabel==='negative'?'text-red-500':'text-gray-400'" x-text="a.sentimentLabel || ''"></span>
+            <div style="display:flex;align-items:flex-start;gap:12px;padding:13px 0;border-bottom:1px solid #f8fafc;">
+              <div :style="`background:${a.sentimentLabel==='positive'?'#f0fdf4':a.sentimentLabel==='negative'?'#fef2f2':'#f1f5f9'};color:${a.sentimentLabel==='positive'?'#16a34a':a.sentimentLabel==='negative'?'#ef4444':'#94a3b8'};`"
+                   style="width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px;">
+                <span x-text="a.sentimentLabel==='positive'?'↑':a.sentimentLabel==='negative'?'↓':'–'"></span>
+              </div>
+              <div style="flex:1;min-width:0;">
+                <p style="font-size:13px;font-weight:500;color:#334155;line-height:1.45;" x-text="a.headlineKo || a.headline"></p>
+                <div style="display:flex;gap:12px;margin-top:5px;flex-wrap:wrap;align-items:center;">
+                  <span style="font-size:11px;color:#94a3b8;" x-text="a.publishedAt ? new Date(a.publishedAt).toLocaleString('ko') : ''"></span>
+                  <span x-show="(a.tickers||[]).length" style="font-size:11px;font-weight:700;color:#3b82f6;" x-text="(a.tickers||[]).join(' · ')"></span>
                 </div>
               </div>
-              <a :href="a.sourceUrl" target="_blank" class="text-xs text-blue-400 hover:text-blue-600 flex-shrink-0">원문↗</a>
+              <a :href="a.sourceUrl" target="_blank"
+                 style="font-size:11px;font-weight:600;color:#3b82f6;background:#eff6ff;padding:4px 10px;border-radius:8px;flex-shrink:0;text-decoration:none;transition:background .15s;"
+                 onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">원문↗</a>
             </div>
           </template>
-          <div x-show="newsArticles.length === 0" class="py-10 text-center text-gray-400 text-sm">기사 없음</div>
+          <div x-show="newsArticles.length === 0" style="padding:40px;text-align:center;color:#94a3b8;font-size:13px;">기사 없음</div>
         </div>
       </div>
     </div>
 
-    <!-- 작업 상태 -->
-    <div x-show="tab === 'jobs'" class="p-8">
-      <h2 class="text-xl font-bold text-gray-800 mb-6">작업 상태</h2>
-      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div class="flex gap-2 mb-5">
+    <!-- ▌ 작업 상태 ▌ -->
+    <div x-show="tab === 'jobs'" style="padding:36px 40px;max-width:720px;">
+      <div style="margin-bottom:28px;">
+        <h2 style="font-size:22px;font-weight:800;color:#0f172a;">작업 상태</h2>
+        <p style="color:#94a3b8;font-size:13px;margin-top:4px;">Job ID로 재분석 작업 진행 상태를 확인합니다</p>
+      </div>
+      <div style="background:#fff;border-radius:20px;padding:24px;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+        <div style="display:flex;gap:8px;margin-bottom:20px;">
           <input x-model="jobIdInput" type="text" placeholder="Job ID 입력"
-            class="border border-gray-200 rounded-lg px-4 py-2.5 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            style="flex:1;border:1.5px solid #e2e8f0;border-radius:12px;padding:11px 16px;font-size:13px;color:#1e293b;outline:none;"
+            onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'"
             @keyup.enter="checkJob()" />
-          <button @click="checkJob()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition">조회</button>
+          <button @click="checkJob()" class="btn-blue" style="padding:11px 20px;border-radius:12px;font-size:13px;">조회</button>
         </div>
-        <div x-show="jobResult" class="bg-gray-50 rounded-xl p-5 text-xs font-mono text-gray-700 whitespace-pre-wrap overflow-x-auto" x-text="JSON.stringify(jobResult, null, 2)"></div>
-        <div x-show="!jobResult" class="py-12 text-center text-gray-400 text-sm">
-          <p>재분석 실행 시 반환된 Job ID를 입력하세요</p>
-          <p class="text-xs text-gray-300 mt-1">뉴스 관리 → 재분석 시작 → Job ID 자동 복사됨</p>
+        <div x-show="jobResult" x-transition
+             style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:18px;font-size:11.5px;font-family:monospace;color:#475569;white-space:pre-wrap;overflow-x:auto;line-height:1.7;"
+             x-text="JSON.stringify(jobResult, null, 2)"></div>
+        <div x-show="!jobResult" style="padding:50px;text-align:center;">
+          <div style="font-size:36px;margin-bottom:10px;">⚙️</div>
+          <p style="color:#94a3b8;font-size:13px;">재분석 실행 시 반환된 Job ID를 입력하세요</p>
+          <p style="color:#cbd5e1;font-size:11px;margin-top:5px;">뉴스 관리 → 재분석 시작 → Job ID 자동 복사됨</p>
         </div>
       </div>
     </div>
 
-    <!-- 감성 트렌드 -->
-    <div x-show="tab === 'trend'" class="p-8">
-      <h2 class="text-xl font-bold text-gray-800 mb-6">감성 트렌드</h2>
-      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div class="flex gap-3 mb-6">
+    <!-- ▌ 감성 트렌드 ▌ -->
+    <div x-show="tab === 'trend'" style="padding:36px 40px;max-width:960px;">
+      <div style="margin-bottom:28px;">
+        <h2 style="font-size:22px;font-weight:800;color:#0f172a;">감성 트렌드</h2>
+        <p style="color:#94a3b8;font-size:13px;margin-top:4px;">티커별 감성 분석 추이를 시각화합니다</p>
+      </div>
+      <div style="background:#fff;border-radius:20px;padding:24px;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+        <div style="display:flex;gap:8px;margin-bottom:24px;">
           <input x-model="trendTicker" type="text" placeholder="티커 입력 (예: AAPL)"
-            class="border border-gray-200 rounded-lg px-4 py-2.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-400 uppercase"
+            style="width:180px;border:1.5px solid #e2e8f0;border-radius:12px;padding:11px 16px;font-size:13px;font-weight:700;color:#1e293b;outline:none;text-transform:uppercase;letter-spacing:.04em;"
+            onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'"
             @input="trendTicker = $event.target.value.toUpperCase()"
             @keyup.enter="loadTrend()" />
-          <button @click="loadTrend()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition">조회</button>
+          <button @click="loadTrend()" class="btn-blue" style="padding:11px 20px;border-radius:12px;font-size:13px;">조회</button>
         </div>
-        <div x-show="trendData">
+        <div x-show="trendData" x-transition>
           <canvas id="trendChart"></canvas>
         </div>
-        <div x-show="!trendData" class="py-16 text-center text-gray-400 text-sm">티커를 입력하고 조회하세요</div>
+        <div x-show="!trendData" style="padding:60px;text-align:center;">
+          <div style="font-size:44px;margin-bottom:12px;">📈</div>
+          <p style="color:#94a3b8;font-size:13px;">티커를 입력하고 조회하세요</p>
+        </div>
       </div>
     </div>
 
   </main>
 </div>
 
-<!-- 수정 모달 -->
-<div x-show="editModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50" @click="editModal = false">
-  <div class="bg-white rounded-2xl p-8 w-[440px] shadow-2xl" @click.stop>
-    <h3 class="font-bold text-gray-800 text-lg mb-1">유저 수정</h3>
-    <p class="text-xs text-gray-400 mb-6" x-text="editTarget?.email"></p>
-    <div class="space-y-4">
+<!-- ══════════════════ 수정 모달 ══════════════════ -->
+<div x-show="editModal"
+     class="modal-bg"
+     style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:50;"
+     x-transition:enter="transition ease-out duration-200"
+     x-transition:enter-start="opacity-0"
+     x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-150"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0"
+     @click="editModal = false">
+  <div style="background:#fff;border-radius:24px;padding:32px;width:440px;box-shadow:0 24px 64px rgba(0,0,0,0.15);"
+       x-transition:enter="transition ease-out duration-200"
+       x-transition:enter-start="opacity-0 scale-95"
+       x-transition:enter-end="opacity-100 scale-100"
+       x-transition:leave="transition ease-in duration-150"
+       x-transition:leave-start="opacity-100 scale-100"
+       x-transition:leave-end="opacity-0 scale-95"
+       @click.stop>
+    <p style="font-size:17px;font-weight:800;color:#0f172a;margin-bottom:4px;">유저 수정</p>
+    <p style="font-size:12px;color:#94a3b8;margin-bottom:24px;" x-text="editTarget?.email"></p>
+
+    <div style="display:flex;flex-direction:column;gap:16px;">
       <div>
-        <label class="text-sm text-gray-600 font-medium block mb-1.5">레벨 (1 ~ 5)</label>
+        <label style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.07em;text-transform:uppercase;display:block;margin-bottom:7px;">레벨 (1 ~ 5)</label>
         <input x-model.number="editTarget.level" type="number" min="1" max="5"
-          class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          style="width:100%;border:1.5px solid #e2e8f0;border-radius:12px;padding:12px 16px;font-size:14px;color:#1e293b;outline:none;"
+          onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'" />
       </div>
       <div>
-        <label class="text-sm text-gray-600 font-medium block mb-1.5">성향</label>
-        <select x-model="editTarget.tendency" class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+        <label style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.07em;text-transform:uppercase;display:block;margin-bottom:7px;">성향</label>
+        <select x-model="editTarget.tendency"
+          style="width:100%;border:1.5px solid #e2e8f0;border-radius:12px;padding:12px 16px;font-size:14px;color:#1e293b;outline:none;appearance:auto;">
           <option value="">미설정</option>
           <option>탐색형 투자자</option>
           <option>가치투자형</option>
@@ -279,30 +538,54 @@
         </select>
       </div>
       <div>
-        <label class="text-sm text-gray-600 font-medium block mb-1.5">관심 티커 (쉼표 구분)</label>
+        <label style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.07em;text-transform:uppercase;display:block;margin-bottom:7px;">관심 티커 (쉼표 구분)</label>
         <input :value="(editTarget.tickers||[]).join(',')"
           @input="editTarget.tickers = $event.target.value.split(',').map(t=>t.trim().toUpperCase()).filter(Boolean)"
           type="text" placeholder="AAPL, TSLA, NVDA"
-          class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          style="width:100%;border:1.5px solid #e2e8f0;border-radius:12px;padding:12px 16px;font-size:14px;color:#1e293b;outline:none;text-transform:uppercase;"
+          onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'" />
       </div>
     </div>
-    <div class="flex gap-3 mt-6">
-      <button @click="saveEdit()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2.5 text-sm font-semibold transition">저장</button>
-      <button @click="editModal = false" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg py-2.5 text-sm font-semibold transition">취소</button>
+
+    <div style="display:flex;gap:10px;margin-top:24px;">
+      <button @click="saveEdit()" class="btn-blue" style="flex:1;padding:13px;border-radius:13px;font-size:14px;">저장</button>
+      <button @click="editModal = false"
+        style="flex:1;padding:13px;border-radius:13px;font-size:14px;font-weight:600;background:#f1f5f9;color:#475569;border:none;cursor:pointer;transition:background .15s;"
+        onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">취소</button>
     </div>
   </div>
 </div>
 
-<!-- 삭제 확인 모달 -->
-<div x-show="deleteModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50" @click="deleteModal = false">
-  <div class="bg-white rounded-2xl p-8 w-88 shadow-2xl text-center" @click.stop>
-    <p class="text-3xl mb-4">⚠️</p>
-    <h3 class="font-bold text-gray-800 text-lg mb-2">유저 삭제</h3>
-    <p class="text-gray-500 text-sm mb-1" x-text="deleteTarget?.email"></p>
-    <p class="text-gray-400 text-xs mb-6">퀴즈, 읽기 기록, 디바이스 토큰 포함 모두 삭제됩니다</p>
-    <div class="flex gap-3">
-      <button @click="doDelete()" class="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-lg py-2.5 text-sm font-semibold transition">삭제</button>
-      <button @click="deleteModal = false" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg py-2.5 text-sm font-semibold transition">취소</button>
+<!-- ══════════════════ 삭제 모달 ══════════════════ -->
+<div x-show="deleteModal"
+     class="modal-bg"
+     style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:50;"
+     x-transition:enter="transition ease-out duration-200"
+     x-transition:enter-start="opacity-0"
+     x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-150"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0"
+     @click="deleteModal = false">
+  <div style="background:#fff;border-radius:24px;padding:36px;width:360px;box-shadow:0 24px 64px rgba(0,0,0,0.15);text-align:center;"
+       x-transition:enter="transition ease-out duration-200"
+       x-transition:enter-start="opacity-0 scale-95"
+       x-transition:enter-end="opacity-100 scale-100"
+       x-transition:leave="transition ease-in duration-150"
+       x-transition:leave-start="opacity-100 scale-100"
+       x-transition:leave-end="opacity-0 scale-95"
+       @click.stop>
+    <div style="width:64px;height:64px;background:#fef2f2;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 20px;">⚠️</div>
+    <p style="font-size:17px;font-weight:800;color:#0f172a;margin-bottom:6px;">유저 삭제</p>
+    <p style="font-size:13px;font-weight:600;color:#64748b;margin-bottom:4px;" x-text="deleteTarget?.email"></p>
+    <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin-bottom:28px;">퀴즈, 읽기 기록, 디바이스 토큰 포함<br>모든 데이터가 영구 삭제됩니다</p>
+    <div style="display:flex;gap:10px;">
+      <button @click="doDelete()"
+        style="flex:1;padding:13px;border-radius:13px;font-size:14px;font-weight:700;background:#ef4444;color:#fff;border:none;cursor:pointer;box-shadow:0 2px 8px rgba(239,68,68,0.3);transition:all .15s;"
+        onmouseover="this.style.background='#dc2626'" onmouseout="this.style.background='#ef4444'">삭제</button>
+      <button @click="deleteModal = false"
+        style="flex:1;padding:13px;border-radius:13px;font-size:14px;font-weight:600;background:#f1f5f9;color:#475569;border:none;cursor:pointer;transition:background .15s;"
+        onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">취소</button>
     </div>
   </div>
 </div>
@@ -485,20 +768,32 @@ function app() {
         data: {
           labels,
           datasets: [
-            { type: 'bar',  label: '긍정',     data: this.trendData.map(d => d.positive),   backgroundColor: '#22c55e99', stack: 's' },
-            { type: 'bar',  label: '부정',     data: this.trendData.map(d => d.negative),   backgroundColor: '#ef444499', stack: 's' },
-            { type: 'bar',  label: '중립',     data: this.trendData.map(d => d.neutral),    backgroundColor: '#94a3b899', stack: 's' },
-            { type: 'line', label: '평균 점수', data: this.trendData.map(d => d.avgScore),  borderColor: '#3b82f6', backgroundColor: 'transparent', yAxisID: 'y2', tension: 0.3, pointRadius: 4 },
+            { type: 'bar',  label: '긍정',     data: this.trendData.map(d => d.positive),  backgroundColor: '#22c55e99', stack: 's' },
+            { type: 'bar',  label: '부정',     data: this.trendData.map(d => d.negative),  backgroundColor: '#ef444499', stack: 's' },
+            { type: 'bar',  label: '중립',     data: this.trendData.map(d => d.neutral),   backgroundColor: '#94a3b899', stack: 's' },
+            { type: 'line', label: '평균 점수', data: this.trendData.map(d => d.avgScore), borderColor: '#3b82f6', backgroundColor: 'transparent', yAxisID: 'y2', tension: 0.35, pointRadius: 4, pointBackgroundColor: '#fff', pointBorderWidth: 2 },
           ],
         },
         options: {
           responsive: true,
+          plugins: { legend: { labels: { font: { size: 12 } } } },
           scales: {
-            y:  { stacked: true, title: { display: true, text: '기사 수' } },
-            y2: { position: 'right', title: { display: true, text: '평균 점수' }, grid: { drawOnChartArea: false } },
+            y:  { stacked: true, title: { display: true, text: '기사 수', font: { size: 11 } } },
+            y2: { position: 'right', title: { display: true, text: '평균 점수', font: { size: 11 } }, grid: { drawOnChartArea: false } },
           },
         },
       });
+    },
+
+    avatarColor(email) {
+      const palettes = [
+        '#2563eb, #7c3aed', '#16a34a, #059669', '#dc2626, #b91c1c',
+        '#d97706, #b45309', '#0891b2, #0284c7', '#be185d, #9d174d',
+        '#15803d, #166534', '#7c3aed, #4f46e5', '#ca8a04, #a16207',
+      ];
+      let h = 0;
+      for (const c of (email || '')) h = (h << 5) - h + c.charCodeAt(0);
+      return palettes[Math.abs(h) % palettes.length];
     },
 
     sentimentPct(overview, key) {
@@ -508,8 +803,13 @@ function app() {
     },
 
     levelBadge(l) {
-      return ['','bg-gray-100 text-gray-600','bg-blue-100 text-blue-700','bg-green-100 text-green-700','bg-purple-100 text-purple-700','bg-yellow-100 text-yellow-700'][l] || 'bg-gray-100 text-gray-600';
+      return [
+        '', 'bg-gray-100 text-gray-600', 'bg-blue-100 text-blue-700',
+        'bg-green-100 text-green-700', 'bg-purple-100 text-purple-700',
+        'bg-yellow-100 text-yellow-800',
+      ][l] || 'bg-gray-100 text-gray-600';
     },
+
     sentimentDot(l) {
       return l === 'positive' ? 'bg-green-500' : l === 'negative' ? 'bg-red-500' : 'bg-gray-300';
     },
