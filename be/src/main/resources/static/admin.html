@@ -293,108 +293,6 @@
   </div>
 </div>
 
-<!-- 다이제스트 모달 -->
-<div x-show="digestModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" @click="digestModal = false">
-  <div class="bg-gray-50 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl" @click.stop>
-    <!-- 헤더 -->
-    <div class="bg-white rounded-t-2xl px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-      <div>
-        <h3 class="font-bold text-gray-800">다이제스트</h3>
-        <p class="text-xs text-gray-400 mt-0.5" x-text="digestTarget?.email"></p>
-      </div>
-      <div x-show="digestResult && !digestLoading" class="flex items-center gap-3">
-        <span class="bg-blue-50 text-blue-700 text-xs px-2.5 py-1 rounded-full font-medium" x-text="`Lv.${digestResult?.user_level ?? '?'}`"></span>
-        <span class="bg-purple-50 text-purple-700 text-xs px-2.5 py-1 rounded-full font-medium" x-text="digestResult?.user_tendency ?? ''"></span>
-      </div>
-    </div>
-
-    <!-- 바디 -->
-    <div class="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-
-      <!-- 로딩 -->
-      <div x-show="digestLoading" class="py-16 text-center">
-        <div class="text-2xl mb-2">⏳</div>
-        <p class="text-gray-400 text-sm">GenAI 분석 중...</p>
-      </div>
-
-      <!-- 에러 -->
-      <div x-show="digestResult?.error && !digestLoading" class="py-10 text-center">
-        <div class="text-2xl mb-2">⚠️</div>
-        <p class="text-red-400 text-sm" x-text="digestResult?.error"></p>
-      </div>
-
-      <!-- 티커별 카드 -->
-      <template x-if="digestResult?.digests && !digestLoading">
-        <div class="space-y-3">
-          <template x-for="d in digestResult.digests" :key="d.ticker">
-            <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-              <!-- 티커 + 가격 -->
-              <div class="flex items-start justify-between mb-3">
-                <div>
-                  <span class="text-lg font-bold text-gray-900" x-text="d.ticker"></span>
-                  <span class="ml-2 text-xs text-gray-400" x-text="`기사 ${d.articles_count}건`"></span>
-                </div>
-                <div x-show="d.technical_indicators" class="text-right">
-                  <p class="text-base font-bold text-gray-800" x-text="d.technical_indicators?.current_price ? `$${d.technical_indicators.current_price.toLocaleString()}` : ''"></p>
-                  <p :class="(d.technical_indicators?.change_pct_1d ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'" class="text-xs font-medium"
-                     x-text="d.technical_indicators?.change_pct_1d != null ? `${d.technical_indicators.change_pct_1d >= 0 ? '+' : ''}${d.technical_indicators.change_pct_1d}%` : ''"></p>
-                </div>
-              </div>
-
-              <!-- 감성 바 -->
-              <div x-show="d.sentiment_overview" class="mb-3">
-                <div class="flex gap-1 h-2 rounded-full overflow-hidden mb-1.5">
-                  <div class="bg-green-400 transition-all" :style="`width:${sentimentPct(d.sentiment_overview, 'positive')}%`"></div>
-                  <div class="bg-gray-200 transition-all" :style="`width:${sentimentPct(d.sentiment_overview, 'neutral')}%`"></div>
-                  <div class="bg-red-400 transition-all" :style="`width:${sentimentPct(d.sentiment_overview, 'negative')}%`"></div>
-                </div>
-                <div class="flex gap-3 text-xs text-gray-500">
-                  <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-400 inline-block"></span> 긍정 <b class="text-gray-700" x-text="d.sentiment_overview?.positive ?? 0"></b></span>
-                  <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-300 inline-block"></span> 중립 <b class="text-gray-700" x-text="d.sentiment_overview?.neutral ?? 0"></b></span>
-                  <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-400 inline-block"></span> 부정 <b class="text-gray-700" x-text="d.sentiment_overview?.negative ?? 0"></b></span>
-                </div>
-              </div>
-
-              <!-- 보조지표 -->
-              <div x-show="d.technical_indicators" class="flex gap-2 mb-3 flex-wrap">
-                <div class="bg-gray-50 rounded-lg px-3 py-2 text-center flex-1 min-w-16">
-                  <p class="text-xs text-gray-400 mb-0.5">RSI</p>
-                  <p class="text-sm font-bold text-gray-800" x-text="d.technical_indicators?.RSI?.toFixed(1) ?? '—'"></p>
-                  <p class="text-xs text-gray-400" x-text="d.technical_indicators?.RSI_signal ?? ''"></p>
-                </div>
-                <div class="bg-gray-50 rounded-lg px-3 py-2 text-center flex-1 min-w-16">
-                  <p class="text-xs text-gray-400 mb-0.5">MACD</p>
-                  <p class="text-sm font-bold" :class="(d.technical_indicators?.MACD?.histogram ?? 0) >= 0 ? 'text-green-600' : 'text-red-500'"
-                     x-text="d.technical_indicators?.MACD?.trend ?? '—'"></p>
-                </div>
-                <div class="bg-gray-50 rounded-lg px-3 py-2 text-center flex-1 min-w-16">
-                  <p class="text-xs text-gray-400 mb-0.5">1개월</p>
-                  <p class="text-sm font-bold" :class="(d.technical_indicators?.change_pct_1m ?? 0) >= 0 ? 'text-green-600' : 'text-red-500'"
-                     x-text="d.technical_indicators?.change_pct_1m != null ? `${d.technical_indicators.change_pct_1m >= 0 ? '+' : ''}${d.technical_indicators.change_pct_1m}%` : '—'"></p>
-                </div>
-                <div class="bg-gray-50 rounded-lg px-3 py-2 text-center flex-1 min-w-16">
-                  <p class="text-xs text-gray-400 mb-0.5">거래량</p>
-                  <p class="text-sm font-bold text-gray-800" x-text="d.technical_indicators?.volume_ratio != null ? `${d.technical_indicators.volume_ratio}x` : '—'"></p>
-                </div>
-              </div>
-
-              <!-- 요약 -->
-              <p class="text-sm text-gray-700 leading-relaxed bg-blue-50 rounded-lg px-4 py-3" x-text="d.summary"></p>
-            </div>
-          </template>
-
-          <!-- 생성 시각 -->
-          <p class="text-center text-xs text-gray-300 pb-2" x-text="digestResult?.generated_at ? `생성: ${new Date(digestResult.generated_at).toLocaleString('ko')}` : ''"></p>
-        </div>
-      </template>
-    </div>
-
-    <div class="px-4 pb-4">
-      <button @click="digestModal = false" class="w-full bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 rounded-xl py-3 text-sm font-semibold transition">닫기</button>
-    </div>
-  </div>
-</div>
-
 <!-- 삭제 확인 모달 -->
 <div x-show="deleteModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50" @click="deleteModal = false">
   <div class="bg-white rounded-2xl p-8 w-88 shadow-2xl text-center" @click.stop>
@@ -430,7 +328,7 @@ function app() {
     users: [],
     editModal: false, editTarget: {},
     deleteModal: false, deleteTarget: null,
-    digestModal: false, digestTarget: null, digestResult: null, digestLoading: false,
+    digestModal: false,
 
     newsArticles: [],
     jobIdInput: '', jobResult: null,
@@ -553,21 +451,9 @@ function app() {
       } catch (e) { alert('수정 실패: ' + e.message); }
     },
 
-    async openDigest(u) {
-      this.closeAllModals();
-      this.digestTarget = u;
-      this.digestResult = null;
-      this.digestLoading = true;
-      this.digestModal = true;
-      try {
-        const r = await fetch(`${API}/admin/user-digest`, {
-          method: 'POST',
-          headers: { 'X-Admin-Key': this.key, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: u.userId }),
-        });
-        this.digestResult = await r.json();
-      } catch (e) { this.digestResult = { error: e.message }; }
-      finally { this.digestLoading = false; }
+    openDigest(u) {
+      const url = `/digest.html?adminKey=${encodeURIComponent(this.key)}&userId=${encodeURIComponent(u.userId)}`;
+      window.open(url, '_blank');
     },
 
     confirmDelete(u) { this.closeAllModals(); this.deleteTarget = u; this.deleteModal = true; },
