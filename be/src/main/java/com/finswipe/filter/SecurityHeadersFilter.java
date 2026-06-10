@@ -31,7 +31,7 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
 
     private static final String ADMIN_CSP =
             "default-src 'none'; " +
-            "script-src 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; " +
+            "script-src 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; " +
             "style-src 'unsafe-inline' https://cdn.tailwindcss.com; " +
             "connect-src 'self' https://api.finswipe.co.kr; " +
             "img-src 'self' data:";
