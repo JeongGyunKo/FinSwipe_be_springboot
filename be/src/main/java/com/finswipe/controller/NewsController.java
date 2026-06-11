@@ -17,6 +17,7 @@ import com.finswipe.job.JobInfo;
 import com.finswipe.job.JobTrackingService;
 import com.finswipe.service.AnalyzerService;
 import com.finswipe.service.NewsCollectorService;
+import com.finswipe.service.TechnicalsService;
 import com.finswipe.service.TickerService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -33,9 +34,12 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.MessageDigest;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Tag(name = "News", description = "뉴스 피드 조회 · 검색 · 읽음 처리 · 푸시 토큰")
 @RestController
@@ -48,6 +52,7 @@ public class NewsController {
     private final TickerService tickerService;
     private final AnalyzerService analyzerService;
     private final NewsCollectorService collectorService;
+    private final TechnicalsService technicalsService;
     private final JobTrackingService jobTracking;
     private final AppProperties props;
     private final JdbcTemplate jdbc;
@@ -141,11 +146,17 @@ public class NewsController {
             List<NewsArticle> readArticles = readFuture.join();
             List<String> userTickers = tickersFuture.join();
 
+            List<NewsArticle> allArticles = new java.util.ArrayList<>(page.getContent());
+            allArticles.addAll(readArticles);
+            Map<String, NewsArticleResponse.IndicatorSnapshot> indicatorMap = buildIndicatorMap(allArticles);
+
             List<NewsArticleResponse> data = new java.util.ArrayList<>();
             page.getContent().forEach(a ->
-                    data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false)));
+                    data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false,
+                            indicatorMap.get(repTicker(a)))));
             readArticles.forEach(a ->
-                    data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), true)));
+                    data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), true,
+                            indicatorMap.get(repTicker(a)))));
             return ResponseEntity.ok(new NewsListResponse(page.getTotalElements(), offset, data, userTickers));
         }
 
@@ -154,8 +165,10 @@ public class NewsController {
         Page<NewsArticle> page = "power".equals(sort)
                 ? (since != null ? newsRepo.findTodayOrderByPowerDesc(since, pageReq) : newsRepo.findByXaiKoIsNotNullOrderByPowerDesc(pageReq))
                 : (since != null ? newsRepo.findTodayOrderByPublishedAtDesc(since, pageReq) : newsRepo.findByXaiKoIsNotNullOrderByPublishedAtDesc(pageReq));
+        Map<String, NewsArticleResponse.IndicatorSnapshot> indicatorMap = buildIndicatorMap(page.getContent());
         List<NewsArticleResponse> data = page.getContent().stream()
-                .map(a -> new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers())))
+                .map(a -> new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false,
+                        indicatorMap.get(repTicker(a))))
                 .toList();
         return ResponseEntity.ok(new NewsListResponse(page.getTotalElements(), offset, data));
     }
@@ -528,6 +541,29 @@ public class NewsController {
     }
 
     // ===================== 내부 유틸 =====================
+
+    private String repTicker(NewsArticle a) {
+        List<String> t = a.getTickers();
+        return (t != null && !t.isEmpty()) ? t.get(0) : null;
+    }
+
+    private Map<String, NewsArticleResponse.IndicatorSnapshot> buildIndicatorMap(List<NewsArticle> articles) {
+        Set<String> tickers = articles.stream()
+                .map(this::repTicker)
+                .filter(t -> t != null)
+                .collect(Collectors.toSet());
+
+        Map<String, NewsArticleResponse.IndicatorSnapshot> map = new HashMap<>();
+        for (String ticker : tickers) {
+            try {
+                NewsArticleResponse.IndicatorSnapshot snap = technicalsService.getRsiSnapshot(ticker);
+                if (snap != null) map.put(ticker, snap);
+            } catch (Exception e) {
+                log.warn("[지표] {} 스냅샷 조회 실패: {}", ticker, e.getMessage());
+            }
+        }
+        return map;
+    }
 
     private List<String> getUserTickers(String userId) {
         try {
