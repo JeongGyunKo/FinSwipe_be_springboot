@@ -59,7 +59,7 @@ public class NewsController {
 
     // ===================== Public Endpoints =====================
 
-    @Operation(summary = "뉴스 피드", description = "분석 완료된 기사 목록. sort=time(시간순,기본값) | sort=power(감성강도순). JWT 있으면 읽은 기사 제외 + 관심 티커 필터 적용.")
+    @Operation(summary = "뉴스 피드", description = "분석 완료된 기사 목록. sort=time(시간순,기본값) | sort=power(감성강도순). JWT 있으면 읽은 기사 제외 + 관심 티커 필터 적용. indicator는 대표 티커의 RSI 지표 — null이면 게이지 없이 렌더.")
     @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
             {
               "total": 1200,
@@ -76,7 +76,13 @@ public class NewsController {
                   "tickers": ["AAPL"],
                   "imageUrl": "https://...",
                   "publishedAt": "2026-06-04T10:00:00Z",
-                  "is_read": false
+                  "is_read": false,
+                  "indicator": {
+                    "type": "RSI",
+                    "value": 42.5,
+                    "label": "중립",
+                    "caption": "RSI 42.5 — 안정적인 구간이에요."
+                  }
                 }
               ],
               "userTickers": ["AAPL", "TSLA"]
