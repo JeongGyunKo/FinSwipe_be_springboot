@@ -473,12 +473,20 @@ public class NewsController {
             jobTracking.startJob(jobId);
             try {
                 int total = 0;
-                int analyzed;
-                do {
-                    analyzed = collectorService.reanalyzeUnanalyzed(batchSize);
+                int retries = 0;
+                while (retries < 20) {
+                    int analyzed = collectorService.reanalyzeUnanalyzed(batchSize);
+                    if (analyzed == 0) {
+                        retries++;
+                        log.info("[인사이트 재분석] 분석기 대기 중 ({}/20)...", retries);
+                        Thread.sleep(30_000);
+                        continue;
+                    }
+                    retries = 0;
                     total += analyzed;
                     log.info("[인사이트 재분석] 배치 완료 {}건 (누적 {}건)", analyzed, total);
-                } while (analyzed >= batchSize);
+                    if (analyzed < batchSize) break;
+                }
                 jobTracking.finishJob(jobId, Map.of("reset", reset, "analyzed", total));
             } catch (Exception e) {
                 log.error("[인사이트 재분석] 오류", e);
