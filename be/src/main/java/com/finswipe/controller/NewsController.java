@@ -459,8 +459,8 @@ public class NewsController {
                 UPDATE news_articles
                 SET summary_3lines_ko = NULL,
                     retry_count       = 0
-                WHERE sentiment_label IS NOT NULL
-                  AND sentiment_label != '_clean_filtered'
+                WHERE content IS NOT NULL
+                  AND (sentiment_label IS NULL OR sentiment_label != '_clean_filtered')
                 """);
 
         String jobId = jobTracking.createJob("reset-insights");
