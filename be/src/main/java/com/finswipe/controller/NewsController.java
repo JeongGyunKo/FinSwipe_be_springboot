@@ -448,6 +448,46 @@ public class NewsController {
         return ResponseEntity.ok(result);
     }
 
+    /** POST /news/reset-insights — summary_3lines_ko 초기화 후 전체 재분석 트리거 (비동기) */
+    @PostMapping("/reset-insights")
+    public ResponseEntity<Map<String, Object>> resetAndReanalyzeInsights(
+            @RequestHeader("X-Admin-Key") String adminKey,
+            @RequestParam(defaultValue = "200") @Min(1) @Max(2000) int batchSize) {
+        requireAdmin(adminKey);
+
+        int reset = jdbc.update("""
+                UPDATE news_articles
+                SET summary_3lines_ko = NULL,
+                    retry_count       = 0
+                WHERE sentiment_label IS NOT NULL
+                  AND sentiment_label != '_clean_filtered'
+                  AND summary_3lines_ko IS NOT NULL
+                """);
+
+        String jobId = jobTracking.createJob("reset-insights");
+        Thread.ofVirtual().start(() -> {
+            jobTracking.startJob(jobId);
+            try {
+                int total = 0;
+                int analyzed;
+                do {
+                    analyzed = collectorService.reanalyzeUnanalyzed(batchSize);
+                    total += analyzed;
+                    log.info("[인사이트 재분석] 배치 완료 {}건 (누적 {}건)", analyzed, total);
+                } while (analyzed >= batchSize);
+                jobTracking.finishJob(jobId, Map.of("reset", reset, "analyzed", total));
+            } catch (Exception e) {
+                log.error("[인사이트 재분석] 오류", e);
+                jobTracking.failJob(jobId, "재분석 중 오류: " + e.getMessage());
+            }
+        });
+
+        return ResponseEntity.accepted().body(Map.of(
+                "job_id", jobId,
+                "reset_count", reset,
+                "status", "started"));
+    }
+
     /** POST /news/reanalyze — 미분석 기사 재분석 (비동기) */
     @PostMapping("/reanalyze")
     public ResponseEntity<Map<String, String>> triggerReanalyze(
