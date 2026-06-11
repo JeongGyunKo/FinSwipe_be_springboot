@@ -38,8 +38,8 @@ public class SecurityConfig {
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers("/preview.html", "/admin.html", "/digest.html").permitAll()
                 // 어드민 (X-Admin-Key 별도 검증)
-                .requestMatchers("/news/collect", "/news/reanalyze", "/news/analyze/**",
-                        "/news/diagnose", "/news/test", "/news/jobs/**").permitAll()
+                .requestMatchers("/news/collect", "/news/reanalyze", "/news/reset-insights",
+                        "/news/analyze/**", "/news/diagnose", "/news/test", "/news/jobs/**").permitAll()
                 .requestMatchers("/admin/**").permitAll()
                 // 인증 필요
                 .requestMatchers("/user/**").authenticated()
