@@ -461,7 +461,6 @@ public class NewsController {
                     retry_count       = 0
                 WHERE sentiment_label IS NOT NULL
                   AND sentiment_label != '_clean_filtered'
-                  AND summary_3lines_ko IS NOT NULL
                 """);
 
         String jobId = jobTracking.createJob("reset-insights");
