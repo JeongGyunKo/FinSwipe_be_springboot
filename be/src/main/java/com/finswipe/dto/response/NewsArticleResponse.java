@@ -37,12 +37,19 @@ public class NewsArticleResponse {
     private final Double noveltyScore;
     @JsonProperty("is_read")
     private final boolean isRead;
+    private final IndicatorSnapshot indicator;
+
+    public record IndicatorSnapshot(String type, Double value, String label, String caption) {}
 
     public NewsArticleResponse(NewsArticle article, List<Map<String, String>> tickerNames) {
-        this(article, tickerNames, false);
+        this(article, tickerNames, false, null);
     }
 
     public NewsArticleResponse(NewsArticle article, List<Map<String, String>> tickerNames, boolean isRead) {
+        this(article, tickerNames, isRead, null);
+    }
+
+    public NewsArticleResponse(NewsArticle article, List<Map<String, String>> tickerNames, boolean isRead, IndicatorSnapshot indicator) {
         this.id = article.getId();
         this.headline = article.getHeadline();
         this.summary3lines = article.getSummary3lines();
@@ -65,5 +72,6 @@ public class NewsArticleResponse {
         this.sentimentDivergence = article.getSentimentDivergence();
         this.noveltyScore = article.getNoveltyScore();
         this.isRead = isRead;
+        this.indicator = indicator;
     }
 }

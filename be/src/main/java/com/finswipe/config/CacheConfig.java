@@ -16,6 +16,7 @@ public class CacheConfig {
     public static final String CACHE_NEWS_LATEST = "newsLatest";
     public static final String CACHE_NEWS_SEARCH = "newsSearch";
     public static final String CACHE_TICKERS = "tickers";
+    public static final String CACHE_TECHNICALS = "technicals";
 
     private final AppProperties props;
 
@@ -39,6 +40,12 @@ public class CacheConfig {
         manager.registerCustomCache(CACHE_TICKERS, Caffeine.newBuilder()
                 .expireAfterWrite(props.getCache().getTickersTtlSeconds(), TimeUnit.SECONDS)
                 .maximumSize(10)
+                .build());
+
+        // 기술적 지표: 1시간 TTL, 티커당 1회 GenAI 호출
+        manager.registerCustomCache(CACHE_TECHNICALS, Caffeine.newBuilder()
+                .expireAfterWrite(3600, TimeUnit.SECONDS)
+                .maximumSize(500)
                 .build());
 
         return manager;
