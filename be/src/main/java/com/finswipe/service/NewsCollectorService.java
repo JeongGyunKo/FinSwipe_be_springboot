@@ -675,6 +675,15 @@ public class NewsCollectorService {
         return ran ? unanalyzed.size() : 0;
     }
 
+    /** 티커 필터 없이 전체 미분석 기사 재분석 — 인사이트 전체 재생성 등 배치용 */
+    public int reanalyzeAll(int limit) {
+        List<NewsArticle> unanalyzed = newsRepo.findUnanalyzedAll(limit);
+        if (unanalyzed.isEmpty()) return 0;
+        log.info("[전체 재분석] 미분석 기사 {}개 발견 → 분석 시작", unanalyzed.size());
+        boolean ran = analyzeAndUpdate(unanalyzed, true);
+        return ran ? unanalyzed.size() : 0;
+    }
+
     /**
      * 사용자가 새 티커를 추가했을 때 최근 7일치 미분석 기사를 소급 분석.
      * UserProfileService 등에서 티커 업데이트 후 호출.

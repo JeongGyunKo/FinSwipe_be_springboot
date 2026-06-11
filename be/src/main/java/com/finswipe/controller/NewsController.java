@@ -470,7 +470,7 @@ public class NewsController {
                 int total = 0;
                 int analyzed;
                 do {
-                    analyzed = collectorService.reanalyzeUnanalyzed(batchSize);
+                    analyzed = collectorService.reanalyzeAll(batchSize);
                     total += analyzed;
                     log.info("[인사이트 재분석] 배치 완료 {}건 (누적 {}건)", analyzed, total);
                 } while (analyzed >= batchSize);

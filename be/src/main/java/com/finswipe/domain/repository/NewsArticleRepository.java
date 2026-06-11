@@ -234,6 +234,23 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             """, nativeQuery = true)
     List<NewsArticle> findUnanalyzed(@Param("limit") int limit);
 
+    // 티커 필터 없이 전체 미분석 기사 (인사이트 전체 재생성 등 배치용)
+    @Query(value = """
+            SELECT * FROM news_articles
+            WHERE content IS NOT NULL
+              AND (sentiment_label IS NULL OR sentiment_label != '_clean_filtered')
+              AND retry_count < 3
+              AND (
+                sentiment_label IS NULL
+                OR headline_ko IS NULL    OR headline_ko    !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+                OR summary_3lines_ko IS NULL OR summary_3lines_ko::text !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+                OR sentiment_reason IS NULL
+              )
+            ORDER BY published_at DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<NewsArticle> findUnanalyzedAll(@Param("limit") int limit);
+
     // 특정 티커 미분석 기사
     @Query(value = """
             SELECT * FROM news_articles
