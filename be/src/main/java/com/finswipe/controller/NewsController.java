@@ -461,6 +461,11 @@ public class NewsController {
                     retry_count       = 0
                 WHERE content IS NOT NULL
                   AND (sentiment_label IS NULL OR sentiment_label != '_clean_filtered')
+                  AND tickers && (
+                    SELECT array_agg(DISTINCT t)
+                    FROM user_profiles, unnest(tickers) AS t
+                    WHERE tickers IS NOT NULL AND array_length(tickers, 1) > 0
+                  )
                 """);
 
         String jobId = jobTracking.createJob("reset-insights");
@@ -470,7 +475,7 @@ public class NewsController {
                 int total = 0;
                 int analyzed;
                 do {
-                    analyzed = collectorService.reanalyzeAll(batchSize);
+                    analyzed = collectorService.reanalyzeUnanalyzed(batchSize);
                     total += analyzed;
                     log.info("[인사이트 재분석] 배치 완료 {}건 (누적 {}건)", analyzed, total);
                 } while (analyzed >= batchSize);
