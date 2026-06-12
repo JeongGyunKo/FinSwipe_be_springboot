@@ -154,7 +154,7 @@ public class NewsController {
 
             List<NewsArticle> allArticles = new java.util.ArrayList<>(page.getContent());
             allArticles.addAll(readArticles);
-            Map<String, NewsArticleResponse.IndicatorSnapshot> indicatorMap = buildIndicatorMap(allArticles);
+            Map<String, List<NewsArticleResponse.IndicatorSnapshot>> indicatorMap = buildIndicatorMap(allArticles);
 
             List<NewsArticleResponse> data = new java.util.ArrayList<>();
             page.getContent().forEach(a ->
@@ -171,7 +171,7 @@ public class NewsController {
         Page<NewsArticle> page = "power".equals(sort)
                 ? (since != null ? newsRepo.findTodayOrderByPowerDesc(since, pageReq) : newsRepo.findByXaiKoIsNotNullOrderByPowerDesc(pageReq))
                 : (since != null ? newsRepo.findTodayOrderByPublishedAtDesc(since, pageReq) : newsRepo.findByXaiKoIsNotNullOrderByPublishedAtDesc(pageReq));
-        Map<String, NewsArticleResponse.IndicatorSnapshot> indicatorMap = buildIndicatorMap(page.getContent());
+        Map<String, List<NewsArticleResponse.IndicatorSnapshot>> indicatorMap = buildIndicatorMap(page.getContent());
         List<NewsArticleResponse> data = page.getContent().stream()
                 .map(a -> new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false,
                         indicatorMap.get(repTicker(a))))
@@ -605,17 +605,17 @@ public class NewsController {
         return (t != null && !t.isEmpty()) ? t.get(0) : null;
     }
 
-    private Map<String, NewsArticleResponse.IndicatorSnapshot> buildIndicatorMap(List<NewsArticle> articles) {
+    private Map<String, List<NewsArticleResponse.IndicatorSnapshot>> buildIndicatorMap(List<NewsArticle> articles) {
         Set<String> tickers = articles.stream()
                 .map(this::repTicker)
                 .filter(t -> t != null)
                 .collect(Collectors.toSet());
 
-        Map<String, NewsArticleResponse.IndicatorSnapshot> map = new HashMap<>();
+        Map<String, List<NewsArticleResponse.IndicatorSnapshot>> map = new HashMap<>();
         for (String ticker : tickers) {
             try {
-                NewsArticleResponse.IndicatorSnapshot snap = technicalsService.getRsiSnapshot(ticker);
-                if (snap != null) map.put(ticker, snap);
+                List<NewsArticleResponse.IndicatorSnapshot> snaps = technicalsService.getIndicators(ticker);
+                if (snaps != null && !snaps.isEmpty()) map.put(ticker, snaps);
             } catch (Exception e) {
                 log.warn("[지표] {} 스냅샷 조회 실패: {}", ticker, e.getMessage());
             }

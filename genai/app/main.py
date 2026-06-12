@@ -11,6 +11,7 @@ from app.api.routes.ingestion import router as ingestion_router
 from app.api.routes.agent import router as agent_router
 from app.api.routes.quiz import router as quiz_router
 from app.api.routes.technicals import router as technicals_router
+from app.api.routes.chat import router as chat_router
 from app.api.routes.web import router as web_router
 from app.core import get_settings
 from app.core.auth import (
@@ -92,4 +93,5 @@ app.include_router(enrichment_router, prefix="/api/v1")
 app.include_router(quiz_router, prefix="/api/v1")
 app.include_router(agent_router, prefix="/api/v1")
 app.include_router(technicals_router, prefix="/api/v1")
+app.include_router(chat_router, prefix="/api/v1")
 app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")

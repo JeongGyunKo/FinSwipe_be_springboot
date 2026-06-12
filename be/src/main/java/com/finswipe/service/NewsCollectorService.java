@@ -48,6 +48,7 @@ public class NewsCollectorService {
     private final NewsArticleRepository newsRepo;
     private final AnalyzerService analyzerService;
     private final NotificationService notificationService;
+    private final ChatService chatService;
     private final ObjectMapper objectMapper;
     private final AppProperties props;
     private final org.springframework.jdbc.core.JdbcTemplate jdbc;
@@ -60,6 +61,7 @@ public class NewsCollectorService {
                                 NewsArticleRepository newsRepo,
                                 AnalyzerService analyzerService,
                                 NotificationService notificationService,
+                                ChatService chatService,
                                 ObjectMapper objectMapper,
                                 AppProperties props,
                                 org.springframework.jdbc.core.JdbcTemplate jdbc) {
@@ -67,6 +69,7 @@ public class NewsCollectorService {
         this.newsRepo = newsRepo;
         this.analyzerService = analyzerService;
         this.notificationService = notificationService;
+        this.chatService = chatService;
         this.objectMapper = objectMapper;
         this.props = props;
         this.jdbc = jdbc;
@@ -643,6 +646,12 @@ public class NewsCollectorService {
                             && fcmJson != null && !fcmJson.isBlank()) {
                         Thread.ofVirtual().start(() ->
                                 notificationService.notifyTickerArticle(headline, tickers, fcmJson));
+                    }
+                    if (tickers != null && !tickers.isEmpty()) {
+                        final NewsArticle savedArticle = article;
+                        final List<String> finalTickers = tickers;
+                        Thread.ofVirtual().start(() ->
+                                chatService.dispatchRecommendationAlerts(savedArticle, finalTickers));
                     }
                 }
                 updated.incrementAndGet();

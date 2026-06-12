@@ -37,9 +37,16 @@ public class NewsArticleResponse {
     private final Double noveltyScore;
     @JsonProperty("is_read")
     private final boolean isRead;
-    private final IndicatorSnapshot indicator;
+    private final List<IndicatorSnapshot> indicators;
 
-    public record IndicatorSnapshot(String type, Double value, String label, String caption) {}
+    /**
+     * type: RSI | MACD | 볼린저밴드 | 거래량
+     * value: 숫자 주 표시값 (RSI: 74.2, 거래량 배율: 3.5) — null이면 displayText 사용
+     * displayText: 텍스트 주 표시값 (MACD: "강세", 볼린저: "이탈") — null이면 value 사용
+     * label: 배지 태그 (과열, 골든크로스, 상단 돌파, 급등)
+     * caption: 설명 문구
+     */
+    public record IndicatorSnapshot(String type, Double value, String displayText, String label, String caption) {}
 
     public NewsArticleResponse(NewsArticle article, List<Map<String, String>> tickerNames) {
         this(article, tickerNames, false, null);
@@ -49,7 +56,7 @@ public class NewsArticleResponse {
         this(article, tickerNames, isRead, null);
     }
 
-    public NewsArticleResponse(NewsArticle article, List<Map<String, String>> tickerNames, boolean isRead, IndicatorSnapshot indicator) {
+    public NewsArticleResponse(NewsArticle article, List<Map<String, String>> tickerNames, boolean isRead, List<IndicatorSnapshot> indicators) {
         this.id = article.getId();
         this.headline = article.getHeadline();
         this.summary3lines = article.getSummary3lines();
@@ -72,6 +79,6 @@ public class NewsArticleResponse {
         this.sentimentDivergence = article.getSentimentDivergence();
         this.noveltyScore = article.getNoveltyScore();
         this.isRead = isRead;
-        this.indicator = indicator;
+        this.indicators = indicators;
     }
 }

@@ -45,6 +45,7 @@ public class SecurityConfig {
                 .requestMatchers("/user/**").authenticated()
                 .requestMatchers("/quiz/**").permitAll()
                 .requestMatchers("/analysis/**").authenticated()
+                .requestMatchers("/chat/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/news/*/read").authenticated()
                 .requestMatchers(HttpMethod.POST, "/news/device-token").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/news/device-token").authenticated()
