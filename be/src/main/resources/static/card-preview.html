@@ -353,21 +353,26 @@ function articleToCard(a, ticker) {
 async function init() {
   const ticker = new URLSearchParams(location.search).get('ticker');
   if (ticker) {
-    document.getElementById('root').innerHTML =
+    const root = document.getElementById('root');
+    root.innerHTML =
       `<div style="padding:80px;text-align:center;color:#64748b;font-size:14px;">📡 ${ticker} 데이터 로딩 중...</div>`;
     try {
-      const r = await fetch(`https://api.finswipe.co.kr/news/latest?ticker=${encodeURIComponent(ticker)}&limit=1`);
+      const r = await fetch(`/news/latest?ticker=${encodeURIComponent(ticker)}&limit=3`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const d = await r.json();
       const articles = d.data || [];
       if (!articles.length) {
-        document.getElementById('root').innerHTML =
-          `<div style="padding:80px;text-align:center;color:#94a3b8;font-size:14px;">해당 티커(${ticker}) 기사가 없습니다</div>`;
+        // 기사 없으면 데모 카드에 배너만 붙여 표시
+        root.innerHTML =
+          `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:12px;padding:12px 20px;margin-bottom:20px;font-size:13px;color:#856404;font-weight:600;">⚠️ <b>${ticker}</b> 분석 기사가 아직 없습니다 — 데모 카드 표시 중</div>`;
+        renderCards(CARDS);
         return;
       }
-      renderCards([articleToCard(articles[0], ticker.toUpperCase())]);
+      renderCards(articles.map(a => articleToCard(a, ticker.toUpperCase())));
     } catch(e) {
-      document.getElementById('root').innerHTML =
-        `<div style="padding:80px;text-align:center;color:#ef4444;font-size:14px;">오류: ${e.message}</div>`;
+      root.innerHTML =
+        `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:12px;padding:16px 20px;margin-bottom:16px;font-size:13px;color:#dc2626;font-weight:600;">❌ 오류: ${e.message}</div>`;
+      renderCards(CARDS);
     }
   } else {
     renderCards(CARDS);
