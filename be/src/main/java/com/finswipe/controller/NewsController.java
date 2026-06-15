@@ -653,15 +653,30 @@ public class NewsController {
                 .map(this::repTicker)
                 .filter(t -> t != null)
                 .collect(Collectors.toSet());
+        if (tickers.isEmpty()) return Map.of();
 
-        Map<String, TechnicalsService.TechnicalsData> map = new HashMap<>();
-        for (String ticker : tickers) {
-            try {
-                TechnicalsService.TechnicalsData td = technicalsService.getTechnicals(ticker);
-                if (td != null) map.put(ticker, td);
-            } catch (Exception e) {
-                log.warn("[지표] {} 스냅샷 조회 실패: {}", ticker, e.getMessage());
-            }
+        java.util.concurrent.ConcurrentHashMap<String, TechnicalsService.TechnicalsData> map =
+                new java.util.concurrent.ConcurrentHashMap<>();
+        var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
+        List<java.util.concurrent.CompletableFuture<Void>> futures = tickers.stream()
+                .map(ticker -> java.util.concurrent.CompletableFuture.runAsync(() -> {
+                    try {
+                        TechnicalsService.TechnicalsData td = technicalsService.getTechnicals(ticker);
+                        if (td != null) map.put(ticker, td);
+                    } catch (Exception e) {
+                        log.warn("[지표] {} 스냅샷 조회 실패: {}", ticker, e.getMessage());
+                    }
+                }, executor))
+                .toList();
+        try {
+            java.util.concurrent.CompletableFuture.allOf(futures.toArray(new java.util.concurrent.CompletableFuture[0]))
+                    .get(10, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (java.util.concurrent.TimeoutException e) {
+            log.warn("[지표] 기술적 지표 병렬 조회 타임아웃 ({}개 티커) — 부분 결과 반환", tickers.size());
+        } catch (Exception e) {
+            log.warn("[지표] 기술적 지표 조회 오류: {}", e.getMessage());
+        } finally {
+            executor.shutdownNow();
         }
         return map;
     }
