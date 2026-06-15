@@ -34,7 +34,8 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
             "script-src 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; " +
             "style-src 'unsafe-inline' https://cdn.tailwindcss.com; " +
             "connect-src 'self' https://api.finswipe.co.kr; " +
-            "img-src 'self' data:";
+            "img-src 'self' data:; " +
+            "frame-src 'self'";
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
