@@ -41,12 +41,17 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         response.setHeader("X-Content-Type-Options", "nosniff");
-        response.setHeader("X-Frame-Options", "DENY");
         response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
         response.setHeader("X-XSS-Protection", "1; mode=block");
         response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
 
         String path = request.getRequestURI();
+        // card-preview는 admin.html iframe 내부에서 로드되므로 SAMEORIGIN 허용
+        if ("/card-preview.html".equals(path)) {
+            response.setHeader("X-Frame-Options", "SAMEORIGIN");
+        } else {
+            response.setHeader("X-Frame-Options", "DENY");
+        }
         if (path.startsWith("/swagger-ui") || path.startsWith("/v3/api-docs")) {
             response.setHeader("Content-Security-Policy", SWAGGER_CSP);
         } else if ("/preview.html".equals(path) || "/card-preview.html".equals(path)) {
