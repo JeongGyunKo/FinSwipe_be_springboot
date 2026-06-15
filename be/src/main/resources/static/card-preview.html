@@ -253,9 +253,9 @@ function renderCards(cards) {
             </svg>
           </div>
           <div class="front-body">
-            <span class="tag">${c.highlight.tag}</span>
-            <div class="big-num">${c.highlight.bigNum}</div>
-            <div class="sub">${c.highlight.sub}</div>
+            <span class="tag">${c.sentimentEmoji} ${c.sentimentText}</span>
+            <div class="big-num">${c.sentimentScore != null ? (c.sentimentScore > 0 ? '+' : '') + c.sentimentScore : '—'}</div>
+            <div class="sub">${c.sentimentReason || ''}</div>
           </div>
           <div class="front-foot">
             <div class="foot-meta">
@@ -281,10 +281,10 @@ function renderCards(cards) {
               </ul>
             </div>
             <div class="glass score">
-              <div class="score-num">${c.sentimentScore != null ? (c.sentimentScore > 0 ? '+' : '') + c.sentimentScore : '—'}</div>
+              <div class="score-num">${c.highlight.bigNum}</div>
               <div class="score-txt">
-                <b>${c.sentimentEmoji} ${c.sentimentText}</b>
-                <span>${c.sentimentReason}</span>
+                <b>${c.highlight.tag}</b>
+                <span>${c.highlight.sub}</span>
               </div>
             </div>
             ${inds.length ? `<div>
