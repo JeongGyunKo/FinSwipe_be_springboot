@@ -38,6 +38,9 @@ public class NewsArticleResponse {
     @JsonProperty("is_read")
     private final boolean isRead;
     private final List<IndicatorSnapshot> indicators;
+    private final Double currentPrice;
+    private final Double changePct1d;
+    private final List<Double> sparkline;
 
     /**
      * type: RSI | MACD | 볼린저밴드 | 거래량
@@ -49,14 +52,19 @@ public class NewsArticleResponse {
     public record IndicatorSnapshot(String type, Double value, String displayText, String label, String caption) {}
 
     public NewsArticleResponse(NewsArticle article, List<Map<String, String>> tickerNames) {
-        this(article, tickerNames, false, null);
+        this(article, tickerNames, false, null, null, null, null);
     }
 
     public NewsArticleResponse(NewsArticle article, List<Map<String, String>> tickerNames, boolean isRead) {
-        this(article, tickerNames, isRead, null);
+        this(article, tickerNames, isRead, null, null, null, null);
     }
 
     public NewsArticleResponse(NewsArticle article, List<Map<String, String>> tickerNames, boolean isRead, List<IndicatorSnapshot> indicators) {
+        this(article, tickerNames, isRead, indicators, null, null, null);
+    }
+
+    public NewsArticleResponse(NewsArticle article, List<Map<String, String>> tickerNames, boolean isRead,
+                               List<IndicatorSnapshot> indicators, Double currentPrice, Double changePct1d, List<Double> sparkline) {
         this.id = article.getId();
         this.headline = article.getHeadline();
         this.summary3lines = article.getSummary3lines();
@@ -80,5 +88,8 @@ public class NewsArticleResponse {
         this.noveltyScore = article.getNoveltyScore();
         this.isRead = isRead;
         this.indicators = indicators;
+        this.currentPrice = currentPrice;
+        this.changePct1d = changePct1d;
+        this.sparkline = sparkline;
     }
 }

@@ -185,7 +185,17 @@ def _fetch_technicals(ticker: str) -> dict | None:
         current_price = round(float(prices[-1]), 2)
         change_1d = round((prices[-1] / prices[-2] - 1) * 100, 2) if len(prices) >= 2 else None
         change_1m = round((prices[-1] / prices[-22] - 1) * 100, 2) if len(prices) >= 22 else None
-        volume_ratio = round(float(volumes[-1] / volumes[-5:].mean()), 2) if len(volumes) >= 5 else None
+
+        # 당일 누적 거래량 (뉴스 분석 시점 기준 실시간)
+        try:
+            intraday = yf.Ticker(ticker).history(period="1d", interval="1m")
+            current_volume = int(intraday["Volume"].sum()) if not intraday.empty else None
+        except Exception:
+            current_volume = None
+        avg_daily_volume = float(volumes[-5:].mean()) if len(volumes) >= 5 else None
+        volume_ratio = round(current_volume / avg_daily_volume, 2) if current_volume and avg_daily_volume else (
+            round(float(volumes[-1] / avg_daily_volume), 2) if avg_daily_volume else None
+        )
 
         # RSI (14일)
         deltas = np.diff(prices[-29:])
@@ -237,6 +247,8 @@ def _fetch_technicals(ticker: str) -> dict | None:
         week52_range = high_52w - low_52w
         week52_position_pct = round((prices[-1] - low_52w) / week52_range * 100, 1) if week52_range > 0 else 50.0
 
+        sparkline = [round(float(p), 2) for p in prices[-30:].tolist()]
+
         return {
             "current_price": current_price,
             "change_pct_1d": change_1d,
@@ -262,6 +274,7 @@ def _fetch_technicals(ticker: str) -> dict | None:
                 "low": round(low_52w, 2),
                 "position_pct": week52_position_pct,
             },
+            "sparkline": sparkline,
         }
     except Exception as exc:
         logger.warning("[다이제스트] %s 기술적 지표 수집 실패: %s", ticker, exc)

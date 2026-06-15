@@ -19,6 +19,13 @@ import static com.finswipe.config.CacheConfig.CACHE_TECHNICALS;
 @Slf4j
 public class TechnicalsService {
 
+    public record TechnicalsData(
+            List<IndicatorSnapshot> indicators,
+            Double currentPrice,
+            Double changePct1d,
+            List<Double> sparkline
+    ) {}
+
     private final RestClient genaiClient;
     private final ObjectMapper objectMapper;
 
@@ -29,11 +36,11 @@ public class TechnicalsService {
     }
 
     /**
-     * 티커의 기술적 지표 4종 반환: RSI, MACD, 볼린저밴드, 거래량.
-     * GenAI 응답에 없는 지표는 조용히 생략된다.
+     * 티커의 기술적 지표 + 현재가 + 등락률 + 스파크라인 반환.
+     * GenAI 응답에 없는 필드는 null로 반환된다.
      */
     @Cacheable(value = CACHE_TECHNICALS, key = "#ticker")
-    public List<IndicatorSnapshot> getIndicators(String ticker) {
+    public TechnicalsData getTechnicals(String ticker) {
         try {
             String response = genaiClient.get()
                     .uri("/api/v1/technicals/{ticker}", ticker)
@@ -55,7 +62,18 @@ public class TechnicalsService {
             if (root.has("volume_ratio") && !root.get("volume_ratio").isNull())
                 result.add(parseVolume(root.get("volume_ratio").asDouble()));
 
-            return result.isEmpty() ? null : result;
+            Double currentPrice = root.has("current_price") && !root.get("current_price").isNull()
+                    ? root.get("current_price").asDouble() : null;
+            Double changePct1d = root.has("change_pct_1d") && !root.get("change_pct_1d").isNull()
+                    ? root.get("change_pct_1d").asDouble() : null;
+
+            List<Double> sparkline = null;
+            if (root.has("sparkline") && root.get("sparkline").isArray()) {
+                sparkline = new ArrayList<>();
+                for (JsonNode n : root.get("sparkline")) sparkline.add(n.asDouble());
+            }
+
+            return new TechnicalsData(result.isEmpty() ? null : result, currentPrice, changePct1d, sparkline);
         } catch (RestClientResponseException e) {
             log.warn("[기술적지표] {} HTTP {}: {}", ticker, e.getStatusCode().value(), e.getMessage());
             return null;

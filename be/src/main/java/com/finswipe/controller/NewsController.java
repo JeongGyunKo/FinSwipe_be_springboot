@@ -59,7 +59,7 @@ public class NewsController {
 
     // ===================== Public Endpoints =====================
 
-    @Operation(summary = "뉴스 피드", description = "분석 완료된 기사 목록. sort=time(시간순,기본값) | sort=power(감성강도순). JWT 있으면 읽은 기사 제외 + 관심 티커 필터 적용. indicator는 대표 티커의 RSI 지표 — null이면 게이지 없이 렌더.")
+    @Operation(summary = "뉴스 피드", description = "분석 완료된 기사 목록. sort=time(시간순,기본값) | sort=power(감성강도순). JWT 있으면 읽은 기사 제외 + 관심 티커 필터 적용. indicators는 대표 티커의 기술적 지표 4종(RSI·MACD·볼린저밴드·거래량) 배열 — null이면 지표 없이 렌더. currentPrice/changePct1d는 전일 종가 기준, sparkline은 최근 30일 종가 배열.")
     @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
             {
               "total": 1200,
@@ -77,12 +77,39 @@ public class NewsController {
                   "imageUrl": "https://...",
                   "publishedAt": "2026-06-04T10:00:00Z",
                   "is_read": false,
-                  "indicator": {
-                    "type": "RSI",
-                    "value": 42.5,
-                    "label": "중립",
-                    "caption": "RSI 42.5 — 안정적인 구간이에요."
-                  }
+                  "currentPrice": 211.45,
+                  "changePct1d": -1.23,
+                  "sparkline": [198.2, 200.1, 203.4, 201.8, 205.3, 207.6, 204.9, 208.1, 206.7, 210.3, 209.5, 212.8, 211.2, 215.4, 213.7, 216.9, 214.3, 218.6, 217.1, 220.4, 219.8, 222.3, 221.5, 218.9, 215.6, 213.2, 209.8, 207.4, 210.1, 211.45],
+                  "indicators": [
+                    {
+                      "type": "RSI",
+                      "value": 42.5,
+                      "displayText": null,
+                      "label": "중립",
+                      "caption": "RSI 42.5 — 안정적인 구간이에요."
+                    },
+                    {
+                      "type": "MACD",
+                      "value": null,
+                      "displayText": "강세",
+                      "label": "골든크로스",
+                      "caption": "시그널선을 상향 돌파, 상승 모멘텀 강화."
+                    },
+                    {
+                      "type": "볼린저밴드",
+                      "value": null,
+                      "displayText": "상단",
+                      "label": "상단 밴드",
+                      "caption": "상단 밴드 근처 — 과열 주의 구간이에요."
+                    },
+                    {
+                      "type": "거래량",
+                      "value": 2.3,
+                      "displayText": null,
+                      "label": "증가",
+                      "caption": "평소의 약 2.3배, 거래가 활발해요."
+                    }
+                  ]
                 }
               ],
               "userTickers": ["AAPL", "TSLA"]
@@ -154,15 +181,25 @@ public class NewsController {
 
             List<NewsArticle> allArticles = new java.util.ArrayList<>(page.getContent());
             allArticles.addAll(readArticles);
-            Map<String, List<NewsArticleResponse.IndicatorSnapshot>> indicatorMap = buildIndicatorMap(allArticles);
+            Map<String, TechnicalsService.TechnicalsData> technicalsMap = buildTechnicalsMap(allArticles);
 
             List<NewsArticleResponse> data = new java.util.ArrayList<>();
-            page.getContent().forEach(a ->
-                    data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false,
-                            indicatorMap.get(repTicker(a)))));
-            readArticles.forEach(a ->
-                    data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), true,
-                            indicatorMap.get(repTicker(a)))));
+            page.getContent().forEach(a -> {
+                TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
+                data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false,
+                        td != null ? td.indicators() : null,
+                        td != null ? td.currentPrice() : null,
+                        td != null ? td.changePct1d() : null,
+                        td != null ? td.sparkline() : null));
+            });
+            readArticles.forEach(a -> {
+                TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
+                data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), true,
+                        td != null ? td.indicators() : null,
+                        td != null ? td.currentPrice() : null,
+                        td != null ? td.changePct1d() : null,
+                        td != null ? td.sparkline() : null));
+            });
             return ResponseEntity.ok(new NewsListResponse(page.getTotalElements(), offset, data, userTickers));
         }
 
@@ -171,10 +208,16 @@ public class NewsController {
         Page<NewsArticle> page = "power".equals(sort)
                 ? (since != null ? newsRepo.findTodayOrderByPowerDesc(since, pageReq) : newsRepo.findByXaiKoIsNotNullOrderByPowerDesc(pageReq))
                 : (since != null ? newsRepo.findTodayOrderByPublishedAtDesc(since, pageReq) : newsRepo.findByXaiKoIsNotNullOrderByPublishedAtDesc(pageReq));
-        Map<String, List<NewsArticleResponse.IndicatorSnapshot>> indicatorMap = buildIndicatorMap(page.getContent());
+        Map<String, TechnicalsService.TechnicalsData> technicalsMap = buildTechnicalsMap(page.getContent());
         List<NewsArticleResponse> data = page.getContent().stream()
-                .map(a -> new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false,
-                        indicatorMap.get(repTicker(a))))
+                .map(a -> {
+                    TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
+                    return new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false,
+                            td != null ? td.indicators() : null,
+                            td != null ? td.currentPrice() : null,
+                            td != null ? td.changePct1d() : null,
+                            td != null ? td.sparkline() : null);
+                })
                 .toList();
         return ResponseEntity.ok(new NewsListResponse(page.getTotalElements(), offset, data));
     }
@@ -605,17 +648,17 @@ public class NewsController {
         return (t != null && !t.isEmpty()) ? t.get(0) : null;
     }
 
-    private Map<String, List<NewsArticleResponse.IndicatorSnapshot>> buildIndicatorMap(List<NewsArticle> articles) {
+    private Map<String, TechnicalsService.TechnicalsData> buildTechnicalsMap(List<NewsArticle> articles) {
         Set<String> tickers = articles.stream()
                 .map(this::repTicker)
                 .filter(t -> t != null)
                 .collect(Collectors.toSet());
 
-        Map<String, List<NewsArticleResponse.IndicatorSnapshot>> map = new HashMap<>();
+        Map<String, TechnicalsService.TechnicalsData> map = new HashMap<>();
         for (String ticker : tickers) {
             try {
-                List<NewsArticleResponse.IndicatorSnapshot> snaps = technicalsService.getIndicators(ticker);
-                if (snaps != null && !snaps.isEmpty()) map.put(ticker, snaps);
+                TechnicalsService.TechnicalsData td = technicalsService.getTechnicals(ticker);
+                if (td != null) map.put(ticker, td);
             } catch (Exception e) {
                 log.warn("[지표] {} 스냅샷 조회 실패: {}", ticker, e.getMessage());
             }
