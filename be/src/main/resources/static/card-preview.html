@@ -104,6 +104,12 @@ h1 { font-size:18px; font-weight:700; color:#2b3440; letter-spacing:-.3px; }
 .warn .v { color:#cf7a1c; }
 .good .v { color:#0f8f63; }
 .neg .v  { color:#c42020; }
+
+/* 감성 색상 */
+.sent-pos { color:#0f8f63; }
+.sent-neg { color:#c42020; }
+.sent-neu { color:#64748b; }
+.sent-mix { color:#d97706; }
 </style>
 </head>
 <body>
@@ -115,6 +121,7 @@ h1 { font-size:18px; font-weight:700; color:#2b3440; letter-spacing:-.3px; }
 const CARDS = [
   {
     theme: 'bull',
+    sentimentLabel: 'positive',
     setLabel: 'NVDA · 거래량 폭발 · 강세',
     ticker: 'NVDA',
     company: 'NVIDIA Corporation · NASDAQ',
@@ -144,6 +151,7 @@ const CARDS = [
   },
   {
     theme: 'bear',
+    sentimentLabel: 'negative',
     setLabel: 'TSLA · 주가 급락 · 약세',
     ticker: 'TSLA',
     company: 'Tesla Inc. · NASDAQ',
@@ -226,6 +234,7 @@ function renderCards(cards) {
     const priceStr    = c.currentPrice != null ? `$${c.currentPrice.toFixed(2)}` : '—';
     const svgId       = `g${ci}`;
     const inds        = (c.indicators || []).map(ind => ({...ind, cls: ind.cls || indicatorClass(ind)}));
+    const sentCls     = { positive:'sent-pos', negative:'sent-neg', neutral:'sent-neu', mixed:'sent-mix' }[c.sentimentLabel] || 'sent-neu';
 
     const html = `
 <div class="set">
@@ -253,8 +262,8 @@ function renderCards(cards) {
             </svg>
           </div>
           <div class="front-body">
-            <span class="tag">${c.sentimentEmoji} ${c.sentimentText}</span>
-            <div class="big-num">${c.sentimentScore != null ? (c.sentimentScore > 0 ? '+' : '') + c.sentimentScore : '—'}</div>
+            <span class="tag ${sentCls}">${c.sentimentEmoji} ${c.sentimentText}</span>
+            <div class="big-num ${sentCls}">${c.sentimentScore != null ? (c.sentimentScore > 0 ? '+' : '') + c.sentimentScore : '—'}</div>
             <div class="sub">${c.sentimentReason || ''}</div>
           </div>
           <div class="front-foot">
@@ -328,11 +337,12 @@ function articleToCard(a, ticker) {
   }
 
   const now = a.publishedAt ? new Date(a.publishedAt).toLocaleString('ko') : '';
-  const sentMap = { positive: ['📈', '긍정 신호'], negative: ['📉', '부정 신호'], neutral: ['📊', '중립'] };
+  const sentMap = { positive: ['📈', '긍정 신호'], negative: ['📉', '부정 신호'], neutral: ['📊', '중립'], mixed: ['🔀', '혼재'] };
   const [sentEmoji, sentText] = sentMap[a.sentimentLabel] || ['📊', '—'];
 
   return {
-    theme, setLabel: `${ticker} · 실시간 API 데이터`,
+    theme, sentimentLabel: a.sentimentLabel,
+    setLabel: `${ticker} · 실시간 API 데이터`,
     ticker, company: ticker,
     currentPrice: a.currentPrice, changePct1d: chg,
     sparkline: a.sparkline || [],
