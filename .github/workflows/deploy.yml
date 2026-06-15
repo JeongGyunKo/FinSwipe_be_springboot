@@ -24,6 +24,12 @@ jobs:
           sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD}|" ~/finswipe/.env
           sed -i "s|^FINLIGHT_API_KEY=.*|FINLIGHT_API_KEY=${FINLIGHT_API_KEY}|" ~/finswipe/.env
           sed -i "s|^ADMIN_API_KEY=.*|ADMIN_API_KEY=${ADMIN_API_KEY}|" ~/finswipe/.env
+          # CORS 허용 도메인 업데이트
+          if grep -q "^CORS_ORIGINS=" ~/finswipe/.env; then
+            sed -i "s|^CORS_ORIGINS=.*|CORS_ORIGINS=https://www.finswipe.co.kr|" ~/finswipe/.env
+          else
+            echo "CORS_ORIGINS=https://www.finswipe.co.kr" >> ~/finswipe/.env
+          fi
           # GenAI .env 업데이트
           sed -i "s|^GENAI_POSTGRES_DSN=.*|GENAI_POSTGRES_DSN=${GENAI_POSTGRES_DSN}|" ~/finswipe/genai/.env
 
