@@ -199,29 +199,38 @@ function buildSparkline(data, w, h, id, strokeColor, fillColor) {
 
 // ── 지표 표시값 ──
 function indicatorDisplay(ind) {
-  if (ind.value !== null) {
+  if (ind.value !== null && ind.value !== undefined) {
     if (ind.type === '거래량') return '+' + Math.round((ind.value - 1) * 100) + '%';
     return ind.value;
   }
-  return ind.displayText;
+  return ind.displayText || '—';
 }
 
-// ── 렌더링 ──
-function renderCards() {
+// ── 지표 CSS 클래스 ──
+function indicatorClass(ind) {
+  const label = ind.label || '';
+  if (['과열','상단 돌파','상단 밴드'].includes(label)) return 'warn';
+  if (['과매도','데드크로스','하락추세','하단 이탈','하단 밴드','급감'].includes(label)) return 'neg';
+  if (['골든크로스','상승추세','급등','증가'].includes(label)) return 'good';
+  return '';
+}
+
+// ── 카드 렌더링 ──
+function renderCards(cards) {
   const root = document.getElementById('root');
-  CARDS.forEach((c, ci) => {
+  root.innerHTML = '';
+  cards.forEach((c, ci) => {
     const strokeColor = c.theme === 'bull' ? '#1f6e58' : '#6e1f1f';
-    const fillColor   = c.theme === 'bull' ? '#1f6e58' : '#6e1f1f';
-    const chgSign     = c.changePct1d >= 0 ? '▲' : '▼';
-    const chgAbs      = Math.abs(c.changePct1d).toFixed(1);
+    const chgSign     = (c.changePct1d ?? 0) >= 0 ? '▲' : '▼';
+    const chgAbs      = Math.abs(c.changePct1d ?? 0).toFixed(1);
+    const priceStr    = c.currentPrice != null ? `$${c.currentPrice.toFixed(2)}` : '—';
     const svgId       = `g${ci}`;
+    const inds        = (c.indicators || []).map(ind => ({...ind, cls: ind.cls || indicatorClass(ind)}));
 
     const html = `
 <div class="set">
   <div class="set-label">${c.setLabel}</div>
   <div class="pair">
-
-    <!-- 앞면 -->
     <div class="col ${c.theme}">
       <div class="col-label">앞면</div>
       <div class="phone"><div class="screen"><div class="inner">
@@ -231,7 +240,7 @@ function renderCards() {
             <div class="f-row1">
               <span class="f-tick">${c.ticker}</span>
               <span class="f-price">
-                $${c.currentPrice.toFixed(2)}
+                ${priceStr}
                 <span class="chg">${chgSign} ${chgAbs}%</span>
                 <span class="lbl">전일 종가</span>
               </span>
@@ -240,7 +249,7 @@ function renderCards() {
           </div>
           <div class="chart-area">
             <svg viewBox="0 0 290 88" fill="none">
-              ${buildSparkline(c.sparkline, 290, 88, svgId, strokeColor, fillColor)}
+              ${buildSparkline(c.sparkline || [], 290, 88, svgId, strokeColor, strokeColor)}
             </svg>
           </div>
           <div class="front-body">
@@ -259,8 +268,6 @@ function renderCards() {
         </div>
       </div></div></div>
     </div>
-
-    <!-- 뒷면 -->
     <div class="col ${c.theme}">
       <div class="col-label">뒷면 (탭 후)</div>
       <div class="phone"><div class="screen"><div class="inner">
@@ -270,40 +277,104 @@ function renderCards() {
             <div>
               <div class="sec-title">핵심 인사이트</div>
               <ul class="glass insights">
-                ${c.summary3linesKo.map(l => `<li>${l}</li>`).join('')}
+                ${(c.summary3linesKo || []).map(l => `<li>${l}</li>`).join('') || '<li>인사이트 없음</li>'}
               </ul>
             </div>
             <div class="glass score">
-              <div class="score-num">${c.sentimentScore > 0 ? '+' : ''}${c.sentimentScore}</div>
+              <div class="score-num">${c.sentimentScore != null ? (c.sentimentScore > 0 ? '+' : '') + c.sentimentScore : '—'}</div>
               <div class="score-txt">
                 <b>${c.sentimentEmoji} ${c.sentimentText}</b>
                 <span>${c.sentimentReason}</span>
               </div>
             </div>
-            <div>
+            ${inds.length ? `<div>
               <div class="sec-title">기술적 지표</div>
               <div class="grid">
-                ${c.indicators.map(ind => `
+                ${inds.map(ind => `
                   <div class="glass metric ${ind.cls}">
                     <div class="k">${ind.type}</div>
                     <div class="v">${indicatorDisplay(ind)}</div>
                     <div class="n">${ind.label}</div>
-                  </div>
-                `).join('')}
+                  </div>`).join('')}
               </div>
-            </div>
+            </div>` : ''}
           </div>
         </div>
       </div></div></div>
     </div>
-
   </div>
 </div>`;
     root.insertAdjacentHTML('beforeend', html);
   });
 }
 
-renderCards();
+// ── API 기사 → 카드 데이터 변환 ──
+function articleToCard(a, ticker) {
+  const chg = a.changePct1d;
+  const theme = (chg != null) ? (chg >= 0 ? 'bull' : 'bear')
+                               : (a.sentimentLabel === 'positive' ? 'bull' : 'bear');
+
+  const volInd = (a.indicators || []).find(i => i.type === '거래량');
+  const volRatio = volInd?.value;
+  let highlight;
+  if (volRatio && volRatio >= 2) {
+    const pct = Math.round((volRatio - 1) * 100);
+    highlight = { tag: '🔥 거래량 급등', bigNum: `+${pct}%`, sub: `평소의 ${volRatio.toFixed(1)}배 — 지금 뭔가 일어나고 있어요` };
+  } else if (chg != null) {
+    const sign = chg >= 0 ? '+' : '';
+    highlight = { tag: chg >= 0 ? '📈 상승' : '📉 급락', bigNum: `${sign}${chg.toFixed(1)}%`, sub: `전일 종가 대비 ${Math.abs(chg).toFixed(1)}% ${chg >= 0 ? '상승' : '하락'}` };
+  } else {
+    highlight = { tag: '📰 뉴스', bigNum: '—', sub: '' };
+  }
+
+  const now = a.publishedAt ? new Date(a.publishedAt).toLocaleString('ko') : '';
+  const sentMap = { positive: ['📈', '긍정 신호'], negative: ['📉', '부정 신호'], neutral: ['📊', '중립'] };
+  const [sentEmoji, sentText] = sentMap[a.sentimentLabel] || ['📊', '—'];
+
+  return {
+    theme, setLabel: `${ticker} · 실시간 API 데이터`,
+    ticker, company: ticker,
+    currentPrice: a.currentPrice, changePct1d: chg,
+    sparkline: a.sparkline || [],
+    highlight,
+    indicators: a.indicators || [],
+    summary3linesKo: a.summary3linesKo || [],
+    sentimentScore: a.sentimentScore,
+    sentimentEmoji: sentEmoji, sentimentText: sentText,
+    sentimentReason: a.sentimentReason || '',
+    headlineKo: a.headlineKo || a.headline || '',
+    publishedRelative: now,
+    eventPill: a.eventCategory ? `📋 ${a.eventCategory}` : '📰 뉴스',
+    sources: (a.tickers || []).join(' · '),
+  };
+}
+
+// ── 초기화 ──
+async function init() {
+  const ticker = new URLSearchParams(location.search).get('ticker');
+  if (ticker) {
+    document.getElementById('root').innerHTML =
+      `<div style="padding:80px;text-align:center;color:#64748b;font-size:14px;">📡 ${ticker} 데이터 로딩 중...</div>`;
+    try {
+      const r = await fetch(`https://api.finswipe.co.kr/news/latest?ticker=${encodeURIComponent(ticker)}&limit=1`);
+      const d = await r.json();
+      const articles = d.data || [];
+      if (!articles.length) {
+        document.getElementById('root').innerHTML =
+          `<div style="padding:80px;text-align:center;color:#94a3b8;font-size:14px;">해당 티커(${ticker}) 기사가 없습니다</div>`;
+        return;
+      }
+      renderCards([articleToCard(articles[0], ticker.toUpperCase())]);
+    } catch(e) {
+      document.getElementById('root').innerHTML =
+        `<div style="padding:80px;text-align:center;color:#ef4444;font-size:14px;">오류: ${e.message}</div>`;
+    }
+  } else {
+    renderCards(CARDS);
+  }
+}
+
+init();
 </script>
 </body>
 </html>

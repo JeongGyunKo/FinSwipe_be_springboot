@@ -493,6 +493,37 @@
       </div>
     </div>
 
+    <!-- ▌ 카드 미리보기 ▌ -->
+    <div x-show="tab === 'cards'" style="padding:36px 40px;">
+      <div style="margin-bottom:28px;">
+        <h2 style="font-size:22px;font-weight:800;color:#0f172a;">카드 미리보기</h2>
+        <p style="color:#94a3b8;font-size:13px;margin-top:4px;">실제 API 데이터로 뉴스 카드 앞·뒷면을 확인합니다</p>
+      </div>
+      <div style="background:#fff;border-radius:20px;padding:24px;border:1px solid #f1f5f9;box-shadow:0 1px 4px rgba(0,0,0,0.05);margin-bottom:20px;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input x-model="cardTicker"
+            @input="cardTicker = $event.target.value.toUpperCase()"
+            @keyup.enter="loadCard()"
+            type="text" placeholder="티커 입력 (예: AAPL, NVDA, TSLA)"
+            style="width:260px;border:1.5px solid #e2e8f0;border-radius:12px;padding:11px 16px;font-size:14px;font-weight:700;color:#1e293b;outline:none;text-transform:uppercase;letter-spacing:.04em;"
+            onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'" />
+          <button @click="loadCard()" class="btn-blue" style="padding:11px 24px;border-radius:12px;font-size:13px;">조회</button>
+          <span style="font-size:12px;color:#94a3b8;">실제 DB 기사 + GenAI 기술적 지표 실시간 조회</span>
+        </div>
+      </div>
+      <iframe x-show="cardFrameUrl" :src="cardFrameUrl"
+        style="width:100%;height:820px;border:none;border-radius:20px;background:#f0f4f8;"
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"></iframe>
+      <div x-show="!cardFrameUrl"
+           style="background:#fff;border-radius:20px;padding:80px;text-align:center;border:1px solid #f1f5f9;">
+        <div style="font-size:48px;margin-bottom:16px;">🃏</div>
+        <p style="color:#94a3b8;font-size:14px;">티커를 입력하고 조회하세요</p>
+        <p style="color:#cbd5e1;font-size:12px;margin-top:6px;">예: AAPL · NVDA · TSLA · MSFT</p>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -602,6 +633,7 @@ function app() {
       { id: 'news',      label: '뉴스 관리',   icon: '📰' },
       { id: 'jobs',      label: '작업 상태',   icon: '⚙️' },
       { id: 'trend',     label: '감성 트렌드', icon: '📈' },
+      { id: 'cards',     label: '카드 미리보기', icon: '🃏' },
     ],
 
     health: null, articleCount: null,
@@ -616,6 +648,7 @@ function app() {
     newsArticles: [],
     jobIdInput: '', jobResult: null,
     trendTicker: 'AAPL', trendData: null, chart: null,
+    cardTicker: '', cardFrameUrl: '',
 
     h(extra = {}) {
       return { headers: { 'X-Admin-Key': this.key }, ...extra };
@@ -808,6 +841,11 @@ function app() {
         'bg-green-100 text-green-700', 'bg-purple-100 text-purple-700',
         'bg-yellow-100 text-yellow-800',
       ][l] || 'bg-gray-100 text-gray-600';
+    },
+
+    loadCard() {
+      if (!this.cardTicker.trim()) return;
+      this.cardFrameUrl = `/card-preview.html?ticker=${encodeURIComponent(this.cardTicker.trim())}`;
     },
 
     sentimentDot(l) {
