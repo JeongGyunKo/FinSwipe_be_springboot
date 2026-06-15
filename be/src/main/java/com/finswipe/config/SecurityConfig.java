@@ -29,6 +29,8 @@ public class SecurityConfig {
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable)
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // X-Frame-Options는 SecurityHeadersFilter에서 경로별로 직접 제어
+            .headers(h -> h.frameOptions(fo -> fo.disable()))
             .authorizeHttpRequests(auth -> auth
                 // 공개 엔드포인트
                 .requestMatchers("/", "/health", "/health/detail").permitAll()
