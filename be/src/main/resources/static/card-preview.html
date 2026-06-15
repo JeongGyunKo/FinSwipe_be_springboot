@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinSwipe — 카드 시안</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; }
+
+.bull { --card: radial-gradient(120% 90% at 18% -6%,#f2fdf8 0%,transparent 55%), radial-gradient(150% 85% at 50% 30%,rgba(255,255,255,.38) 0%,transparent 62%), linear-gradient(172deg,#d6f1e3 0%,#b7e3cb 48%,#8fd0ac 100%); --ink:#16463a; --soft:#4a7263; --faint:#6f9384; --acc:#0f8f63; --sh2:rgba(34,90,68,); --ring:rgba(78,146,116,.5); --stroke:#1f6e58; --fill:rgba(31,110,88,; }
+.bear { --card: radial-gradient(120% 90% at 18% -6%,#fff5f5 0%,transparent 55%), radial-gradient(150% 85% at 50% 30%,rgba(255,255,255,.38) 0%,transparent 62%), linear-gradient(172deg,#fce8e8 0%,#f0a0a0 48%,#e06060 100%); --ink:#461616; --soft:#724242; --faint:#8a5555; --acc:#c42020; --sh2:rgba(90,28,28,); --ring:rgba(180,80,80,.5); --stroke:#6e1f1f; --fill:rgba(110,31,31,; }
+
+body { min-height:100vh; background:radial-gradient(1200px 800px at 20% 0%,#eef7f1 0%,#e6eef5 45%,#e9e9f2 100%); display:flex; flex-direction:column; align-items:center; padding:48px 24px 80px; gap:60px; }
+h1 { font-size:18px; font-weight:700; color:#2b3440; letter-spacing:-.3px; }
+.set { display:flex; flex-direction:column; align-items:center; gap:14px; }
+.set-label { font-size:13px; font-weight:600; color:#8b96a5; }
+.pair { display:flex; gap:44px; flex-wrap:wrap; justify-content:center; }
+.col { display:flex; flex-direction:column; align-items:center; gap:10px; }
+.col-label { font-size:11px; font-weight:700; color:#94a3b8; letter-spacing:.5px; text-transform:uppercase; }
+
+.phone { width:320px; height:650px; border-radius:46px; padding:10px; background:linear-gradient(160deg,#fdfefe,#dfe5ec); box-shadow:0 30px 60px -18px rgba(40,70,60,.28),inset 0 2px 0 rgba(255,255,255,.9); }
+.screen { width:100%; height:100%; border-radius:38px; overflow:hidden; position:relative; background:#ffffff; }
+.inner { position:relative; z-index:2; height:100%; display:flex; flex-direction:column; padding:16px 18px 18px; }
+.status { font-size:12px; font-weight:600; letter-spacing:.5px; display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; color:#2b3440; flex-shrink:0; }
+.dots span { display:inline-block; width:5px; height:5px; border-radius:50%; margin-left:4px; background:currentColor; opacity:.85; }
+
+/* 앞면 */
+.front-card { position:relative; flex:1; border-radius:28px; overflow:hidden; display:flex; flex-direction:column; padding:14px 15px 15px; background:var(--card); }
+.bull .front-card { box-shadow:0 0 0 1.2px rgba(78,146,116,.5),0 18px 34px -12px rgba(30,100,75,.5),0 6px 12px -4px rgba(30,100,75,.3),0 2px 3px rgba(30,100,75,.28); }
+.bear .front-card { box-shadow:0 0 0 1.2px rgba(180,80,80,.5),0 18px 34px -12px rgba(130,30,30,.5),0 6px 12px -4px rgba(130,30,30,.3),0 2px 3px rgba(130,30,30,.28); }
+
+.bull .front-card::before { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:4; box-shadow:inset 0 0 0 2.2px rgba(255,255,255,1),inset 0 0 0 4px rgba(255,255,255,.35),inset 0 24px 32px -14px rgba(255,255,255,1),inset 12px 0 22px -13px rgba(255,255,255,.9),inset 0 -5px 6px -1px rgba(34,90,68,.78),inset 0 -22px 20px -12px rgba(255,255,255,1),inset -16px 0 24px -14px rgba(34,90,68,.55),inset 16px -30px 30px -26px rgba(34,90,68,.3),inset 0 0 52px rgba(255,255,255,.34); }
+.bear .front-card::before { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:4; box-shadow:inset 0 0 0 2.2px rgba(255,255,255,1),inset 0 0 0 4px rgba(255,255,255,.35),inset 0 24px 32px -14px rgba(255,255,255,1),inset 12px 0 22px -13px rgba(255,255,255,.9),inset 0 -5px 6px -1px rgba(90,28,28,.78),inset 0 -22px 20px -12px rgba(255,255,255,1),inset -16px 0 24px -14px rgba(90,28,28,.55),inset 16px -30px 30px -26px rgba(90,28,28,.3),inset 0 0 52px rgba(255,255,255,.34); }
+.front-card::after { content:""; position:absolute; inset:1.4px; border-radius:27px; pointer-events:none; z-index:4; background:radial-gradient(24% 8.5% at 26% 4.6%,rgba(255,255,255,1) 0%,rgba(255,255,255,.98) 52%,rgba(255,255,255,0) 63%),radial-gradient(8% 3.2% at 52% 3%,rgba(255,255,255,.95) 0%,rgba(255,255,255,0) 70%),radial-gradient(135% 62% at 50% -10%,rgba(255,255,255,.5) 0%,rgba(255,255,255,.14) 48%,transparent 65%),radial-gradient(88% 13% at 50% 101%,rgba(255,255,255,.55) 0%,rgba(255,255,255,.18) 55%,transparent 72%); }
+
+.fhead { position:relative; z-index:6; display:flex; flex-direction:column; gap:2px; }
+.f-row1 { display:flex; justify-content:space-between; align-items:baseline; }
+.f-tick { font-size:19px; font-weight:800; color:var(--ink); letter-spacing:-.3px; }
+.f-price { font-size:15px; font-weight:800; color:var(--ink); text-align:right; line-height:1.3; }
+.f-price .chg { display:block; font-size:12px; font-weight:600; color:var(--acc); }
+.f-price .lbl { display:block; font-size:10px; font-weight:500; color:var(--faint); }
+.fsub { font-size:11.5px; font-weight:500; color:var(--soft); }
+
+.chart-area { margin:12px -2px 0; height:88px; position:relative; z-index:2; }
+.chart-area svg { width:100%; height:100%; overflow:visible; }
+
+.front-body { position:relative; z-index:6; flex:1; display:flex; flex-direction:column; justify-content:center; align-items:flex-start; gap:8px; }
+
+.bull .tag { color:#16463a; box-shadow:inset 0 0 0 1.4px rgba(255,255,255,1),inset 0 10px 12px -5px rgba(255,255,255,1),inset 0 -3px 3px -.5px rgba(34,90,68,.75),inset 0 -11px 10px -5px rgba(255,255,255,1),0 11px 18px -6px rgba(30,100,75,.55),0 3px 5px rgba(30,100,75,.28); }
+.bear .tag { color:#461616; box-shadow:inset 0 0 0 1.4px rgba(255,255,255,1),inset 0 10px 12px -5px rgba(255,255,255,1),inset 0 -3px 3px -.5px rgba(90,28,28,.75),inset 0 -11px 10px -5px rgba(255,255,255,1),0 11px 18px -6px rgba(130,30,30,.55),0 3px 5px rgba(130,30,30,.28); }
+.tag { position:relative; display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:700; background:linear-gradient(180deg,rgba(255,255,255,.78),rgba(255,255,255,.46)); padding:6px 14px; border-radius:999px; }
+.tag::before { content:""; position:absolute; inset:1.1px; border-radius:999px; pointer-events:none; background:radial-gradient(36% 42% at 17% 12%,rgba(255,255,255,1) 0%,rgba(255,255,255,.98) 50%,rgba(255,255,255,0) 62%),radial-gradient(80% 38% at 50% 104%,rgba(255,255,255,.55) 0%,transparent 70%); }
+
+.big-num { font-size:64px; font-weight:800; line-height:1; letter-spacing:-2px; white-space:nowrap; color:var(--ink); text-shadow:0 1px 0 rgba(255,255,255,.65); }
+.sub { font-size:13px; font-weight:500; color:var(--soft); }
+
+.bull .front-foot { box-shadow:inset 0 0 0 2px rgba(255,255,255,1),inset 0 0 0 3.6px rgba(255,255,255,.35),inset 0 18px 22px -11px rgba(255,255,255,1),inset 0 -4.5px 5px -1px rgba(34,90,68,.75),inset 0 -18px 15px -10px rgba(255,255,255,1),inset 0 0 34px rgba(255,255,255,.32),0 18px 30px -11px rgba(30,100,75,.55),0 5px 10px rgba(30,100,75,.25); }
+.bear .front-foot { box-shadow:inset 0 0 0 2px rgba(255,255,255,1),inset 0 0 0 3.6px rgba(255,255,255,.35),inset 0 18px 22px -11px rgba(255,255,255,1),inset 0 -4.5px 5px -1px rgba(90,28,28,.75),inset 0 -18px 15px -10px rgba(255,255,255,1),inset 0 0 34px rgba(255,255,255,.32),0 18px 30px -11px rgba(130,30,30,.55),0 5px 10px rgba(130,30,30,.25); }
+.front-foot { position:relative; z-index:6; margin-top:auto; background:linear-gradient(180deg,rgba(255,255,255,.74),rgba(255,255,255,.42)); border-radius:20px; padding:13px 15px; }
+.front-foot::before { content:""; position:absolute; inset:1.3px; border-radius:19px; pointer-events:none; background:radial-gradient(24% 21% at 14% 7%,rgba(255,255,255,1) 0%,rgba(255,255,255,.98) 50%,rgba(255,255,255,0) 62%),radial-gradient(140% 90% at 50% -18%,rgba(255,255,255,.44) 0%,transparent 62%),radial-gradient(90% 22% at 50% 102%,rgba(255,255,255,.45) 0%,transparent 70%); }
+.front-foot > * { position:relative; z-index:2; }
+.foot-meta { font-size:11px; font-weight:600; color:var(--soft); margin-bottom:6px; display:flex; gap:8px; align-items:center; }
+.foot-pill { background:rgba(255,255,255,.7); color:var(--ink); border-radius:6px; padding:2px 7px; box-shadow:inset 0 1px 0 #fff,inset 0 0 0 1px rgba(255,255,255,.6); }
+.headline { font-size:13px; font-weight:700; color:var(--ink); line-height:1.45; }
+.sources { margin-top:7px; font-size:11px; color:var(--faint); font-weight:500; }
+
+/* 뒷면 */
+.back-card { position:relative; flex:1; border-radius:28px; overflow:hidden; display:flex; flex-direction:column; padding:14px 15px 15px; background:#ffffff; }
+.bull .back-card { box-shadow:0 0 0 1.2px rgba(78,146,116,.4),0 16px 30px -12px rgba(30,100,75,.35),0 5px 10px -4px rgba(30,100,75,.2); }
+.bear .back-card { box-shadow:0 0 0 1.2px rgba(180,80,80,.4),0 16px 30px -12px rgba(130,30,30,.35),0 5px 10px -4px rgba(130,30,30,.2); }
+.bull .back-card::before { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:4; box-shadow:inset 0 0 0 2.2px rgba(255,255,255,1),inset 0 0 0 4px rgba(255,255,255,.4),inset 0 20px 26px -14px rgba(255,255,255,.9),inset 12px 0 20px -13px rgba(255,255,255,.85),inset 0 -4px 5px -1px rgba(34,90,68,.45),inset 0 -18px 16px -10px rgba(255,255,255,.8),inset -12px 0 20px -13px rgba(34,90,68,.3),inset 0 0 40px rgba(255,255,255,.5); }
+.bear .back-card::before { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:4; box-shadow:inset 0 0 0 2.2px rgba(255,255,255,1),inset 0 0 0 4px rgba(255,255,255,.4),inset 0 20px 26px -14px rgba(255,255,255,.9),inset 12px 0 20px -13px rgba(255,255,255,.85),inset 0 -4px 5px -1px rgba(90,28,28,.45),inset 0 -18px 16px -10px rgba(255,255,255,.8),inset -12px 0 20px -13px rgba(90,28,28,.3),inset 0 0 40px rgba(255,255,255,.5); }
+.back-card::after { content:""; position:absolute; inset:1.4px; border-radius:27px; pointer-events:none; z-index:4; background:radial-gradient(20% 7% at 22% 3.5%,rgba(255,255,255,.95) 0%,rgba(255,255,255,.8) 45%,rgba(255,255,255,0) 62%),radial-gradient(7% 3% at 50% 2.5%,rgba(255,255,255,.85) 0%,rgba(255,255,255,0) 68%),radial-gradient(120% 55% at 50% -12%,rgba(255,255,255,.38) 0%,rgba(255,255,255,.1) 50%,transparent 68%),radial-gradient(80% 11% at 50% 102%,rgba(255,255,255,.45) 0%,transparent 70%); }
+
+.back-scroll { position:relative; z-index:6; flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; }
+.back-scroll::-webkit-scrollbar { width:2px; }
+.back-scroll::-webkit-scrollbar-thumb { background:#e2e8f0; border-radius:2px; }
+
+.bull .glass { box-shadow:inset 0 0 0 1.4px rgba(255,255,255,1),inset 0 15px 18px -10px rgba(255,255,255,1),inset 0 -3.4px 3.5px -.5px rgba(95,160,132,.8),inset 0 -14px 12px -8px rgba(255,255,255,1),0 16px 28px -11px rgba(30,100,75,.5),0 4px 8px rgba(30,100,75,.22); }
+.bear .glass { box-shadow:inset 0 0 0 1.4px rgba(255,255,255,1),inset 0 15px 18px -10px rgba(255,255,255,1),inset 0 -3.4px 3.5px -.5px rgba(160,80,80,.8),inset 0 -14px 12px -8px rgba(255,255,255,1),0 16px 28px -11px rgba(130,30,30,.5),0 4px 8px rgba(130,30,30,.22); }
+.glass { position:relative; background:linear-gradient(180deg,rgba(255,255,255,.88),rgba(248,253,250,.72)); border-radius:18px; }
+.glass::before { content:""; position:absolute; inset:1.2px; border-radius:17px; pointer-events:none; background:radial-gradient(22% 26% at 13% 7%,rgba(255,255,255,1) 0%,rgba(255,255,255,.98) 50%,rgba(255,255,255,0) 62%),radial-gradient(150% 95% at 50% -20%,rgba(255,255,255,.6) 0%,transparent 62%),radial-gradient(90% 24% at 50% 102%,rgba(255,255,255,.5) 0%,transparent 70%); }
+.glass > * { position:relative; z-index:2; }
+
+.sec-title { display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700; color:var(--ink); margin:0 2px 8px; }
+.sec-title::before { content:""; width:3px; height:13px; border-radius:2px; background:var(--ink); opacity:.85; }
+
+.insights { padding:12px 14px; }
+.insights li { list-style:none; position:relative; padding-left:14px; font-size:12.5px; line-height:1.55; color:var(--ink); font-weight:500; opacity:.85; }
+.insights li+li { margin-top:7px; }
+.bull .insights li::before { content:""; position:absolute; left:0; top:7px; width:5px; height:5px; border-radius:50%; background:#0f8f63; box-shadow:0 0 0 2px rgba(15,143,99,.16); }
+.bear .insights li::before { content:""; position:absolute; left:0; top:7px; width:5px; height:5px; border-radius:50%; background:#c42020; box-shadow:0 0 0 2px rgba(196,32,32,.16); }
+
+.score { display:flex; align-items:center; gap:14px; padding:13px 16px; }
+.score-num { font-size:30px; font-weight:800; color:var(--ink); }
+.score-txt b { display:block; font-size:13px; color:var(--ink); font-weight:700; margin-bottom:2px; }
+.score-txt span { font-size:11.5px; color:var(--soft); line-height:1.45; display:block; }
+
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+.metric { padding:11px 13px; border-radius:15px; }
+.metric .k { font-size:11px; font-weight:600; color:var(--soft); white-space:nowrap; }
+.metric .v { font-size:16px; font-weight:800; margin-top:3px; color:var(--ink); }
+.metric .n { font-size:10.5px; font-weight:500; margin-top:2px; color:var(--faint); }
+.warn .v { color:#cf7a1c; }
+.good .v { color:#0f8f63; }
+.neg .v  { color:#c42020; }
+</style>
+</head>
+<body>
+<h1>FinSwipe — 카드 앞·뒷면 시안</h1>
+<div id="root"></div>
+
+<script>
+// ── 실제 BE API 응답 형식과 동일한 데이터 ──
+const CARDS = [
+  {
+    theme: 'bull',
+    setLabel: 'NVDA · 거래량 폭발 · 강세',
+    ticker: 'NVDA',
+    company: 'NVIDIA Corporation · NASDAQ',
+    currentPrice: 134.80,
+    changePct1d: 3.2,
+    sparkline: [104.2,108.5,106.3,111.8,115.4,113.2,117.6,116.9,120.3,119.8,124.2,121.5,126.8,124.4,128.6,126.1,130.4,128.8,132.2,130.5,127.9,124.6,122.2,118.8,121.4,124.1,127.7,130.4,132.2,134.8],
+    highlight: { tag:'🔥 거래량 폭발', bigNum:'+347%', sub:'평소의 4.5배 — 지금 뭔가 일어나고 있어요' },
+    indicators: [
+      { type:'RSI',      value:74.2, displayText:null,   label:'과열',     caption:'RSI 74.2 — 단기 과매수 구간이에요.',   cls:'warn' },
+      { type:'MACD',     value:null, displayText:'강세', label:'골든크로스', caption:'시그널선을 상향 돌파, 상승 모멘텀 강화.', cls:'good' },
+      { type:'볼린저밴드', value:null, displayText:'이탈', label:'상단 돌파', caption:'상단 밴드를 벗어나 변동성이 커졌어요.',   cls:'warn' },
+      { type:'거래량',   value:4.47, displayText:null,   label:'급등',     caption:'평소의 약 4.5배, 매수세가 몰렸어요.',   cls:'good' }
+    ],
+    summary3linesKo: [
+      'Blackwell GPU 출하량 전분기 대비 3배 증가, 공급 병목 해소 국면 진입',
+      'MS·구글 클라우드 CAPEX 확대가 하반기 수주 가시성 높여',
+      '월가 12개월 목표주가 평균 $195로 상향, 매수 의견 17명 중 15명'
+    ],
+    sentimentScore: 8.4,
+    sentimentEmoji: '📈',
+    sentimentText: '강한 긍정 신호',
+    sentimentReason: 'AI 인프라 수요 증가 + 실적 상향 기대감이 동시 반영된 기사',
+    headlineKo: '엔비디아, AI 데이터센터 수요 급증으로 분기 매출 사상 최고치 경신 전망',
+    publishedRelative: '1시간 전',
+    eventPill: '📊 거래량 1위',
+    sources: 'Reuters · Bloomberg'
+  },
+  {
+    theme: 'bear',
+    setLabel: 'TSLA · 주가 급락 · 약세',
+    ticker: 'TSLA',
+    company: 'Tesla Inc. · NASDAQ',
+    currentPrice: 168.40,
+    changePct1d: -4.7,
+    sparkline: [234.4,230.6,227.1,223.8,220.3,217.6,214.4,211.8,209.1,212.3,210.5,207.2,203.8,200.4,197.1,193.8,190.4,193.1,190.6,187.2,184.8,181.4,178.1,181.5,178.8,176.2,173.6,171.1,170.4,168.4],
+    highlight: { tag:'📉 오늘 급락', bigNum:'-4.7%', sub:'52주 최저가 근접 — 무슨 일이 있었을까요' },
+    indicators: [
+      { type:'RSI',      value:27.3, displayText:null,   label:'과매도',   caption:'RSI 27.3 — 저점 매수 관심 구간이에요.',  cls:'neg' },
+      { type:'MACD',     value:null, displayText:'약세', label:'데드크로스', caption:'시그널선을 하향 돌파, 하락 압력 증가.',  cls:'neg' },
+      { type:'볼린저밴드', value:null, displayText:'이탈', label:'하단 이탈', caption:'하단 밴드를 벗어나 과매도 가능성이 있어요.', cls:'neg' },
+      { type:'거래량',   value:2.4,  displayText:null,   label:'증가',     caption:'평소의 약 2.4배, 거래가 활발해요.',     cls:'good' }
+    ],
+    summary3linesKo: [
+      '상하이 공장 가동률 84%로 전분기 91% 대비 하락, 수요 둔화 우려',
+      '유럽 시장 모델 Y 가격 인하에도 판매 증가세 멈춰, BYD 격차 확대',
+      'FSD 규제 이슈로 로보택시 출시 일정 3개월 추가 지연 가능성'
+    ],
+    sentimentScore: -6.1,
+    sentimentEmoji: '📉',
+    sentimentText: '부정 신호',
+    sentimentReason: '수요 둔화 + 경쟁 심화 + 규제 리스크가 동시에 부각된 기사',
+    headlineKo: '테슬라, 중국 BYD 점유율 확대 속 2분기 인도량 예상치 10% 하회',
+    publishedRelative: '3시간 전',
+    eventPill: '📉 낙폭 상위',
+    sources: 'Bloomberg · WSJ'
+  }
+];
+
+// ── 스파크라인 SVG 경로 생성 ──
+function buildSparkline(data, w, h, id, strokeColor, fillColor) {
+  const pad = 4;
+  const min = Math.min(...data), max = Math.max(...data);
+  const range = max - min || 1;
+  const xs = (w - pad * 2) / (data.length - 1);
+  const pts = data.map((v, i) => ({
+    x: pad + i * xs,
+    y: pad + (1 - (v - min) / range) * (h - pad * 2)
+  }));
+  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+  const areaPath = linePath + ` L${pts[pts.length-1].x.toFixed(1)} ${h} L${pts[0].x.toFixed(1)} ${h} Z`;
+  return `
+    <defs>
+      <linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="${fillColor}" stop-opacity="0.22"/>
+        <stop offset="1" stop-color="${fillColor}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${areaPath}" fill="url(#${id})"/>
+    <path d="${linePath}" stroke="${strokeColor}" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+  `;
+}
+
+// ── 지표 표시값 ──
+function indicatorDisplay(ind) {
+  if (ind.value !== null) {
+    if (ind.type === '거래량') return '+' + Math.round((ind.value - 1) * 100) + '%';
+    return ind.value;
+  }
+  return ind.displayText;
+}
+
+// ── 렌더링 ──
+function renderCards() {
+  const root = document.getElementById('root');
+  CARDS.forEach((c, ci) => {
+    const strokeColor = c.theme === 'bull' ? '#1f6e58' : '#6e1f1f';
+    const fillColor   = c.theme === 'bull' ? '#1f6e58' : '#6e1f1f';
+    const chgSign     = c.changePct1d >= 0 ? '▲' : '▼';
+    const chgAbs      = Math.abs(c.changePct1d).toFixed(1);
+    const svgId       = `g${ci}`;
+
+    const html = `
+<div class="set">
+  <div class="set-label">${c.setLabel}</div>
+  <div class="pair">
+
+    <!-- 앞면 -->
+    <div class="col ${c.theme}">
+      <div class="col-label">앞면</div>
+      <div class="phone"><div class="screen"><div class="inner">
+        <div class="status"><span>9:41</span><span class="dots"><span></span><span></span><span></span></span></div>
+        <div class="front-card">
+          <div class="fhead">
+            <div class="f-row1">
+              <span class="f-tick">${c.ticker}</span>
+              <span class="f-price">
+                $${c.currentPrice.toFixed(2)}
+                <span class="chg">${chgSign} ${chgAbs}%</span>
+                <span class="lbl">전일 종가</span>
+              </span>
+            </div>
+            <div class="fsub">${c.company}</div>
+          </div>
+          <div class="chart-area">
+            <svg viewBox="0 0 290 88" fill="none">
+              ${buildSparkline(c.sparkline, 290, 88, svgId, strokeColor, fillColor)}
+            </svg>
+          </div>
+          <div class="front-body">
+            <span class="tag">${c.highlight.tag}</span>
+            <div class="big-num">${c.highlight.bigNum}</div>
+            <div class="sub">${c.highlight.sub}</div>
+          </div>
+          <div class="front-foot">
+            <div class="foot-meta">
+              <span class="foot-pill">${c.eventPill}</span>
+              <span>${c.publishedRelative}</span>
+            </div>
+            <div class="headline">${c.headlineKo}</div>
+            <div class="sources">${c.sources}</div>
+          </div>
+        </div>
+      </div></div></div>
+    </div>
+
+    <!-- 뒷면 -->
+    <div class="col ${c.theme}">
+      <div class="col-label">뒷면 (탭 후)</div>
+      <div class="phone"><div class="screen"><div class="inner">
+        <div class="status"><span>9:41</span><span class="dots"><span></span><span></span><span></span></span></div>
+        <div class="back-card">
+          <div class="back-scroll">
+            <div>
+              <div class="sec-title">핵심 인사이트</div>
+              <ul class="glass insights">
+                ${c.summary3linesKo.map(l => `<li>${l}</li>`).join('')}
+              </ul>
+            </div>
+            <div class="glass score">
+              <div class="score-num">${c.sentimentScore > 0 ? '+' : ''}${c.sentimentScore}</div>
+              <div class="score-txt">
+                <b>${c.sentimentEmoji} ${c.sentimentText}</b>
+                <span>${c.sentimentReason}</span>
+              </div>
+            </div>
+            <div>
+              <div class="sec-title">기술적 지표</div>
+              <div class="grid">
+                ${c.indicators.map(ind => `
+                  <div class="glass metric ${ind.cls}">
+                    <div class="k">${ind.type}</div>
+                    <div class="v">${indicatorDisplay(ind)}</div>
+                    <div class="n">${ind.label}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div></div></div>
+    </div>
+
+  </div>
+</div>`;
+    root.insertAdjacentHTML('beforeend', html);
+  });
+}
+
+renderCards();
+</script>
+</body>
+</html>
