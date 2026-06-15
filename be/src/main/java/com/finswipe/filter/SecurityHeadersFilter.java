@@ -49,7 +49,7 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         if (path.startsWith("/swagger-ui") || path.startsWith("/v3/api-docs")) {
             response.setHeader("Content-Security-Policy", SWAGGER_CSP);
-        } else if ("/preview.html".equals(path)) {
+        } else if ("/preview.html".equals(path) || "/card-preview.html".equals(path)) {
             response.setHeader("Content-Security-Policy", PREVIEW_CSP);
         } else if ("/admin.html".equals(path) || "/digest.html".equals(path)) {
             response.setHeader("Content-Security-Policy", ADMIN_CSP);
