@@ -179,26 +179,65 @@ public class NewsController {
             List<NewsArticle> readArticles = readFuture.join();
             List<String> userTickers = tickersFuture.join();
 
+            // 안 읽은 기사에서 티커별 커버 여부 확인
+            java.util.Set<String> coveredTickers = new java.util.HashSet<>();
+            for (NewsArticle a : page.getContent()) {
+                if (a.getTickers() != null) coveredTickers.addAll(a.getTickers());
+            }
+
+            // 안 읽은 기사가 없는 티커는 최신 공개 기사 5개로 fallback
+            List<NewsArticle> fallbackArticles = new java.util.ArrayList<>();
+            if (tickerFilter == null) {
+                for (String t : userTickers) {
+                    if (!coveredTickers.contains(t)) {
+                        try {
+                            List<java.util.UUID> ids = newsRepo.findIdsByTickersOverlap(
+                                    "{" + t + "}", 5, 0);
+                            if (!ids.isEmpty()) {
+                                fallbackArticles.addAll(newsRepo.findByIdIn(ids));
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+
             List<NewsArticle> allArticles = new java.util.ArrayList<>(page.getContent());
             allArticles.addAll(readArticles);
+            allArticles.addAll(fallbackArticles);
             Map<String, TechnicalsService.TechnicalsData> technicalsMap = buildTechnicalsMap(allArticles);
 
+            // 중복 제거용 ID 세트
+            java.util.Set<java.util.UUID> addedIds = new java.util.HashSet<>();
             List<NewsArticleResponse> data = new java.util.ArrayList<>();
             page.getContent().forEach(a -> {
-                TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
-                data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false,
-                        td != null ? td.indicators() : null,
-                        td != null ? td.currentPrice() : null,
-                        td != null ? td.changePct1d() : null,
-                        td != null ? td.sparkline() : null));
+                if (addedIds.add(a.getId())) {
+                    TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
+                    data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false,
+                            td != null ? td.indicators() : null,
+                            td != null ? td.currentPrice() : null,
+                            td != null ? td.changePct1d() : null,
+                            td != null ? td.sparkline() : null));
+                }
             });
             readArticles.forEach(a -> {
-                TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
-                data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), true,
-                        td != null ? td.indicators() : null,
-                        td != null ? td.currentPrice() : null,
-                        td != null ? td.changePct1d() : null,
-                        td != null ? td.sparkline() : null));
+                if (addedIds.add(a.getId())) {
+                    TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
+                    data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), true,
+                            td != null ? td.indicators() : null,
+                            td != null ? td.currentPrice() : null,
+                            td != null ? td.changePct1d() : null,
+                            td != null ? td.sparkline() : null));
+                }
+            });
+            fallbackArticles.forEach(a -> {
+                if (addedIds.add(a.getId())) {
+                    TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
+                    data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), true,
+                            td != null ? td.indicators() : null,
+                            td != null ? td.currentPrice() : null,
+                            td != null ? td.changePct1d() : null,
+                            td != null ? td.sparkline() : null));
+                }
             });
             return ResponseEntity.ok(new NewsListResponse(page.getTotalElements(), offset, data, userTickers));
         }
