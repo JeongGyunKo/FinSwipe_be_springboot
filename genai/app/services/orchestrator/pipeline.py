@@ -29,7 +29,6 @@ from app.services.mixed_detector import (
 from app.services.orchestrator.status_tracker import PipelineStatusTracker
 from app.services.payload_builder import build_enrichment_storage_payload
 from app.services.sentiment import analyze_sentiment
-from app.services.summarizer import summarize_to_three_lines_result
 from app.services.text_cleaner import clean_article_text, validate_article_text
 from app.services.xai import explain_sentiment, is_xai_backend_disabled
 
@@ -132,6 +131,7 @@ class EnrichmentOrchestrator:
         sentiment_divergence: bool | None = None
         article_mixed = None
         ticker_mixed = None
+        headline_ko: str | None = None
 
         if fetch_result.fetch_status == ArticleFetchStatus.SUCCESS:
             cleaned_text, can_continue = self._run_clean_and_validate(
@@ -161,29 +161,23 @@ class EnrichmentOrchestrator:
                             "XAI disabled — using sentiment_reason instead.",
                         )
 
-                    # 감성 설명 + 요약 + 이벤트 분류 병렬 실행
-                    from concurrent.futures import ThreadPoolExecutor
-                    with ThreadPoolExecutor(max_workers=3) as pool:
-                        reason_future = pool.submit(
-                            self._run_sentiment_explain_stage,
-                            request=request,
-                            cleaned_text=cleaned_text,
-                            sentiment_result=sentiment_result,
-                        )
-                        summary_future = pool.submit(
-                            self._run_summary_stage,
-                            request=request,
-                            cleaned_text=cleaned_text,
-                            tracker=tracker,
-                        )
-                        event_future = pool.submit(
-                            self._run_event_classify_stage,
-                            request=request,
-                            cleaned_text=cleaned_text,
-                        )
-                        sentiment_reason = reason_future.result()
-                        summary_3lines = summary_future.result()
-                        event_category = event_future.result()
+                    # 통합 분석: Gemini 1회 호출로 요약·감성이유·이벤트분류·헤드라인번역 동시 처리
+                    unified = self._run_unified_analysis_stage(
+                        request=request,
+                        cleaned_text=cleaned_text,
+                        sentiment_result=sentiment_result,
+                        tracker=tracker,
+                    )
+                    summary_3lines = [
+                        line for line in [
+                            unified.get("summary_1"),
+                            unified.get("summary_2"),
+                            unified.get("summary_3"),
+                        ] if line
+                    ]
+                    sentiment_reason = unified.get("sentiment_reason")
+                    event_category = unified.get("event_category")
+                    headline_ko = unified.get("headline_ko")
 
                     article_mixed, ticker_mixed = self._run_mixed_detection_stage(
                         request=request,
@@ -200,21 +194,7 @@ class EnrichmentOrchestrator:
                         PipelineStageName.MIXED_DETECTION,
                         "Skipped because sentiment analysis did not produce a result.",
                     )
-                    from concurrent.futures import ThreadPoolExecutor
-                    with ThreadPoolExecutor(max_workers=2) as pool:
-                        summary_future = pool.submit(
-                            self._run_summary_stage,
-                            request=request,
-                            cleaned_text=cleaned_text,
-                            tracker=tracker,
-                        )
-                        event_future = pool.submit(
-                            self._run_event_classify_stage,
-                            request=request,
-                            cleaned_text=cleaned_text,
-                        )
-                        summary_3lines = summary_future.result()
-                        event_category = event_future.result()
+                    headline_ko = None
         else:
             self._skip_after_fetch_failure(tracker)
 
@@ -233,6 +213,7 @@ class EnrichmentOrchestrator:
             sentiment_divergence=sentiment_divergence,
             article_mixed=article_mixed,
             ticker_mixed=ticker_mixed,
+            headline_ko=headline_ko,
         )
         final_payload = self._persist_payload(
             request=request,
@@ -418,68 +399,6 @@ class EnrichmentOrchestrator:
             "Article text passed validation checks.",
         )
         return cleaned_text, True
-
-    def _run_summary_stage(
-        self,
-        *,
-        request: ArticleEnrichmentRequest,
-        cleaned_text: str,
-        tracker: PipelineStatusTracker,
-    ) -> list[str] | None:
-        tracker.start(PipelineStageName.SUMMARIZE)
-        try:
-            summary_result = summarize_to_three_lines_result(
-                title=request.title,
-                article_text=cleaned_text,
-            )
-            summary_3lines = summary_result.lines
-        except Exception as exc:
-            log_event(
-                logger,
-                logging.ERROR,
-                "summary_generation_failed",
-                news_id=request.news_id,
-                error=str(exc),
-            )
-            tracker.fail(
-                PipelineStageName.SUMMARIZE,
-                f"Summary generation failed: {exc}",
-                fatal=False,
-            )
-            return None
-
-        if len(summary_3lines) == 3 and all(line.strip() for line in summary_3lines):
-            log_event(
-                logger,
-                logging.INFO,
-                "summary_generation_succeeded",
-                news_id=request.news_id,
-                summary_line_count=len(summary_3lines),
-            )
-            tracker.complete(
-                PipelineStageName.SUMMARIZE,
-                "Three-line summary generated successfully.",
-            )
-            return summary_3lines
-
-        log_event(
-            logger,
-            logging.WARNING,
-            "summary_generation_failed",
-            news_id=request.news_id,
-            summary_line_count=len(summary_3lines),
-            failure_code=summary_result.failure_code,
-            error="Summary generation did not return three usable summary lines.",
-        )
-        tracker.fail(
-            PipelineStageName.SUMMARIZE,
-            (
-                f"Summary generation did not return three usable summary lines. "
-                f"(failure_code={summary_result.failure_code or 'unknown'})"
-            ),
-            fatal=False,
-        )
-        return summary_3lines
 
     def _run_sentiment_stage(
         self,
@@ -678,40 +597,28 @@ class EnrichmentOrchestrator:
 
         return article_mixed, ticker_mixed
 
-    def _run_sentiment_explain_stage(
+    def _run_unified_analysis_stage(
         self,
         *,
         request: ArticleEnrichmentRequest,
         cleaned_text: str,
         sentiment_result: SentimentResult,
-    ) -> str | None:
-        from app.services.sentiment_explainer import explain_sentiment_reason
+        tracker: PipelineStatusTracker,
+    ) -> dict:
+        from app.services.unified_article_analyzer import analyze_article_unified
         try:
-            return explain_sentiment_reason(
+            result = analyze_article_unified(
                 title=request.title,
                 article_text=cleaned_text,
                 sentiment_label=sentiment_result.label.value,
                 sentiment_score=float(sentiment_result.score),
             )
+            tracker.complete(PipelineStageName.SUMMARIZE, "통합 분석 완료 (요약·감성이유·이벤트·번역).")
+            return result
         except Exception as exc:
-            log_event(logger, logging.WARNING, "sentiment_explain_failed", error=str(exc))
-            return None
-
-    def _run_event_classify_stage(
-        self,
-        *,
-        request: ArticleEnrichmentRequest,
-        cleaned_text: str,
-    ) -> str | None:
-        from app.services.event_classifier import classify_event_category
-        try:
-            return classify_event_category(
-                title=request.title,
-                article_text=cleaned_text,
-            )
-        except Exception as exc:
-            log_event(logger, logging.WARNING, "event_classify_failed", error=str(exc))
-            return None
+            log_event(logger, logging.WARNING, "unified_analysis_failed", error=str(exc))
+            tracker.fail(PipelineStageName.SUMMARIZE, f"통합 분석 실패: {exc}", fatal=False)
+            return {}
 
     def _build_payload(
         self,
@@ -730,6 +637,7 @@ class EnrichmentOrchestrator:
         sentiment_divergence: bool | None = None,
         article_mixed,
         ticker_mixed,
+        headline_ko: str | None = None,
     ) -> EnrichmentStoragePayload:
         tracker.start(PipelineStageName.BUILD_PAYLOAD)
         try:
@@ -759,6 +667,8 @@ class EnrichmentOrchestrator:
                 tickers=request.ticker,
                 analyzed_at=analyzed_at,
                 errors=tracker.errors(),
+                prebuilt_headline_ko=headline_ko,
+                prebuilt_summary_ko=(summary_3lines if summary_3lines and len(summary_3lines) == 3 else None),
             )
         except Exception as exc:
             log_event(

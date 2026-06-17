@@ -35,6 +35,13 @@ from app.services.translation import build_localized_content
 
 logger = logging.getLogger(__name__)
 
+_SENTIMENT_LABELS_KO: dict[SentimentLabel, str] = {
+    SentimentLabel.BULLISH: "강세",
+    SentimentLabel.BEARISH: "약세",
+    SentimentLabel.NEUTRAL: "중립",
+    SentimentLabel.MIXED: "혼합",
+}
+
 
 def build_enrichment_storage_payload(
     *,
@@ -58,6 +65,8 @@ def build_enrichment_storage_payload(
     tickers: list[str] | None = None,
     analyzed_at: datetime | None = None,
     errors: list[StoragePayloadError] | None = None,
+    prebuilt_headline_ko: str | None = None,
+    prebuilt_summary_ko: list[str] | None = None,
 ) -> EnrichmentStoragePayload:
     """Assemble a database-ready storage payload from enrichment stage outputs."""
     cleaned_text_normalized = (cleaned_text or "").strip()
@@ -76,6 +85,8 @@ def build_enrichment_storage_payload(
         is_mixed=bool(article_mixed and article_mixed.is_mixed),
         tickers=tickers,
         analysis_outcome=analysis_outcome,
+        prebuilt_headline_ko=prebuilt_headline_ko,
+        prebuilt_summary_ko=prebuilt_summary_ko,
     )
 
     aggregated_errors = list(errors or [])
@@ -213,6 +224,13 @@ def _build_localized_content_excerpt(cleaned_text: str) -> str | None:
     return excerpt or normalized[:limit]
 
 
+_TICKER_BOX_LABELS_KO = {
+    "revenue": "매출", "net_income": "순이익", "operating_income": "영업이익",
+    "guidance": "가이던스", "target_price": "목표주가", "dividend": "배당",
+    "eps": "EPS", "yoy": "YoY", "qoq": "QoQ", "market_cap": "시가총액", "pe_ratio": "PER",
+}
+
+
 def _build_stored_localized_content(
     *,
     title: str,
@@ -223,15 +241,33 @@ def _build_stored_localized_content(
     is_mixed: bool,
     tickers: list[str] | None,
     analysis_outcome: AnalysisOutcome,
+    prebuilt_headline_ko: str | None = None,
+    prebuilt_summary_ko: list[str] | None = None,
 ) -> LocalizedArticleContent | None:
     if analysis_outcome == AnalysisOutcome.FILTERED:
         return None
+
+    localized_sentiment = _map_sentiment_label(sentiment_label, is_mixed=is_mixed)
+
+    # 통합 분석 결과가 있으면 Gemini 번역 호출 없이 바로 생성
+    if prebuilt_headline_ko and prebuilt_summary_ko and len(prebuilt_summary_ko) == 3:
+        return LocalizedArticleContent(
+            language="ko",
+            title=prebuilt_headline_ko,
+            content=None,
+            summary_3lines=[
+                SummaryLine(line_number=i, text=line)
+                for i, line in enumerate(prebuilt_summary_ko, start=1)
+            ],
+            xai=None,
+            sentiment_label=_SENTIMENT_LABELS_KO.get(localized_sentiment),
+            ticker_box_labels=dict(_TICKER_BOX_LABELS_KO),
+        )
 
     summary_lines = [
         SummaryLine(line_number=index, text=text)
         for index, text in enumerate(summary_3lines, start=1)
     ]
-    localized_sentiment = _map_sentiment_label(sentiment_label, is_mixed=is_mixed)
     return build_localized_content(
         title=title,
         content_text=content_text,
