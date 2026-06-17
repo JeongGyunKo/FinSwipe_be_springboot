@@ -168,13 +168,6 @@ class EnrichmentOrchestrator:
                         sentiment_result=sentiment_result,
                         tracker=tracker,
                     )
-                    summary_3lines = [
-                        line for line in [
-                            unified.get("summary_1"),
-                            unified.get("summary_2"),
-                            unified.get("summary_3"),
-                        ] if line
-                    ]
                     sentiment_reason = unified.get("sentiment_reason")
                     event_category = unified.get("event_category")
                     headline_ko = unified.get("headline_ko")
@@ -668,7 +661,6 @@ class EnrichmentOrchestrator:
                 analyzed_at=analyzed_at,
                 errors=tracker.errors(),
                 prebuilt_headline_ko=headline_ko,
-                prebuilt_summary_ko=(summary_3lines if summary_3lines and len(summary_3lines) == 3 else None),
             )
         except Exception as exc:
             log_event(

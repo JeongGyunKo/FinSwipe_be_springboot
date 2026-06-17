@@ -21,14 +21,14 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
     @Query(value = """
             SELECT * FROM news_articles
             WHERE headline_ko IS NOT NULL
-              AND summary_3lines_ko IS NOT NULL
+
               AND sentiment_reason IS NOT NULL
             ORDER BY published_at DESC
             """,
             countQuery = """
             SELECT COUNT(*) FROM news_articles
             WHERE headline_ko IS NOT NULL
-              AND summary_3lines_ko IS NOT NULL
+
               AND sentiment_reason IS NOT NULL
             """,
             nativeQuery = true)
@@ -38,7 +38,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
     @Query(value = """
             SELECT * FROM news_articles
             WHERE headline_ko IS NOT NULL
-              AND summary_3lines_ko IS NOT NULL
+
               AND sentiment_reason IS NOT NULL
               AND published_at >= :since
             ORDER BY published_at DESC
@@ -46,7 +46,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             countQuery = """
             SELECT COUNT(*) FROM news_articles
             WHERE headline_ko IS NOT NULL
-              AND summary_3lines_ko IS NOT NULL
+
               AND sentiment_reason IS NOT NULL
               AND published_at >= :since
             """,
@@ -57,7 +57,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
     @Query(value = """
             SELECT * FROM news_articles
             WHERE headline_ko IS NOT NULL
-              AND summary_3lines_ko IS NOT NULL
+
               AND sentiment_reason IS NOT NULL
               AND published_at >= :since
             ORDER BY ABS(sentiment_score) DESC NULLS LAST, published_at DESC
@@ -65,7 +65,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             countQuery = """
             SELECT COUNT(*) FROM news_articles
             WHERE headline_ko IS NOT NULL
-              AND summary_3lines_ko IS NOT NULL
+
               AND sentiment_reason IS NOT NULL
               AND published_at >= :since
             """,
@@ -76,14 +76,14 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
     @Query(value = """
             SELECT * FROM news_articles
             WHERE headline_ko IS NOT NULL
-              AND summary_3lines_ko IS NOT NULL
+
               AND sentiment_reason IS NOT NULL
             ORDER BY ABS(sentiment_score) DESC NULLS LAST, published_at DESC
             """,
             countQuery = """
             SELECT COUNT(*) FROM news_articles
             WHERE headline_ko IS NOT NULL
-              AND summary_3lines_ko IS NOT NULL
+
               AND sentiment_reason IS NOT NULL
             """,
             nativeQuery = true)
@@ -93,7 +93,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
     @Query(value = """
             SELECT * FROM news_articles na
             WHERE na.headline_ko IS NOT NULL
-              AND na.summary_3lines_ko IS NOT NULL
+
               AND na.sentiment_reason IS NOT NULL
               AND na.published_at >= :since
               AND :ticker = ANY(na.tickers)
@@ -109,7 +109,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             countQuery = """
             SELECT COUNT(*) FROM news_articles na
             WHERE na.headline_ko IS NOT NULL
-              AND na.summary_3lines_ko IS NOT NULL
+
               AND na.sentiment_reason IS NOT NULL
               AND na.published_at >= :since
               AND :ticker = ANY(na.tickers)
@@ -147,7 +147,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
                 (SELECT cnt FROM ticker_count) AS total_tickers
               FROM news_articles na
               WHERE na.headline_ko IS NOT NULL
-                AND na.summary_3lines_ko IS NOT NULL
+  
                 AND na.sentiment_reason IS NOT NULL
                 AND na.published_at >= :since
                 AND na.tickers && (SELECT array_agg(ticker) FROM user_tickers)
@@ -164,7 +164,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             countQuery = """
             SELECT COUNT(*) FROM news_articles na
             WHERE na.headline_ko IS NOT NULL
-              AND na.summary_3lines_ko IS NOT NULL
+
               AND na.sentiment_reason IS NOT NULL
               AND na.published_at >= :since
               AND na.tickers && (
@@ -186,7 +186,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             SELECT id FROM news_articles
             WHERE tickers && CAST(:tickers AS text[])
               AND headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
-              AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+
               AND sentiment_reason IS NOT NULL
             ORDER BY published_at DESC LIMIT :limit OFFSET :offset
             """, nativeQuery = true)
@@ -198,7 +198,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             SELECT COUNT(*) FROM news_articles
             WHERE tickers && CAST(:tickers AS text[])
               AND headline_ko IS NOT NULL AND headline_ko ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
-              AND summary_3lines_ko IS NOT NULL AND summary_3lines_ko::text ~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+
               AND sentiment_reason IS NOT NULL
             """, nativeQuery = true)
     long countByTickersOverlap(@Param("tickers") String tickers);
@@ -215,7 +215,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
               AND (
                 sentiment_label IS NULL
                 OR headline_ko IS NULL    OR headline_ko    !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
-                OR summary_3lines_ko IS NULL OR summary_3lines_ko::text !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+
                 OR sentiment_reason IS NULL
               )
               AND (
@@ -243,7 +243,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
               AND (
                 sentiment_label IS NULL
                 OR headline_ko IS NULL    OR headline_ko    !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
-                OR summary_3lines_ko IS NULL OR summary_3lines_ko::text !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+
                 OR sentiment_reason IS NULL
               )
             ORDER BY published_at DESC
@@ -260,7 +260,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
               AND (
                 sentiment_label IS NULL
                 OR headline_ko IS NULL    OR headline_ko    !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
-                OR summary_3lines_ko IS NULL OR summary_3lines_ko::text !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
+
                 OR sentiment_reason IS NULL
               )
               AND tickers && CAST(:tickers AS text[])
@@ -282,7 +282,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             INNER JOIN user_read_articles ura ON ura.article_id = na.id
             WHERE ura.user_id = CAST(:userId AS uuid)
               AND na.headline_ko IS NOT NULL
-              AND na.summary_3lines_ko IS NOT NULL
+
               AND na.sentiment_reason IS NOT NULL
               AND na.tickers && (
                 SELECT COALESCE(tickers, '{}') FROM user_profiles WHERE id = CAST(:userId AS uuid)
