@@ -79,7 +79,7 @@ public class NewsArticleResponse {
         this.isPaywalled = article.isPaywalled();
         this.sentimentLabel = article.getSentimentLabel();
         Double raw = article.getSentimentScore();
-        this.sentimentScore = raw != null ? Math.round(raw * 10.0) / 10.0 : null;
+        this.sentimentScore = raw != null ? Math.round(raw * 1000.0) / 10.0 : null;
         this.isMixed = article.getIsMixed();
         this.headlineKo = article.getHeadlineKo();
         this.summary3linesKo = article.getSummary3linesKo();

@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
@@ -57,6 +58,12 @@ public class GlobalExceptionHandler {
                 .map(v -> v.getPropertyPath() + ": " + v.getMessage())
                 .orElse("유효하지 않은 요청입니다.");
         return ResponseEntity.badRequest().body(Map.of("error", msg));
+    }
+
+    /** @RequestHeader 누락 → 400 (기존에 500으로 뜨던 문제 수정) */
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<Map<String, String>> handleMissingHeader(MissingRequestHeaderException e) {
+        return ResponseEntity.badRequest().body(Map.of("error", "필수 헤더 누락: " + e.getHeaderName()));
     }
 
     /** 나머지 모든 미처리 예외 → 500 */

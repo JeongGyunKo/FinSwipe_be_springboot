@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinSwipe — FE 핸드오프</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; }
+
+/* ── API 스펙 섹션 ── */
+.spec-wrap { width:100%; max-width:900px; display:flex; flex-direction:column; gap:20px; }
+.spec-card { background:#ffffff; border-radius:20px; padding:24px 28px; box-shadow:0 4px 20px -6px rgba(40,60,80,.12),0 1px 4px rgba(40,60,80,.07); }
+.spec-card h2 { font-size:14px; font-weight:700; color:#2b3440; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+.spec-card h2::before { content:""; display:inline-block; width:3px; height:14px; border-radius:2px; background:#0f8f63; }
+.endpoint { display:flex; align-items:center; gap:10px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:12px 16px; }
+.method { font-size:11px; font-weight:800; color:#fff; background:#0f8f63; padding:3px 8px; border-radius:6px; letter-spacing:.5px; }
+.url { font-size:13.5px; font-weight:600; color:#166534; font-family:'Menlo','Consolas',monospace; }
+.param-note { margin-top:8px; font-size:12px; color:#64748b; }
+.param-note code { background:#f1f5f9; padding:1px 6px; border-radius:4px; font-size:11.5px; color:#0369a1; }
+
+.field-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+.field-table thead th { text-align:left; font-size:11px; font-weight:700; color:#94a3b8; letter-spacing:.4px; text-transform:uppercase; padding:0 8px 10px; border-bottom:1.5px solid #f1f5f9; }
+.field-table tbody td { padding:9px 8px; border-bottom:1px solid #f8fafc; vertical-align:top; line-height:1.5; }
+.field-table tbody tr:last-child td { border-bottom:none; }
+.field-name { font-family:'Menlo','Consolas',monospace; font-size:12px; font-weight:600; color:#0369a1; white-space:nowrap; }
+.field-type { font-size:11px; color:#94a3b8; font-family:'Menlo','Consolas',monospace; white-space:nowrap; }
+.field-desc { color:#475569; }
+.field-desc b { color:#2b3440; font-weight:600; }
+.theme-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.theme-chip { display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px; font-size:12px; font-weight:700; }
+.chip-green  { background:#d6f1e3; color:#16463a; }
+.chip-red    { background:#fce8e8; color:#461616; }
+.chip-gray   { background:#f1f5f9; color:#1e293b; }
+.chip-yellow { background:#fef3c7; color:#451a03; }
+.divider { height:1px; background:#f1f5f9; margin:28px 0; }
+
+/* ── 4종 테마 변수 ── */
+.bull    { --card: radial-gradient(120% 90% at 18% -6%,#f2fdf8 0%,transparent 55%), radial-gradient(150% 85% at 50% 30%,rgba(255,255,255,.38) 0%,transparent 62%), linear-gradient(172deg,#d6f1e3 0%,#b7e3cb 48%,#8fd0ac 100%); --ink:#16463a; --soft:#4a7263; --faint:#6f9384; --acc:#0f8f63; --ring:rgba(78,146,116,.5); }
+.bear    { --card: radial-gradient(120% 90% at 18% -6%,#fff5f5 0%,transparent 55%), radial-gradient(150% 85% at 50% 30%,rgba(255,255,255,.38) 0%,transparent 62%), linear-gradient(172deg,#fce8e8 0%,#f0a0a0 48%,#e06060 100%); --ink:#461616; --soft:#724242; --faint:#8a5555; --acc:#c42020; --ring:rgba(180,80,80,.5); }
+.neutral { --card: radial-gradient(120% 90% at 18% -6%,#f8fafc 0%,transparent 55%), radial-gradient(150% 85% at 50% 30%,rgba(255,255,255,.38) 0%,transparent 62%), linear-gradient(172deg,#f1f5f9 0%,#cbd5e1 48%,#94a3b8 100%); --ink:#1e293b; --soft:#475569; --faint:#64748b; --acc:#475569; --ring:rgba(100,116,139,.5); }
+.mixed   { --card: radial-gradient(120% 90% at 18% -6%,#fffbeb 0%,transparent 55%), radial-gradient(150% 85% at 50% 30%,rgba(255,255,255,.38) 0%,transparent 62%), linear-gradient(172deg,#fef3c7 0%,#fde68a 48%,#f59e0b 100%); --ink:#451a03; --soft:#78350f; --faint:#92400e; --acc:#d97706; --ring:rgba(217,119,6,.5); }
+
+body { min-height:100vh; background:radial-gradient(1200px 800px at 20% 0%,#eef7f1 0%,#e6eef5 45%,#e9e9f2 100%); display:flex; flex-direction:column; align-items:center; padding:48px 24px 80px; gap:60px; }
+.page-title { text-align:center; }
+.page-title h1 { font-size:22px; font-weight:800; color:#2b3440; letter-spacing:-.4px; }
+.page-title p { margin-top:6px; font-size:13px; color:#64748b; }
+.section-heading { font-size:16px; font-weight:700; color:#2b3440; letter-spacing:-.2px; align-self:flex-start; max-width:900px; width:100%; }
+.legend { display:flex; gap:16px; flex-wrap:wrap; justify-content:center; }
+.legend-item { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#64748b; }
+.legend-dot { width:10px; height:10px; border-radius:50%; }
+.set { display:flex; flex-direction:column; align-items:center; gap:14px; }
+.set-label { font-size:13px; font-weight:600; color:#8b96a5; }
+.pair { display:flex; gap:44px; flex-wrap:wrap; justify-content:center; }
+.col { display:flex; flex-direction:column; align-items:center; gap:10px; }
+.col-label { font-size:11px; font-weight:700; color:#94a3b8; letter-spacing:.5px; text-transform:uppercase; }
+
+.phone { width:320px; height:650px; border-radius:46px; padding:10px; background:linear-gradient(160deg,#fdfefe,#dfe5ec); box-shadow:0 30px 60px -18px rgba(40,70,60,.28),inset 0 2px 0 rgba(255,255,255,.9); }
+.screen { width:100%; height:100%; border-radius:38px; overflow:hidden; position:relative; background:#ffffff; }
+.inner { position:relative; z-index:2; height:100%; display:flex; flex-direction:column; padding:16px 18px 18px; }
+.status { font-size:12px; font-weight:600; letter-spacing:.5px; display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; color:#2b3440; flex-shrink:0; }
+.dots span { display:inline-block; width:5px; height:5px; border-radius:50%; margin-left:4px; background:currentColor; opacity:.85; }
+
+/* ── 앞면 ── */
+.front-card { position:relative; flex:1; border-radius:28px; overflow:hidden; display:flex; flex-direction:column; padding:14px 15px 15px; background:var(--card); }
+.bull .front-card    { box-shadow:0 0 0 1.2px rgba(78,146,116,.5),0 18px 34px -12px rgba(30,100,75,.5),0 6px 12px -4px rgba(30,100,75,.3),0 2px 3px rgba(30,100,75,.28); }
+.bear .front-card    { box-shadow:0 0 0 1.2px rgba(180,80,80,.5),0 18px 34px -12px rgba(130,30,30,.5),0 6px 12px -4px rgba(130,30,30,.3),0 2px 3px rgba(130,30,30,.28); }
+.neutral .front-card { box-shadow:0 0 0 1.2px rgba(100,116,139,.5),0 18px 34px -12px rgba(71,85,105,.5),0 6px 12px -4px rgba(71,85,105,.3),0 2px 3px rgba(71,85,105,.28); }
+.mixed   .front-card { box-shadow:0 0 0 1.2px rgba(217,119,6,.5), 0 18px 34px -12px rgba(180,83,9,.5), 0 6px 12px -4px rgba(180,83,9,.3), 0 2px 3px rgba(180,83,9,.28); }
+
+.bull .front-card::before    { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:4; box-shadow:inset 0 0 0 2.2px rgba(255,255,255,1),inset 0 0 0 4px rgba(255,255,255,.35),inset 0 24px 32px -14px rgba(255,255,255,1),inset 12px 0 22px -13px rgba(255,255,255,.9),inset 0 -5px 6px -1px rgba(34,90,68,.78),inset 0 -22px 20px -12px rgba(255,255,255,1),inset -16px 0 24px -14px rgba(34,90,68,.55),inset 16px -30px 30px -26px rgba(34,90,68,.3),inset 0 0 52px rgba(255,255,255,.34); }
+.bear .front-card::before    { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:4; box-shadow:inset 0 0 0 2.2px rgba(255,255,255,1),inset 0 0 0 4px rgba(255,255,255,.35),inset 0 24px 32px -14px rgba(255,255,255,1),inset 12px 0 22px -13px rgba(255,255,255,.9),inset 0 -5px 6px -1px rgba(90,28,28,.78),inset 0 -22px 20px -12px rgba(255,255,255,1),inset -16px 0 24px -14px rgba(90,28,28,.55),inset 16px -30px 30px -26px rgba(90,28,28,.3),inset 0 0 52px rgba(255,255,255,.34); }
+.neutral .front-card::before { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:4; box-shadow:inset 0 0 0 2.2px rgba(255,255,255,1),inset 0 0 0 4px rgba(255,255,255,.35),inset 0 24px 32px -14px rgba(255,255,255,1),inset 12px 0 22px -13px rgba(255,255,255,.9),inset 0 -5px 6px -1px rgba(71,85,105,.78),inset 0 -22px 20px -12px rgba(255,255,255,1),inset -16px 0 24px -14px rgba(71,85,105,.55),inset 16px -30px 30px -26px rgba(71,85,105,.3),inset 0 0 52px rgba(255,255,255,.34); }
+.mixed   .front-card::before { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:4; box-shadow:inset 0 0 0 2.2px rgba(255,255,255,1),inset 0 0 0 4px rgba(255,255,255,.35),inset 0 24px 32px -14px rgba(255,255,255,1),inset 12px 0 22px -13px rgba(255,255,255,.9),inset 0 -5px 6px -1px rgba(180,83,9,.78),inset 0 -22px 20px -12px rgba(255,255,255,1),inset -16px 0 24px -14px rgba(180,83,9,.55),inset 16px -30px 30px -26px rgba(180,83,9,.3),inset 0 0 52px rgba(255,255,255,.34); }
+.front-card::after { content:""; position:absolute; inset:1.4px; border-radius:27px; pointer-events:none; z-index:4; background:radial-gradient(24% 8.5% at 26% 4.6%,rgba(255,255,255,1) 0%,rgba(255,255,255,.98) 52%,rgba(255,255,255,0) 63%),radial-gradient(8% 3.2% at 52% 3%,rgba(255,255,255,.95) 0%,rgba(255,255,255,0) 70%),radial-gradient(135% 62% at 50% -10%,rgba(255,255,255,.5) 0%,rgba(255,255,255,.14) 48%,transparent 65%),radial-gradient(88% 13% at 50% 101%,rgba(255,255,255,.55) 0%,rgba(255,255,255,.18) 55%,transparent 72%); }
+
+.fhead { position:relative; z-index:6; display:flex; flex-direction:column; gap:2px; }
+.f-row1 { display:flex; justify-content:space-between; align-items:baseline; }
+.f-tick { font-size:19px; font-weight:800; color:var(--ink); letter-spacing:-.3px; }
+.f-price { font-size:15px; font-weight:800; color:var(--ink); text-align:right; line-height:1.3; }
+.f-price .chg { display:block; font-size:12px; font-weight:600; color:var(--acc); }
+.f-price .lbl { display:block; font-size:10px; font-weight:500; color:var(--faint); }
+.fsub { font-size:11.5px; font-weight:500; color:var(--soft); }
+
+.chart-area { margin:12px -2px 0; height:88px; position:relative; z-index:2; }
+.chart-area svg { width:100%; height:100%; overflow:visible; }
+
+.front-body { position:relative; z-index:6; flex:1; display:flex; flex-direction:column; justify-content:center; align-items:flex-start; gap:8px; }
+
+.bull .tag    { color:#16463a; box-shadow:inset 0 0 0 1.4px rgba(255,255,255,1),inset 0 10px 12px -5px rgba(255,255,255,1),inset 0 -3px 3px -.5px rgba(34,90,68,.75),inset 0 -11px 10px -5px rgba(255,255,255,1),0 11px 18px -6px rgba(30,100,75,.55),0 3px 5px rgba(30,100,75,.28); }
+.bear .tag    { color:#461616; box-shadow:inset 0 0 0 1.4px rgba(255,255,255,1),inset 0 10px 12px -5px rgba(255,255,255,1),inset 0 -3px 3px -.5px rgba(90,28,28,.75),inset 0 -11px 10px -5px rgba(255,255,255,1),0 11px 18px -6px rgba(130,30,30,.55),0 3px 5px rgba(130,30,30,.28); }
+.neutral .tag { color:#1e293b; box-shadow:inset 0 0 0 1.4px rgba(255,255,255,1),inset 0 10px 12px -5px rgba(255,255,255,1),inset 0 -3px 3px -.5px rgba(71,85,105,.75),inset 0 -11px 10px -5px rgba(255,255,255,1),0 11px 18px -6px rgba(71,85,105,.55),0 3px 5px rgba(71,85,105,.28); }
+.mixed   .tag { color:#451a03; box-shadow:inset 0 0 0 1.4px rgba(255,255,255,1),inset 0 10px 12px -5px rgba(255,255,255,1),inset 0 -3px 3px -.5px rgba(180,83,9,.75),inset 0 -11px 10px -5px rgba(255,255,255,1),0 11px 18px -6px rgba(180,83,9,.55),0 3px 5px rgba(180,83,9,.28); }
+.tag { position:relative; display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:700; background:linear-gradient(180deg,rgba(255,255,255,.78),rgba(255,255,255,.46)); padding:6px 14px; border-radius:999px; }
+.tag::before { content:""; position:absolute; inset:1.1px; border-radius:999px; pointer-events:none; background:radial-gradient(36% 42% at 17% 12%,rgba(255,255,255,1) 0%,rgba(255,255,255,.98) 50%,rgba(255,255,255,0) 62%),radial-gradient(80% 38% at 50% 104%,rgba(255,255,255,.55) 0%,transparent 70%); }
+
+.big-num { font-size:64px; font-weight:800; line-height:1; letter-spacing:-2px; white-space:nowrap; color:var(--ink); text-shadow:0 1px 0 rgba(255,255,255,.65); }
+.sub { font-size:13px; font-weight:500; color:var(--soft); }
+
+.bull .front-foot    { box-shadow:inset 0 0 0 2px rgba(255,255,255,1),inset 0 0 0 3.6px rgba(255,255,255,.35),inset 0 18px 22px -11px rgba(255,255,255,1),inset 0 -4.5px 5px -1px rgba(34,90,68,.75),inset 0 -18px 15px -10px rgba(255,255,255,1),inset 0 0 34px rgba(255,255,255,.32),0 18px 30px -11px rgba(30,100,75,.55),0 5px 10px rgba(30,100,75,.25); }
+.bear .front-foot    { box-shadow:inset 0 0 0 2px rgba(255,255,255,1),inset 0 0 0 3.6px rgba(255,255,255,.35),inset 0 18px 22px -11px rgba(255,255,255,1),inset 0 -4.5px 5px -1px rgba(90,28,28,.75),inset 0 -18px 15px -10px rgba(255,255,255,1),inset 0 0 34px rgba(255,255,255,.32),0 18px 30px -11px rgba(130,30,30,.55),0 5px 10px rgba(130,30,30,.25); }
+.neutral .front-foot { box-shadow:inset 0 0 0 2px rgba(255,255,255,1),inset 0 0 0 3.6px rgba(255,255,255,.35),inset 0 18px 22px -11px rgba(255,255,255,1),inset 0 -4.5px 5px -1px rgba(71,85,105,.75),inset 0 -18px 15px -10px rgba(255,255,255,1),inset 0 0 34px rgba(255,255,255,.32),0 18px 30px -11px rgba(71,85,105,.55),0 5px 10px rgba(71,85,105,.25); }
+.mixed   .front-foot { box-shadow:inset 0 0 0 2px rgba(255,255,255,1),inset 0 0 0 3.6px rgba(255,255,255,.35),inset 0 18px 22px -11px rgba(255,255,255,1),inset 0 -4.5px 5px -1px rgba(180,83,9,.75),inset 0 -18px 15px -10px rgba(255,255,255,1),inset 0 0 34px rgba(255,255,255,.32),0 18px 30px -11px rgba(180,83,9,.55),0 5px 10px rgba(180,83,9,.25); }
+.front-foot { position:relative; z-index:6; margin-top:auto; background:linear-gradient(180deg,rgba(255,255,255,.74),rgba(255,255,255,.42)); border-radius:20px; padding:13px 15px; }
+.front-foot::before { content:""; position:absolute; inset:1.3px; border-radius:19px; pointer-events:none; background:radial-gradient(24% 21% at 14% 7%,rgba(255,255,255,1) 0%,rgba(255,255,255,.98) 50%,rgba(255,255,255,0) 62%),radial-gradient(140% 90% at 50% -18%,rgba(255,255,255,.44) 0%,transparent 62%),radial-gradient(90% 22% at 50% 102%,rgba(255,255,255,.45) 0%,transparent 70%); }
+.front-foot > * { position:relative; z-index:2; }
+.foot-meta { font-size:11px; font-weight:600; color:var(--soft); margin-bottom:6px; display:flex; gap:8px; align-items:center; }
+.foot-pill { background:rgba(255,255,255,.7); color:var(--ink); border-radius:6px; padding:2px 7px; box-shadow:inset 0 1px 0 #fff,inset 0 0 0 1px rgba(255,255,255,.6); }
+.headline { font-size:13px; font-weight:700; color:var(--ink); line-height:1.45; }
+.sources { margin-top:7px; font-size:11px; color:var(--faint); font-weight:500; }
+
+/* ── 뒷면 ── */
+.back-card { position:relative; flex:1; border-radius:28px; overflow:hidden; display:flex; flex-direction:column; padding:14px 15px 15px; background:#ffffff; }
+.bull .back-card    { box-shadow:0 0 0 1.2px rgba(78,146,116,.4),0 16px 30px -12px rgba(30,100,75,.35),0 5px 10px -4px rgba(30,100,75,.2); }
+.bear .back-card    { box-shadow:0 0 0 1.2px rgba(180,80,80,.4),0 16px 30px -12px rgba(130,30,30,.35),0 5px 10px -4px rgba(130,30,30,.2); }
+.neutral .back-card { box-shadow:0 0 0 1.2px rgba(100,116,139,.4),0 16px 30px -12px rgba(71,85,105,.35),0 5px 10px -4px rgba(71,85,105,.2); }
+.mixed   .back-card { box-shadow:0 0 0 1.2px rgba(217,119,6,.4), 0 16px 30px -12px rgba(180,83,9,.35), 0 5px 10px -4px rgba(180,83,9,.2); }
+
+.bull .back-card::before    { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:4; box-shadow:inset 0 0 0 2.2px rgba(255,255,255,1),inset 0 0 0 4px rgba(255,255,255,.4),inset 0 20px 26px -14px rgba(255,255,255,.9),inset 12px 0 20px -13px rgba(255,255,255,.85),inset 0 -4px 5px -1px rgba(34,90,68,.45),inset 0 -18px 16px -10px rgba(255,255,255,.8),inset -12px 0 20px -13px rgba(34,90,68,.3),inset 0 0 40px rgba(255,255,255,.5); }
+.bear .back-card::before    { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:4; box-shadow:inset 0 0 0 2.2px rgba(255,255,255,1),inset 0 0 0 4px rgba(255,255,255,.4),inset 0 20px 26px -14px rgba(255,255,255,.9),inset 12px 0 20px -13px rgba(255,255,255,.85),inset 0 -4px 5px -1px rgba(90,28,28,.45),inset 0 -18px 16px -10px rgba(255,255,255,.8),inset -12px 0 20px -13px rgba(90,28,28,.3),inset 0 0 40px rgba(255,255,255,.5); }
+.neutral .back-card::before { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:4; box-shadow:inset 0 0 0 2.2px rgba(255,255,255,1),inset 0 0 0 4px rgba(255,255,255,.4),inset 0 20px 26px -14px rgba(255,255,255,.9),inset 12px 0 20px -13px rgba(255,255,255,.85),inset 0 -4px 5px -1px rgba(71,85,105,.45),inset 0 -18px 16px -10px rgba(255,255,255,.8),inset -12px 0 20px -13px rgba(71,85,105,.3),inset 0 0 40px rgba(255,255,255,.5); }
+.mixed   .back-card::before { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:4; box-shadow:inset 0 0 0 2.2px rgba(255,255,255,1),inset 0 0 0 4px rgba(255,255,255,.4),inset 0 20px 26px -14px rgba(255,255,255,.9),inset 12px 0 20px -13px rgba(255,255,255,.85),inset 0 -4px 5px -1px rgba(180,83,9,.45),inset 0 -18px 16px -10px rgba(255,255,255,.8),inset -12px 0 20px -13px rgba(180,83,9,.3),inset 0 0 40px rgba(255,255,255,.5); }
+.back-card::after { content:""; position:absolute; inset:1.4px; border-radius:27px; pointer-events:none; z-index:4; background:radial-gradient(20% 7% at 22% 3.5%,rgba(255,255,255,.95) 0%,rgba(255,255,255,.8) 45%,rgba(255,255,255,0) 62%),radial-gradient(7% 3% at 50% 2.5%,rgba(255,255,255,.85) 0%,rgba(255,255,255,0) 68%),radial-gradient(120% 55% at 50% -12%,rgba(255,255,255,.38) 0%,rgba(255,255,255,.1) 50%,transparent 68%),radial-gradient(80% 11% at 50% 102%,rgba(255,255,255,.45) 0%,transparent 70%); }
+
+.back-scroll { position:relative; z-index:6; flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; }
+.back-scroll::-webkit-scrollbar { width:2px; }
+.back-scroll::-webkit-scrollbar-thumb { background:#e2e8f0; border-radius:2px; }
+
+.bull .glass    { box-shadow:inset 0 0 0 1.4px rgba(255,255,255,1),inset 0 15px 18px -10px rgba(255,255,255,1),inset 0 -3.4px 3.5px -.5px rgba(95,160,132,.8),inset 0 -14px 12px -8px rgba(255,255,255,1),0 16px 28px -11px rgba(30,100,75,.5),0 4px 8px rgba(30,100,75,.22); }
+.bear .glass    { box-shadow:inset 0 0 0 1.4px rgba(255,255,255,1),inset 0 15px 18px -10px rgba(255,255,255,1),inset 0 -3.4px 3.5px -.5px rgba(160,80,80,.8),inset 0 -14px 12px -8px rgba(255,255,255,1),0 16px 28px -11px rgba(130,30,30,.5),0 4px 8px rgba(130,30,30,.22); }
+.neutral .glass { box-shadow:inset 0 0 0 1.4px rgba(255,255,255,1),inset 0 15px 18px -10px rgba(255,255,255,1),inset 0 -3.4px 3.5px -.5px rgba(100,116,139,.8),inset 0 -14px 12px -8px rgba(255,255,255,1),0 16px 28px -11px rgba(71,85,105,.5),0 4px 8px rgba(71,85,105,.22); }
+.mixed   .glass { box-shadow:inset 0 0 0 1.4px rgba(255,255,255,1),inset 0 15px 18px -10px rgba(255,255,255,1),inset 0 -3.4px 3.5px -.5px rgba(217,119,6,.8),inset 0 -14px 12px -8px rgba(255,255,255,1),0 16px 28px -11px rgba(180,83,9,.5),0 4px 8px rgba(180,83,9,.22); }
+.glass { position:relative; background:linear-gradient(180deg,rgba(255,255,255,.88),rgba(248,253,250,.72)); border-radius:18px; }
+.glass::before { content:""; position:absolute; inset:1.2px; border-radius:17px; pointer-events:none; background:radial-gradient(22% 26% at 13% 7%,rgba(255,255,255,1) 0%,rgba(255,255,255,.98) 50%,rgba(255,255,255,0) 62%),radial-gradient(150% 95% at 50% -20%,rgba(255,255,255,.6) 0%,transparent 62%),radial-gradient(90% 24% at 50% 102%,rgba(255,255,255,.5) 0%,transparent 70%); }
+.glass > * { position:relative; z-index:2; }
+
+.sec-title { display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700; color:var(--ink); margin:0 2px 8px; }
+.sec-title::before { content:""; width:3px; height:13px; border-radius:2px; background:var(--ink); opacity:.85; }
+
+.insights { padding:12px 14px; }
+.insights li { list-style:none; position:relative; padding-left:14px; font-size:12.5px; line-height:1.55; color:var(--ink); font-weight:500; opacity:.85; }
+.insights li+li { margin-top:7px; }
+.bull .insights li::before    { content:""; position:absolute; left:0; top:7px; width:5px; height:5px; border-radius:50%; background:#0f8f63; box-shadow:0 0 0 2px rgba(15,143,99,.16); }
+.bear .insights li::before    { content:""; position:absolute; left:0; top:7px; width:5px; height:5px; border-radius:50%; background:#c42020; box-shadow:0 0 0 2px rgba(196,32,32,.16); }
+.neutral .insights li::before { content:""; position:absolute; left:0; top:7px; width:5px; height:5px; border-radius:50%; background:#475569; box-shadow:0 0 0 2px rgba(71,85,105,.16); }
+.mixed   .insights li::before { content:""; position:absolute; left:0; top:7px; width:5px; height:5px; border-radius:50%; background:#d97706; box-shadow:0 0 0 2px rgba(217,119,6,.16); }
+
+.score { display:flex; align-items:center; gap:14px; padding:13px 16px; }
+.score-num { font-size:30px; font-weight:800; color:var(--ink); }
+.score-txt b { display:block; font-size:13px; color:var(--ink); font-weight:700; margin-bottom:2px; }
+.score-txt span { font-size:11.5px; color:var(--soft); line-height:1.45; display:block; }
+
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+.metric { padding:11px 13px; border-radius:15px; }
+.metric .k { font-size:11px; font-weight:600; color:var(--soft); white-space:nowrap; }
+.metric .v { font-size:16px; font-weight:800; margin-top:3px; color:var(--ink); }
+.metric .n { font-size:10.5px; font-weight:500; margin-top:2px; color:var(--faint); }
+.warn .v { color:#cf7a1c; }
+.good .v { color:#0f8f63; }
+.neg .v  { color:#c42020; }
+</style>
+</head>
+<body>
+
+<div class="page-title">
+  <h1>FinSwipe — FE 핸드오프</h1>
+  <p>API 엔드포인트 · 응답 필드 · 카드 디자인 4종 통합 문서</p>
+</div>
+
+<!-- ── API 스펙 ── -->
+<div class="spec-wrap">
+
+  <div class="spec-card">
+    <h2>엔드포인트</h2>
+    <div class="endpoint">
+      <span class="method">GET</span>
+      <span class="url">https://api.finswipe.co.kr/news/latest</span>
+    </div>
+    <div class="param-note">
+      쿼리 파라미터: <code>userId={UUID}</code> (필수) &nbsp;·&nbsp; <code>limit=50</code> (기본값 20) &nbsp;·&nbsp; <code>ticker=NVDA</code> (선택, 티커 필터)
+    </div>
+  </div>
+
+  <div class="spec-card">
+    <h2>카드 테마 결정 — sentimentLabel</h2>
+    <div class="theme-row">
+      <span class="theme-chip chip-green">📈 "positive" → 초록 (bull)</span>
+      <span class="theme-chip chip-red">📉 "negative" → 빨강 (bear)</span>
+      <span class="theme-chip chip-gray">📊 "neutral" → 회색 (neutral)</span>
+      <span class="theme-chip chip-yellow">🔀 "mixed" → 노랑 (mixed)</span>
+    </div>
+  </div>
+
+  <div class="spec-card">
+    <h2>앞면 필드</h2>
+    <table class="field-table">
+      <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td class="field-name">ticker</td><td class="field-type">string</td><td class="field-desc">종목 코드 (예: <b>NVDA</b>)</td></tr>
+        <tr><td class="field-name">tickerNames</td><td class="field-type">array</td><td class="field-desc">회사명 배열 [{ticker, name}] → 헤더 서브텍스트</td></tr>
+        <tr><td class="field-name">currentPrice</td><td class="field-type">number</td><td class="field-desc">현재 주가 (달러)</td></tr>
+        <tr><td class="field-name">changePct1d</td><td class="field-type">number</td><td class="field-desc">전일 대비 등락률 (%) — 양수: 상승, 음수: 하락</td></tr>
+        <tr><td class="field-name">sparkline</td><td class="field-type">number[]</td><td class="field-desc">30일 종가 배열 → SVG 스파크라인 렌더링용</td></tr>
+        <tr><td class="field-name">sentimentLabel</td><td class="field-type">string</td><td class="field-desc">positive | negative | neutral | mixed → 카드 테마 결정</td></tr>
+        <tr><td class="field-name">sentimentScore</td><td class="field-type">number</td><td class="field-desc">감성 점수 ±100 범위, 소수점 1자리 (예: <b>+84.0</b>, <b>-61.0</b>) → big-num</td></tr>
+        <tr><td class="field-name">sentimentReason</td><td class="field-type">string</td><td class="field-desc">감성 판단 근거 한 줄 요약 → 점수 아래 sub 텍스트</td></tr>
+        <tr><td class="field-name">headlineKo</td><td class="field-type">string</td><td class="field-desc">한국어 헤드라인 → 하단 푸터 제목</td></tr>
+        <tr><td class="field-name">publishedAt</td><td class="field-type">datetime</td><td class="field-desc">기사 발행 시각 (ISO 8601) → "N시간 전" 변환</td></tr>
+        <tr><td class="field-name">eventCategory</td><td class="field-type">string?</td><td class="field-desc">이벤트 분류 태그 (예: 실적발표, 거래량 급등) → 푸터 필</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="spec-card">
+    <h2>뒷면 필드</h2>
+    <table class="field-table">
+      <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td class="field-name">summary3linesKo</td><td class="field-type">string[]</td><td class="field-desc">한국어 인사이트 3줄 배열 → 핵심 인사이트 섹션</td></tr>
+        <tr><td class="field-name">indicators</td><td class="field-type">array</td><td class="field-desc">기술적 지표 4종 배열 (구조 아래 참고)</td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:14px;font-size:12px;font-weight:700;color:#94a3b8;letter-spacing:.4px;text-transform:uppercase;margin-bottom:8px;">indicators 배열 객체 구조</div>
+    <table class="field-table">
+      <thead><tr><th>키</th><th>타입</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td class="field-name">type</td><td class="field-type">string</td><td class="field-desc">RSI | MACD | 볼린저밴드 | 거래량</td></tr>
+        <tr><td class="field-name">value</td><td class="field-type">number?</td><td class="field-desc">숫자 주 표시값 — RSI(74.2), 거래량 배율(4.47). null이면 displayText 사용</td></tr>
+        <tr><td class="field-name">displayText</td><td class="field-type">string?</td><td class="field-desc">텍스트 주 표시값 — MACD("강세"), 볼린저("이탈"). value가 null일 때 사용</td></tr>
+        <tr><td class="field-name">label</td><td class="field-type">string</td><td class="field-desc">배지 태그 (과열 / 골든크로스 / 상단 돌파 / 급등 등)</td></tr>
+        <tr><td class="field-name">caption</td><td class="field-type">string</td><td class="field-desc">지표 설명 문구 (툴팁이나 확장 시 표시)</td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:14px;font-size:12px;font-weight:700;color:#94a3b8;letter-spacing:.4px;text-transform:uppercase;margin-bottom:8px;">거래량 하이라이트 계산 (FE 직접 계산)</div>
+    <table class="field-table">
+      <thead><tr><th>조건</th><th>bigNum</th><th>tag</th></tr></thead>
+      <tbody>
+        <tr><td class="field-desc">거래량 배율(value) ≥ 2</td><td class="field-name">+{(배율-1)×100}%</td><td class="field-desc">🔥 거래량 급등</td></tr>
+        <tr><td class="field-desc">changePct1d 있고 배율 &lt; 2</td><td class="field-name">{+/-changePct1d}%</td><td class="field-desc">📈 상승 / 📉 급락</td></tr>
+        <tr><td class="field-desc">둘 다 없음</td><td class="field-name">—</td><td class="field-desc">📰 뉴스</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- ── 카드 디자인 ── -->
+<div class="section-heading">카드 디자인 — 4종 테마 (앞면 · 뒷면)</div>
+<div class="legend">
+  <span class="legend-item"><span class="legend-dot" style="background:#0f8f63"></span> positive · 긍정 · 초록</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#c42020"></span> negative · 부정 · 빨강</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#475569"></span> neutral · 중립 · 회색</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#d97706"></span> mixed · 혼재 · 노랑</span>
+</div>
+<div id="root"></div>
+
+<script>
+const CARDS = [
+  {
+    theme: 'bull', sentimentLabel: 'positive',
+    setLabel: 'NVDA · 긍정 (positive) · 초록',
+    ticker: 'NVDA', company: 'NVIDIA Corporation · NASDAQ',
+    currentPrice: 134.80, changePct1d: 3.2,
+    sparkline: [104.2,108.5,106.3,111.8,115.4,113.2,117.6,116.9,120.3,119.8,124.2,121.5,126.8,124.4,128.6,126.1,130.4,128.8,132.2,130.5,127.9,124.6,122.2,118.8,121.4,124.1,127.7,130.4,132.2,134.8],
+    highlight: { tag:'🔥 거래량 폭발', bigNum:'+347%', sub:'평소의 4.5배 — 지금 뭔가 일어나고 있어요' },
+    indicators: [
+      { type:'RSI',       value:74.2, displayText:null,   label:'과열',      caption:'RSI 74.2 — 단기 과매수 구간이에요.',   cls:'warn' },
+      { type:'MACD',      value:null, displayText:'강세', label:'골든크로스', caption:'시그널선을 상향 돌파, 상승 모멘텀 강화.',  cls:'good' },
+      { type:'볼린저밴드', value:null, displayText:'이탈', label:'상단 돌파', caption:'상단 밴드를 벗어나 변동성이 커졌어요.',   cls:'warn' },
+      { type:'거래량',    value:4.47, displayText:null,   label:'급등',      caption:'평소의 약 4.5배, 매수세가 몰렸어요.',   cls:'good' }
+    ],
+    summary3linesKo: [
+      'Blackwell GPU 출하량 전분기 대비 3배 증가, 공급 병목 해소 국면 진입',
+      'MS·구글 클라우드 CAPEX 확대가 하반기 수주 가시성 높여',
+      '월가 12개월 목표주가 평균 $195로 상향, 매수 의견 17명 중 15명'
+    ],
+    sentimentScore: 84.0, sentimentEmoji: '📈', sentimentText: '강한 긍정 신호',
+    sentimentReason: 'AI 인프라 수요 증가 + 실적 상향 기대감이 동시 반영된 기사',
+    headlineKo: '엔비디아, AI 데이터센터 수요 급증으로 분기 매출 사상 최고치 경신 전망',
+    publishedRelative: '1시간 전', eventPill: '📊 거래량 1위', sources: 'Reuters · Bloomberg'
+  },
+  {
+    theme: 'bear', sentimentLabel: 'negative',
+    setLabel: 'TSLA · 부정 (negative) · 빨강',
+    ticker: 'TSLA', company: 'Tesla Inc. · NASDAQ',
+    currentPrice: 168.40, changePct1d: -4.7,
+    sparkline: [234.4,230.6,227.1,223.8,220.3,217.6,214.4,211.8,209.1,212.3,210.5,207.2,203.8,200.4,197.1,193.8,190.4,193.1,190.6,187.2,184.8,181.4,178.1,181.5,178.8,176.2,173.6,171.1,170.4,168.4],
+    highlight: { tag:'📉 오늘 급락', bigNum:'-4.7%', sub:'52주 최저가 근접 — 무슨 일이 있었을까요' },
+    indicators: [
+      { type:'RSI',       value:27.3, displayText:null,   label:'과매도',    caption:'RSI 27.3 — 저점 매수 관심 구간이에요.',   cls:'neg' },
+      { type:'MACD',      value:null, displayText:'약세', label:'데드크로스', caption:'시그널선을 하향 돌파, 하락 압력 증가.',    cls:'neg' },
+      { type:'볼린저밴드', value:null, displayText:'이탈', label:'하단 이탈', caption:'하단 밴드를 벗어나 과매도 가능성이 있어요.', cls:'neg' },
+      { type:'거래량',    value:2.4,  displayText:null,   label:'증가',      caption:'평소의 약 2.4배, 거래가 활발해요.',       cls:'good' }
+    ],
+    summary3linesKo: [
+      '상하이 공장 가동률 84%로 전분기 91% 대비 하락, 수요 둔화 우려',
+      '유럽 모델 Y 가격 인하에도 판매 증가세 멈춰, BYD 격차 확대',
+      'FSD 규제 이슈로 로보택시 출시 일정 3개월 추가 지연 가능성'
+    ],
+    sentimentScore: -61.0, sentimentEmoji: '📉', sentimentText: '부정 신호',
+    sentimentReason: '수요 둔화 + 경쟁 심화 + 규제 리스크가 동시에 부각된 기사',
+    headlineKo: '테슬라, 중국 BYD 점유율 확대 속 2분기 인도량 예상치 10% 하회',
+    publishedRelative: '3시간 전', eventPill: '📉 낙폭 상위', sources: 'Bloomberg · WSJ'
+  },
+  {
+    theme: 'neutral', sentimentLabel: 'neutral',
+    setLabel: 'AAPL · 중립 (neutral) · 회색',
+    ticker: 'AAPL', company: 'Apple Inc. · NASDAQ',
+    currentPrice: 212.30, changePct1d: 0.3,
+    sparkline: [208.1,208.6,209.0,209.4,209.8,210.1,209.7,210.3,210.8,211.2,210.9,211.5,212.0,211.7,212.1,211.8,212.4,212.0,211.6,212.1,212.5,212.2,211.9,212.4,212.7,212.1,212.5,212.8,212.4,212.3],
+    highlight: { tag:'📊 보합', bigNum:'+0.3%', sub:'거래량 평균 수준 — 특별한 이벤트 없음' },
+    indicators: [
+      { type:'RSI',       value:51.2, displayText:null,    label:'중립',    caption:'RSI 51.2 — 과매수·과매도 어느 쪽도 아닌 균형 구간이에요.', cls:'' },
+      { type:'MACD',      value:null, displayText:'횡보',  label:'보합',    caption:'시그널선과 거의 일치, 뚜렷한 방향성 없음.',                  cls:'' },
+      { type:'볼린저밴드', value:null, displayText:'중간',  label:'밴드 내', caption:'중간 밴드 부근에서 움직이고 있어요.',                         cls:'' },
+      { type:'거래량',    value:1.1,  displayText:null,    label:'보통',    caption:'평소와 비슷한 거래량, 이상 없음.',                            cls:'' }
+    ],
+    summary3linesKo: [
+      '2분기 아이폰 출하량 소폭 감소, 전년 동기 대비 2% 하락으로 시장 예상 부합',
+      'EU DMA 규정 준수 비용 증가하나 서비스 매출 성장으로 상쇄',
+      '애플 인텔리전스 기능 확대 발표, 시장 반응은 관망세 유지'
+    ],
+    sentimentScore: 1.0, sentimentEmoji: '📊', sentimentText: '중립',
+    sentimentReason: '특별한 방향성 없이 사실 위주로 전달된 기사, 뚜렷한 호재·악재 없음',
+    headlineKo: '애플, 2분기 아이폰 판매량 소폭 감소… 시장 예상치와 부합',
+    publishedRelative: '5시간 전', eventPill: '📰 실적 발표', sources: 'AP · CNBC'
+  },
+  {
+    theme: 'mixed', sentimentLabel: 'mixed',
+    setLabel: 'AMZN · 혼재 (mixed) · 노랑',
+    ticker: 'AMZN', company: 'Amazon.com Inc. · NASDAQ',
+    currentPrice: 198.60, changePct1d: 1.2,
+    sparkline: [191.2,192.8,194.1,193.5,195.0,196.2,194.8,196.5,197.1,196.4,197.8,198.2,197.6,198.5,199.1,198.4,199.0,198.7,197.9,198.6,199.2,198.8,198.1,199.3,198.9,199.1,198.5,198.7,199.0,198.6],
+    highlight: { tag:'🔀 혼조세', bigNum:'+1.2%', sub:'AWS 호실적 vs 물류비 증가 — 방향 불분명' },
+    indicators: [
+      { type:'RSI',       value:58.4, displayText:null,     label:'중상위',   caption:'RSI 58.4 — 다소 긍정적이나 과매수는 아닌 구간이에요.', cls:'' },
+      { type:'MACD',      value:null, displayText:'약골든',  label:'약강세',   caption:'시그널선을 소폭 상향 돌파, 모멘텀 불확실.',               cls:'warn' },
+      { type:'볼린저밴드', value:null, displayText:'상단 접근', label:'주목',  caption:'상단 밴드에 근접, 저항 여부 주목.',                       cls:'warn' },
+      { type:'거래량',    value:1.8,  displayText:null,     label:'다소 증가', caption:'평소의 1.8배, 관심 증가 중이에요.',                      cls:'good' }
+    ],
+    summary3linesKo: [
+      'AWS 2분기 매출 29% 성장, 클라우드 시장 점유율 유지 — 긍정 요인',
+      '북미 물류 인건비 16억 달러 초과 지출, 마진 압박 지속 — 부정 요인',
+      '프라임 회원 광고 수익 예상 상회하나 구독 성장률 둔화 우려 공존'
+    ],
+    sentimentScore: 3.0, sentimentEmoji: '🔀', sentimentText: '혼재',
+    sentimentReason: 'AWS 호실적과 물류비 부담이 동시에 부각, 긍정·부정 요소가 팽팽히 맞선 기사',
+    headlineKo: '아마존, AWS 강세에도 물류비 증가로 영업이익 기대치 하회',
+    publishedRelative: '2시간 전', eventPill: '📋 실적 혼조', sources: 'Reuters · FT'
+  }
+];
+
+function buildSparkline(data, w, h, id, strokeColor) {
+  const pad = 4;
+  const min = Math.min(...data), max = Math.max(...data);
+  const range = max - min || 1;
+  const xs = (w - pad * 2) / (data.length - 1);
+  const pts = data.map((v, i) => ({
+    x: pad + i * xs,
+    y: pad + (1 - (v - min) / range) * (h - pad * 2)
+  }));
+  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+  const areaPath = linePath + ` L${pts[pts.length-1].x.toFixed(1)} ${h} L${pts[0].x.toFixed(1)} ${h} Z`;
+  return `
+    <defs>
+      <linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="${strokeColor}" stop-opacity="0.22"/>
+        <stop offset="1" stop-color="${strokeColor}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${areaPath}" fill="url(#${id})"/>
+    <path d="${linePath}" stroke="${strokeColor}" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+  `;
+}
+
+function indicatorDisplay(ind) {
+  if (ind.value !== null && ind.value !== undefined) {
+    if (ind.type === '거래량') return '+' + Math.round((ind.value - 1) * 100) + '%';
+    return ind.value;
+  }
+  return ind.displayText || '—';
+}
+
+function renderCards(cards) {
+  const root = document.getElementById('root');
+  root.innerHTML = '';
+  const strokeColors = { bull:'#1f6e58', bear:'#6e1f1f', neutral:'#475569', mixed:'#92400e' };
+  cards.forEach((c, ci) => {
+    const strokeColor = strokeColors[c.theme] || '#475569';
+    const chgSign = (c.changePct1d ?? 0) >= 0 ? '▲' : '▼';
+    const chgAbs  = Math.abs(c.changePct1d ?? 0).toFixed(1);
+    const priceStr = c.currentPrice != null ? `$${c.currentPrice.toFixed(2)}` : '—';
+    const svgId = `g${ci}`;
+    const html = `
+<div class="set">
+  <div class="set-label">${c.setLabel}</div>
+  <div class="pair">
+    <div class="col ${c.theme}">
+      <div class="col-label">앞면</div>
+      <div class="phone"><div class="screen"><div class="inner">
+        <div class="status"><span>9:41</span><span class="dots"><span></span><span></span><span></span></span></div>
+        <div class="front-card">
+          <div class="fhead">
+            <div class="f-row1">
+              <span class="f-tick">${c.ticker}</span>
+              <span class="f-price">
+                ${priceStr}
+                <span class="chg">${chgSign} ${chgAbs}%</span>
+                <span class="lbl">전일 종가</span>
+              </span>
+            </div>
+            <div class="fsub">${c.company}</div>
+          </div>
+          <div class="chart-area">
+            <svg viewBox="0 0 290 88" fill="none">
+              ${buildSparkline(c.sparkline || [], 290, 88, svgId, strokeColor)}
+            </svg>
+          </div>
+          <div class="front-body">
+            <span class="tag">${c.sentimentEmoji} ${c.sentimentText}</span>
+            <div class="big-num">${c.sentimentScore != null ? (c.sentimentScore > 0 ? '+' : '') + c.sentimentScore : '—'}</div>
+            <div class="sub">${c.sentimentReason || ''}</div>
+          </div>
+          <div class="front-foot">
+            <div class="foot-meta">
+              <span class="foot-pill">${c.eventPill}</span>
+              <span>${c.publishedRelative}</span>
+            </div>
+            <div class="headline">${c.headlineKo}</div>
+            <div class="sources">${c.sources}</div>
+          </div>
+        </div>
+      </div></div></div>
+    </div>
+    <div class="col ${c.theme}">
+      <div class="col-label">뒷면 (탭 후)</div>
+      <div class="phone"><div class="screen"><div class="inner">
+        <div class="status"><span>9:41</span><span class="dots"><span></span><span></span><span></span></span></div>
+        <div class="back-card">
+          <div class="back-scroll">
+            <div>
+              <div class="sec-title">핵심 인사이트</div>
+              <ul class="glass insights">
+                ${(c.summary3linesKo || []).map(l => `<li>${l}</li>`).join('')}
+              </ul>
+            </div>
+            <div class="glass score">
+              <div class="score-num">${c.highlight.bigNum}</div>
+              <div class="score-txt">
+                <b>${c.highlight.tag}</b>
+                <span>${c.highlight.sub}</span>
+              </div>
+            </div>
+            <div>
+              <div class="sec-title">기술적 지표</div>
+              <div class="grid">
+                ${c.indicators.map(ind => `
+                  <div class="glass metric ${ind.cls || ''}">
+                    <div class="k">${ind.type}</div>
+                    <div class="v">${indicatorDisplay(ind)}</div>
+                    <div class="n">${ind.label}</div>
+                  </div>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div></div></div>
+    </div>
+  </div>
+</div>`;
+    root.insertAdjacentHTML('beforeend', html);
+  });
+}
+
+renderCards(CARDS);
+</script>
+</body>
+</html>

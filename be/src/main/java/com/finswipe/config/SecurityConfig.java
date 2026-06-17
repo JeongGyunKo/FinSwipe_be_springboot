@@ -1,6 +1,7 @@
 package com.finswipe.config;
 
 import com.finswipe.filter.JwtAuthFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -55,6 +56,20 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PUT, "/news/notification-settings").authenticated()
                 // 명시되지 않은 모든 경로 차단 (기본값 공개 방지)
                 .anyRequest().denyAll()
+            )
+            .exceptionHandling(ex -> ex
+                // JWT 없음/만료 → 401 (기존 Spring Security 기본값 403이 사용자에게 버그처럼 보임)
+                .authenticationEntryPoint((req, res, e) -> {
+                    res.setContentType("application/json;charset=UTF-8");
+                    res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    res.getWriter().write("{\"error\":\"인증이 필요합니다.\"}");
+                })
+                // 인증됐지만 권한 없음 → 403 유지
+                .accessDeniedHandler((req, res, e) -> {
+                    res.setContentType("application/json;charset=UTF-8");
+                    res.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    res.getWriter().write("{\"error\":\"접근 권한이 없습니다.\"}");
+                })
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 

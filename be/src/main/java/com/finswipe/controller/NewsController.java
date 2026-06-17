@@ -71,7 +71,7 @@ public class NewsController {
                   "headlineKo": "애플, 실적 예상치 초과 달성",
                   "summary3linesKo": ["가이던스 하향이 단기 주가 압력으로 작용할 가능성이 있어요.", "매출 서프라이즈에도 마진 하락이 구조적 우려로 부각될 수 있어요.", "다음 분기 마진 회복 여부가 주가 방향의 핵심 변수가 될 것 같아요."],
                   "sentimentLabel": "positive",
-                  "sentimentScore": 7.2,
+                  "sentimentScore": 72.0,
                   "sentimentReason": "매출 15% 증가와 가이던스 상향이 주요 원인입니다.",
                   "tickers": ["AAPL"],
                   "imageUrl": "https://...",
@@ -347,7 +347,7 @@ public class NewsController {
             entry.put("date", r.get("date") != null ? r.get("date").toString() : null);
             entry.put("articleCount", r.get("article_count"));
             Double avg = r.get("avg_score") instanceof Number n ? n.doubleValue() : null;
-            entry.put("avgScore", avg != null ? Math.round(avg * 100.0) / 100.0 : null);
+            entry.put("avgScore", avg != null ? Math.round(avg * 10000.0) / 100.0 : null);
             entry.put("positive", r.get("positive"));
             entry.put("negative", r.get("negative"));
             entry.put("neutral", r.get("neutral"));
