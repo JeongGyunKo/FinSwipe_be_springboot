@@ -59,7 +59,7 @@ public class NewsController {
 
     // ===================== Public Endpoints =====================
 
-    @Operation(summary = "뉴스 피드", description = "분석 완료된 기사 목록. sort=time(시간순,기본값) | sort=power(감성강도순). JWT 있으면 읽은 기사 제외 + 관심 티커 필터 적용. indicators는 대표 티커의 기술적 지표 4종(RSI·MACD·볼린저밴드·거래량) 배열 — null이면 지표 없이 렌더. currentPrice/changePct1d는 전일 종가 기준, sparkline은 최근 30일 종가 배열.")
+    @Operation(summary = "뉴스 피드", description = "분석 완료된 기사 목록. sort=time(시간순,기본값) | sort=power(감성강도순). JWT 있으면 관심 티커 필터 + 미읽은 기사 우선 적용. 특정 티커에 미읽은 기사가 없으면 최신 공개 기사 5개로 자동 fallback(is_read=true). indicators는 대표 티커의 기술적 지표 4종(RSI·MACD·볼린저밴드·거래량) 배열 — null이면 지표 없이 렌더. currentPrice/changePct1d는 전일 종가 기준, sparkline은 최근 30일 종가 배열.")
     @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
             {
               "total": 1200,

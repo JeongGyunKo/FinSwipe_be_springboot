@@ -51,7 +51,7 @@ public class AuthController {
 
     // ── 로그인 ────────────────────────────────────────────────────────────────
 
-    @Operation(summary = "이메일 로그인", description = "성공 시 access_token 반환 (유효기간 1년)")
+    @Operation(summary = "이메일 로그인", description = "성공 시 access_token 반환 (유효기간 90일)")
     @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
             {
               "access_token": "eyJhbGciOiJIUzI1NiJ9...",
@@ -74,7 +74,7 @@ public class AuthController {
 
     // ── Google 로그인 ─────────────────────────────────────────────────────────
 
-    @Operation(summary = "Google 로그인", description = "FE에서 Google Sign-In SDK로 받은 idToken 전달. 신규 사용자는 자동 가입.")
+    @Operation(summary = "Google 로그인", description = "FE에서 Google Sign-In SDK로 받은 idToken 전달. 신규 사용자는 자동 가입. 성공 시 access_token 반환 (유효기간 90일)")
     @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
             {
               "access_token": "eyJhbGciOiJIUzI1NiJ9...",
