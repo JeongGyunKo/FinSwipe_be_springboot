@@ -35,12 +35,26 @@ public class HealthController {
 
     /** 관리자용 상세 헬스체크 — GenAI 포함 (느릴 수 있음) */
     @GetMapping("/health/detail")
-    public ResponseEntity<HealthResponse> healthDetail() {
+    public ResponseEntity<Map<String, String>> healthDetail() {
         String dbStatus = checkDb();
+        String chatTableStatus = checkTable("chat_messages");
         Map<String, String> genai = analyzerService.checkHealth();
         String genaiStatus = genai.getOrDefault("status", "offline");
         String overall = "ok".equals(dbStatus) && "ok".equals(genaiStatus) ? "ok" : "degraded";
-        return ResponseEntity.ok(new HealthResponse(overall, dbStatus, genaiStatus));
+        return ResponseEntity.ok(Map.of(
+                "status", overall, "db", dbStatus,
+                "genai", genaiStatus, "chat_table", chatTableStatus));
+    }
+
+    private String checkTable(String tableName) {
+        try {
+            Integer count = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
+                    Integer.class, tableName);
+            return (count != null && count > 0) ? "ok" : "missing";
+        } catch (Exception e) {
+            return "error:" + e.getClass().getSimpleName();
+        }
     }
 
     private String checkDb() {
