@@ -306,9 +306,12 @@ public class NewsController {
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit,
             @RequestParam(defaultValue = "0") @Min(0) int offset) {
 
-        List<String> matchingTickers = tickerService.findMatchingTickerSymbols(q);
+        // 검색어 앞뒤 따옴표/공백 제거 — FE가 q="NVDA"처럼 따옴표째 보내도 정상 검색되도록 방어
+        String cleaned = q.replace("\"", "").strip();
+        List<String> matchingTickers = cleaned.isEmpty() ? List.of()
+                : tickerService.findMatchingTickerSymbols(cleaned);
         if (matchingTickers.isEmpty()) {
-            return ResponseEntity.ok(Map.of("count", 0, "offset", offset, "query", q,
+            return ResponseEntity.ok(Map.of("count", 0, "offset", offset, "query", cleaned,
                     "matched_tickers", List.of(), "data", List.of()));
         }
 
@@ -324,7 +327,7 @@ public class NewsController {
         return ResponseEntity.ok(Map.of(
                 "count", total,
                 "offset", offset,
-                "query", q,
+                "query", cleaned,
                 "matched_tickers", matchingTickers,
                 "data", data));
     }
