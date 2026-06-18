@@ -732,7 +732,11 @@ public class NewsController {
                         if (raw == null || raw.equals("{}")) return List.of();
                         raw = raw.substring(1, raw.length() - 1);
                         if (raw.isBlank()) return List.of();
-                        return List.of(raw.split(","));
+                        // Postgres 배열 따옴표/공백 제거 — 저장값에 따옴표가 섞여도 깨끗한 심볼 반환
+                        return java.util.Arrays.stream(raw.split(","))
+                                .map(s -> s.replace("\"", "").strip())
+                                .filter(s -> !s.isEmpty())
+                                .toList();
                     }, userId);
         } catch (Exception e) {
             log.warn("[userTickers] 조회 실패: {}", e.getMessage());

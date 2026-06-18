@@ -210,7 +210,13 @@ public class UserProfileController {
             }
 
             List<String> oldTickers = parseTickers(rawOld);
-            List<String> newTickers = body.tickers() != null ? body.tickers() : List.of();
+            // 저장 전 정규화 — 따옴표/공백 제거 + 대문자 (FE가 q="NVDA"처럼 보내도 깨끗하게 저장)
+            List<String> newTickers = (body.tickers() != null ? body.tickers() : List.<String>of())
+                    .stream()
+                    .map(t -> t.replace("\"", "").strip().toUpperCase())
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .toList();
             String tickersArray = newTickers.isEmpty() ? "{}" :
                     "{" + String.join(",", newTickers) + "}";
 
@@ -312,7 +318,11 @@ public class UserProfileController {
         if (raw == null || raw.equals("{}") || raw.isBlank()) return List.of();
         String inner = raw.substring(1, raw.length() - 1).trim();
         if (inner.isBlank()) return List.of();
-        return List.of(inner.split(","));
+        // Postgres 배열 따옴표/공백 제거 — 저장값에 따옴표가 섞여도 깨끗한 심볼 반환
+        return java.util.Arrays.stream(inner.split(","))
+                .map(s -> s.replace("\"", "").strip())
+                .filter(s -> !s.isEmpty())
+                .toList();
     }
 
     private static boolean isValidUuid(String value) {

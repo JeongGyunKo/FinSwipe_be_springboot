@@ -161,9 +161,14 @@ public class AdminController {
             if (body.containsKey("tickers")) {
                 @SuppressWarnings("unchecked")
                 java.util.List<String> tickers = (java.util.List<String>) body.get("tickers");
-                String arr = tickers == null || tickers.isEmpty() ? "{}" :
-                    "{" + String.join(",", tickers) + "}";
-                jdbc.update("UPDATE user_profiles SET tickers = ?, updated_at = NOW() WHERE id = CAST(? AS UUID)", arr, userId);
+                // 정규화(따옴표/공백 제거·대문자) + CAST 추가 — 기존엔 CAST 누락으로 SQL grammar 오류였음
+                java.util.List<String> norm = (tickers == null ? java.util.List.<String>of() : tickers).stream()
+                    .map(t -> t.replace("\"", "").strip().toUpperCase())
+                    .filter(s -> !s.isEmpty())
+                    .distinct()
+                    .toList();
+                String arr = norm.isEmpty() ? "{}" : "{" + String.join(",", norm) + "}";
+                jdbc.update("UPDATE user_profiles SET tickers = CAST(? AS TEXT[]), updated_at = NOW() WHERE id = CAST(? AS UUID)", arr, userId);
             }
             log.info("[admin] 유저 수정: userId={} fields={}", userId, body.keySet());
             return ResponseEntity.ok(Map.of("updated", true));
