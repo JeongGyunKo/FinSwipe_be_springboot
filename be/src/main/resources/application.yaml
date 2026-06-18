@@ -84,7 +84,7 @@ app:
     news-ttl-seconds: 30
     tickers-ttl-seconds: 3600
   rate-limit:
-    public-rpm: 30
+    public-rpm: 120
     admin-rpm: 300
   fcm:
     service-account-json: ${FCM_SERVICE_ACCOUNT_JSON:}

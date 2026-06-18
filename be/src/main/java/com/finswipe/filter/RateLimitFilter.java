@@ -44,6 +44,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
+        // CORS preflight(OPTIONS)은 실제 API 호출이 아니므로 rate limit 제외 — 로드당 요청수 절반 감소
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String ip = IpExtractorUtil.extractRealIp(request);
         boolean isAdmin = request.getRequestURI().startsWith("/news/") && isAdminEndpoint(request);
 
