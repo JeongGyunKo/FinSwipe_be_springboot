@@ -9,6 +9,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -48,10 +49,25 @@ public class HealthController {
 
     private String checkTable(String tableName) {
         try {
-            Integer count = jdbcTemplate.queryForObject(
-                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
+            // pg_tables는 information_schema보다 권한 제한이 없음
+            Integer pgCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM pg_tables WHERE tablename = ?",
                     Integer.class, tableName);
-            return (count != null && count > 0) ? "ok" : "missing";
+            if (pgCount != null && pgCount > 0) return "ok";
+
+            // Flyway 히스토리에서 해당 테이블 관련 migration 상태 조회
+            try {
+                List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                        "SELECT version, description, success FROM flyway_schema_history " +
+                        "WHERE description ILIKE ? ORDER BY installed_rank DESC LIMIT 5",
+                        "%" + tableName + "%");
+                if (rows.isEmpty()) return "missing(no-flyway-record)";
+                return "missing(flyway:" + rows.stream()
+                        .map(r -> "v" + r.get("version") + "=" + r.get("success"))
+                        .reduce((a, b) -> a + "," + b).orElse("?") + ")";
+            } catch (Exception fe) {
+                return "missing(flyway-err:" + fe.getClass().getSimpleName() + ")";
+            }
         } catch (Exception e) {
             return "error:" + e.getClass().getSimpleName();
         }
