@@ -39,6 +39,19 @@ public class ChatService {
         this.genaiClient = genaiClient;
     }
 
+    // 이중 방어 — GenAI가 인젝션에 뚫려 프롬프트/탈옥 내용을 흘려도 백엔드에서 차단
+    private static final String CHAT_REFUSAL =
+            "해당 요청은 도와드릴 수 없어요. 시스템 내부 정보나 규칙은 공개할 수 없지만, 투자 정보 관련 질문이라면 기꺼이 도와드릴게요.";
+    private static final List<String> LEAK_MARKERS = List.of(
+            "jailbroken", "[유저 프로필]", "[답변 규칙]", "[설명 깊이]", "[분석 관점]",
+            "[보안 규칙", "시스템 프롬프트", "system prompt", "개인화 금융 투자 ai 어시스턴트입니다");
+
+    private static boolean leaksPrompt(String reply) {
+        if (reply == null) return false;
+        String low = reply.toLowerCase();
+        return LEAK_MARKERS.stream().anyMatch(low::contains);
+    }
+
     /**
      * 유저 메시지를 GenAI로 전달하고 응답을 저장 후 반환.
      * history는 최근 10개 대화(알림 제외)를 컨텍스트로 전달한다.
@@ -140,6 +153,10 @@ public class ChatService {
             String reply = node.path("reply").asText(null);
             if (reply == null || reply.isBlank()) reply = node.path("message").asText(null);
             if (reply == null || reply.isBlank()) return "응답을 받아오지 못했습니다.";
+            if (leaksPrompt(reply)) {
+                log.warn("[챗봇] 프롬프트 누출 의심 응답 차단 (output guard)");
+                return CHAT_REFUSAL;
+            }
             return reply;
         } catch (Exception e) {
             log.error("[챗봇] GenAI 응답 실패: {}", e.getMessage());
