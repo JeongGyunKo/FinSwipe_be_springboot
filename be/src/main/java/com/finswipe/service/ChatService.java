@@ -5,7 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finswipe.domain.entity.ChatMessage;
 import com.finswipe.domain.entity.NewsArticle;
 import com.finswipe.domain.repository.ChatMessageRepository;
+import com.finswipe.domain.repository.NewsArticleRepository;
 import com.finswipe.dto.response.ChatMessageDto;
+import com.finswipe.dto.response.TickerInfo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.PageRequest;
@@ -18,7 +20,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -28,15 +33,24 @@ public class ChatService {
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
     private final RestClient genaiClient;
+    private final NewsArticleRepository newsRepo;
+    private final TechnicalsService technicalsService;
+    private final TickerService tickerService;
 
     public ChatService(ChatMessageRepository chatRepo,
                        JdbcTemplate jdbc,
                        ObjectMapper objectMapper,
-                       @Qualifier("genaiRestClient") RestClient genaiClient) {
+                       @Qualifier("genaiRestClient") RestClient genaiClient,
+                       NewsArticleRepository newsRepo,
+                       TechnicalsService technicalsService,
+                       TickerService tickerService) {
         this.chatRepo = chatRepo;
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
         this.genaiClient = genaiClient;
+        this.newsRepo = newsRepo;
+        this.technicalsService = technicalsService;
+        this.tickerService = tickerService;
     }
 
     // 이중 방어 — GenAI가 인젝션에 뚫려 프롬프트/탈옥 내용을 흘려도 백엔드에서 차단
@@ -74,7 +88,9 @@ public class ChatService {
                 .toList()
                 .reversed();
 
-        String aiContent = callGenAiChat(userContent, history, level, tendency, tickers);
+        // 캐시 인사이트 우선 — 종목 인사이트 질문은 LLM 토큰 없이 분석된 DB 데이터로 응답
+        String aiContent = tryCachedInsight(userContent, tickers)
+                .orElseGet(() -> callGenAiChat(userContent, history, level, tendency, tickers));
 
         ChatMessage assistantMsg = new ChatMessage();
         assistantMsg.setUserId(userId);
@@ -162,6 +178,119 @@ public class ChatService {
             log.error("[챗봇] GenAI 응답 실패: {}", e.getMessage());
             return "죄송합니다, 지금은 응답할 수 없습니다. 잠시 후 다시 시도해주세요.";
         }
+    }
+
+    // ===================== 캐시 인사이트 라우터 (토큰 절감) =====================
+
+    private static final List<String> INSIGHT_INTENT = List.of(
+            "인사이트", "뉴스", "소식", "어때", "어떄", "전망", "동향", "현황", "분석", "오늘", "알려", "정보");
+
+    private static boolean isInsightIntent(String msg) {
+        return INSIGHT_INTENT.stream().anyMatch(msg::contains);
+    }
+
+    /**
+     * 종목 인사이트 질문은 이미 분석된 DB 데이터로 응답 (LLM 토큰 0).
+     * 관심 종목 → 최신 분석 기사 + 지표, 비관심 종목 → 정보 + 관심 종목 추가 CTA.
+     * 처리 불가하면 empty 반환 → 호출부에서 LLM 폴백.
+     */
+    private Optional<String> tryCachedInsight(String message, List<String> watchlist) {
+        try {
+            if (!isInsightIntent(message)) return Optional.empty();
+            List<TickerInfo> mentioned = tickerService.findMentionedTickers(message);
+            if (mentioned.isEmpty()) return Optional.empty();
+
+            Set<String> wl = watchlist == null ? Set.of()
+                    : watchlist.stream()
+                        .map(t -> t.replace("\"", "").strip().toUpperCase())
+                        .filter(s -> !s.isEmpty())
+                        .collect(Collectors.toSet());
+
+            TickerInfo wlHit = mentioned.stream()
+                    .filter(i -> wl.contains(i.getTicker()))
+                    .findFirst().orElse(null);
+            if (wlHit != null) {
+                return buildWatchlistInsight(wlHit);   // 분석 기사 있으면 토큰0, 없으면 empty→LLM
+            }
+            return Optional.of(buildAddTickerCta(mentioned.get(0)));
+        } catch (Exception e) {
+            log.warn("[챗봇] 캐시 인사이트 분기 실패 — LLM 폴백: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    private Optional<String> buildWatchlistInsight(TickerInfo info) {
+        String sym = info.getTicker();
+        List<UUID> ids = newsRepo.findIdsByTickersOverlap("{" + sym + "}", 1, 0);
+        if (ids == null || ids.isEmpty()) return Optional.empty();
+        List<NewsArticle> articles = newsRepo.findByIdIn(ids);
+        if (articles.isEmpty()) return Optional.empty();
+        NewsArticle top = articles.get(0);
+
+        String name = (info.getKo() != null && !info.getKo().isBlank()) ? info.getKo() : sym;
+        StringBuilder sb = new StringBuilder();
+        sb.append("📊 ").append(name).append("(").append(sym).append(") 인사이트\n");
+
+        TechnicalsService.TechnicalsData td = null;
+        try { td = technicalsService.getTechnicals(sym); } catch (Exception ignored) {}
+        if (td != null && td.currentPrice() != null) {
+            sb.append("현재가 $").append(String.format("%.2f", td.currentPrice()));
+            if (td.changePct1d() != null) sb.append(String.format(" (%+.2f%%)", td.changePct1d()));
+            sb.append("\n");
+        }
+
+        String hl = top.getHeadlineKo() != null ? top.getHeadlineKo() : top.getHeadline();
+        sb.append("\n📰 최근 소식\n");
+        if (hl != null) sb.append("• ").append(hl).append("\n");
+        List<String> sum = top.getSummary3linesKo();
+        if (sum != null) for (String line : sum) sb.append("  - ").append(line).append("\n");
+        if (top.getSentimentLabel() != null) {
+            sb.append("감성: ").append(sentimentKo(top.getSentimentLabel()));
+            Double sc = top.getSentimentScore();
+            if (sc != null) sb.append(String.format(" (%.0f)", sc * 100));
+            sb.append("\n");
+        }
+
+        if (td != null && td.indicators() != null && !td.indicators().isEmpty()) {
+            sb.append("\n📈 기술 지표\n");
+            for (var ind : td.indicators()) {
+                sb.append("• ").append(ind.type()).append(": ").append(ind.label());
+                if (ind.caption() != null) sb.append(" — ").append(ind.caption());
+                sb.append("\n");
+            }
+        }
+        sb.append("\n※ 투자 권유가 아닌 정보 제공이에요.");
+        return Optional.of(sb.toString().strip());
+    }
+
+    private String buildAddTickerCta(TickerInfo info) {
+        String sym = info.getTicker();
+        String name = (info.getKo() != null && !info.getKo().isBlank()) ? info.getKo() : sym;
+        StringBuilder sb = new StringBuilder();
+        sb.append(name).append("(").append(sym).append(")은(는) 아직 관심 종목에 없어요.\n");
+        try {
+            List<UUID> ids = newsRepo.findIdsByTickersOverlap("{" + sym + "}", 1, 0);
+            if (ids != null && !ids.isEmpty()) {
+                List<NewsArticle> articles = newsRepo.findByIdIn(ids);
+                if (!articles.isEmpty()) {
+                    NewsArticle top = articles.get(0);
+                    String hl = top.getHeadlineKo() != null ? top.getHeadlineKo() : top.getHeadline();
+                    if (hl != null) sb.append("📰 최신 소식: ").append(hl).append("\n");
+                }
+            }
+        } catch (Exception ignored) {}
+        sb.append("\n관심 종목에 추가하시겠어요? 추가하면 매일 인사이트 브리핑을 받아볼 수 있어요! 📈");
+        return sb.toString();
+    }
+
+    private static String sentimentKo(String label) {
+        return switch (label == null ? "" : label) {
+            case "positive" -> "긍정";
+            case "negative" -> "부정";
+            case "neutral" -> "중립";
+            case "mixed" -> "혼조";
+            default -> label;
+        };
     }
 
     private String buildAlertContent(NewsArticle article, List<String> tickers) {

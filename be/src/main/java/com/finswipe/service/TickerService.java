@@ -8,9 +8,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -85,5 +89,31 @@ public class TickerService {
         return searchTickers(query).stream()
                 .map(TickerInfo::getTicker)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 메시지 텍스트에 등장한 티커 — 한글명/심볼(단어 단위)/영문 사명 매칭. 챗봇 라우팅용.
+     * 가장 구체적인(한글명이 긴) 매칭이 앞에 오도록 정렬.
+     */
+    public List<TickerInfo> findMentionedTickers(String text) {
+        if (text == null || text.isBlank()) return List.of();
+        String upper = text.toUpperCase();
+        Set<String> tokens = new HashSet<>(Arrays.asList(upper.split("[^A-Z0-9]+")));
+        List<TickerInfo> matches = new ArrayList<>();
+        for (TickerInfo info : getTickerInfoCache().values()) {
+            String ko = info.getKo();
+            String corp = info.getCorp();
+            String sym = info.getTicker();
+            boolean hit = (ko != null && ko.length() >= 2 && text.contains(ko))
+                    || (sym != null && sym.length() >= 2 && tokens.contains(sym))
+                    || (corp != null && corp.length() >= 5 && upper.contains(corp.toUpperCase()));
+            if (hit) matches.add(info);
+        }
+        matches.sort((a, b) -> {
+            int la = a.getKo() != null ? a.getKo().length() : 0;
+            int lb = b.getKo() != null ? b.getKo().length() : 0;
+            return Integer.compare(lb, la);
+        });
+        return matches;
     }
 }
