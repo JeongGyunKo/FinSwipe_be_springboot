@@ -175,14 +175,18 @@ public class AuthController {
 
     // ── 비밀번호 재설정 ───────────────────────────────────────────────────────
 
-    @Operation(summary = "비밀번호 재설정 요청", description = "이메일로 재설정 링크 발송 (1시간 유효). 존재하지 않는 이메일도 동일 응답.")
+    @Operation(summary = "비밀번호 재설정 요청", description = "이메일로 재설정 링크 발송 (1시간 유효). 미가입 이메일·Google 계정은 400 반환.")
     @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
             { "message": "비밀번호 재설정 링크를 이메일로 발송했습니다." }
             """)))
     @PostMapping("/forgot-password")
     public ResponseEntity<Map<String, Object>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest body) {
-        authService.forgotPassword(body.email());
-        return ResponseEntity.ok(Map.of("message", "비밀번호 재설정 링크를 이메일로 발송했습니다."));
+        try {
+            authService.forgotPassword(body.email());
+            return ResponseEntity.ok(Map.of("message", "비밀번호 재설정 링크를 이메일로 발송했습니다."));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     @Operation(summary = "비밀번호 재설정", description = "재설정 메일의 token과 새 비밀번호(8자 이상) 전달")

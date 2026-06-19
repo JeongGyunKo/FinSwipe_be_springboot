@@ -166,20 +166,29 @@ public class AuthService {
     // ── 비밀번호 재설정 요청 ──────────────────────────────────────────────────
     public void forgotPassword(String email) {
         String normalized = email.strip().toLowerCase();
+
+        var rows = jdbc.queryForList(
+                "SELECT auth_provider FROM user_profiles WHERE email = ?",
+                String.class, normalized);
+
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException("가입되지 않은 이메일입니다.");
+        }
+        if ("google".equals(rows.get(0))) {
+            throw new IllegalArgumentException("Google 계정으로 가입된 이메일입니다. Google 로그인을 이용해주세요.");
+        }
+
         String resetToken = UUID.randomUUID().toString();
         OffsetDateTime expires = OffsetDateTime.now().plusHours(1);
 
-        int updated = jdbc.update("""
+        jdbc.update("""
                 UPDATE user_profiles
                 SET password_reset_token = ?, password_reset_expires = ?, updated_at = NOW()
                 WHERE email = ? AND auth_provider = 'email'
                 """, resetToken, expires, normalized);
 
-        if (updated > 0) {
-            emailService.sendPasswordResetEmail(normalized, resetToken);
-            log.info("[Auth] 비밀번호 재설정 요청: email={}", normalized);
-        }
-        // 이메일 존재 여부를 노출하지 않기 위해 항상 성공 응답
+        emailService.sendPasswordResetEmail(normalized, resetToken);
+        log.info("[Auth] 비밀번호 재설정 요청: email={}", normalized);
     }
 
     // ── 비밀번호 재설정 ───────────────────────────────────────────────────────
