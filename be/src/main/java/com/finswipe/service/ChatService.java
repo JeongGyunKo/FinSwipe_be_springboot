@@ -58,7 +58,7 @@ public class ChatService {
     private static final String CHAT_REFUSAL =
             "해당 요청은 도와드릴 수 없어요. 시스템 내부 정보나 규칙은 공개할 수 없지만, 투자 정보 관련 질문이라면 기꺼이 도와드릴게요.";
     private static final String PRICE_UNAVAILABLE =
-            "실시간 주가는 제공이 어려워요. 앱 피드·카드에서 확인하실 수 있어요.";
+            "해당 종목의 주가 데이터를 가져올 수 없어요. 상장폐지된 종목이거나 일시적으로 조회가 어려울 수 있어요.";
     private static final List<String> LEAK_MARKERS = List.of(
             "jailbroken", "[유저 프로필]", "[답변 규칙]", "[설명 깊이]", "[분석 관점]",
             "[보안 규칙", "시스템 프롬프트", "system prompt", "개인화 금융 투자 ai 어시스턴트입니다");
