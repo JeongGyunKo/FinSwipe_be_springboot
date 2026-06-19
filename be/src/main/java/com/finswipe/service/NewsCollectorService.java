@@ -214,8 +214,11 @@ public class NewsCollectorService {
                     // exchange 필드가 있으면 비미국 거래소 제외
                     String exchange = String.valueOf(c.getOrDefault("exchange", "")).toUpperCase().strip();
                     if (!exchange.isBlank() && NON_US_EXCHANGES.contains(exchange)) {
-                        log.debug("[티커필터] 비미국 거래소 제외: {} ({})", t, exchange);
+                        log.info("[티커필터] 비미국 거래소 제외: {} ({})", t, exchange);
                         return false;
+                    }
+                    if (!exchange.isBlank()) {
+                        log.info("[티커필터] exchange 필드 수신: {} → {}", t, exchange);
                     }
                     if (usTickers.isEmpty()) return VALID_US_TICKER.matcher(t).matches() && !CRYPTO_TICKERS.contains(t);
                     return usTickers.contains(t);
