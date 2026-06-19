@@ -12,7 +12,7 @@ router = APIRouter(prefix="/technicals", tags=["technicals"])
 
 _cache: dict[str, tuple[float, dict]] = {}
 _cache_lock = Lock()
-_TTL = 3600  # 1시간
+_TTL = 900  # 15분
 
 
 def _get_cached(ticker: str) -> dict | None:

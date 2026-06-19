@@ -182,7 +182,6 @@ def _fetch_technicals(ticker: str) -> dict | None:
         prices = hist["Close"].values.astype(float)
         volumes = hist["Volume"].values.astype(float)
 
-        current_price = round(float(prices[-1]), 2)
         change_1d = round((prices[-1] / prices[-2] - 1) * 100, 2) if len(prices) >= 2 else None
         change_1m = round((prices[-1] / prices[-22] - 1) * 100, 2) if len(prices) >= 22 else None
 
@@ -190,8 +189,14 @@ def _fetch_technicals(ticker: str) -> dict | None:
         try:
             intraday = yf.Ticker(ticker).history(period="1d", interval="1m")
             current_volume = int(intraday["Volume"].sum()) if not intraday.empty else None
+            # 1분봉 마지막 종가 — 일봉 종가보다 최신 (약 15분 지연)
+            if not intraday.empty:
+                current_price = round(float(intraday["Close"].values[-1]), 2)
+            else:
+                current_price = round(float(prices[-1]), 2)
         except Exception:
             current_volume = None
+            current_price = round(float(prices[-1]), 2)
         avg_daily_volume = float(volumes[-5:].mean()) if len(volumes) >= 5 else None
         volume_ratio = round(current_volume / avg_daily_volume, 2) if current_volume and avg_daily_volume else (
             round(float(volumes[-1] / avg_daily_volume), 2) if avg_daily_volume else None
