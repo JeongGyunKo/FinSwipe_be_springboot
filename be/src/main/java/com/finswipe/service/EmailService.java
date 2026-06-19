@@ -38,7 +38,7 @@ public class EmailService {
 
     @Async
     public void sendPasswordResetEmail(String to, String token) {
-        String link = props.getAuth().getAppBaseUrl() + "/auth/reset-password?token=" + token;
+        String link = props.getAuth().getFrontendBaseUrl() + "/reset-password?token=" + token;
         String html = """
                 <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
                   <h2>FinSwipe 비밀번호 재설정</h2>

@@ -200,6 +200,10 @@ public class AuthController {
             return ResponseEntity.ok(Map.of("message", "비밀번호가 변경되었습니다."));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("[비밀번호 재설정] 오류: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요."));
         }
     }
 
