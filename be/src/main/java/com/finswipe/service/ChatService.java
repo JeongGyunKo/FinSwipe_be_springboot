@@ -256,7 +256,8 @@ public class ChatService {
             if (wlHit != null) {
                 return buildWatchlistInsight(wlHit);   // 분석 기사 있으면 토큰0, 없으면 empty→LLM
             }
-            return Optional.of(buildAddTickerCta(mentioned.get(0)));
+            // 비관심 종목 → LLM으로 위임 (시스템 프롬프트 규칙이 카드 안내로 처리)
+            return Optional.empty();
         } catch (Exception e) {
             log.warn("[챗봇] 캐시 인사이트 분기 실패 — LLM 폴백: {}", e.getMessage());
             return Optional.empty();
@@ -307,25 +308,6 @@ public class ChatService {
         return Optional.of(sb.toString().strip());
     }
 
-    private String buildAddTickerCta(TickerInfo info) {
-        String sym = info.getTicker();
-        String name = (info.getKo() != null && !info.getKo().isBlank()) ? info.getKo() : sym;
-        StringBuilder sb = new StringBuilder();
-        sb.append(name).append("(").append(sym).append(")은(는) 아직 관심 종목에 없어요.\n");
-        try {
-            List<UUID> ids = newsRepo.findIdsByTickersOverlap("{" + sym + "}", 1, 0);
-            if (ids != null && !ids.isEmpty()) {
-                List<NewsArticle> articles = newsRepo.findByIdIn(ids);
-                if (!articles.isEmpty()) {
-                    NewsArticle top = articles.get(0);
-                    String hl = top.getHeadlineKo() != null ? top.getHeadlineKo() : top.getHeadline();
-                    if (hl != null) sb.append("📰 최신 소식: ").append(hl).append("\n");
-                }
-            }
-        } catch (Exception ignored) {}
-        sb.append("\n관심 종목에 추가하시겠어요? 추가하면 매일 인사이트 브리핑을 받아볼 수 있어요! 📈");
-        return sb.toString();
-    }
 
     private static String sentimentKo(String label) {
         return switch (label == null ? "" : label) {
