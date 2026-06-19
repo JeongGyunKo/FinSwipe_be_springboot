@@ -185,6 +185,38 @@ public class AdminController {
         return List.of(inner.split(","));
     }
 
+    /** BA 카드 BAE Systems 뉴스 정리 — ?confirm=true 시 실제 삭제 */
+    @DeleteMapping("/cleanup-bae")
+    public ResponseEntity<Map<String, Object>> cleanupBae(
+            @RequestHeader("X-Admin-Key") String adminKey,
+            @RequestParam(defaultValue = "false") boolean confirm) {
+        requireAdmin(adminKey);
+        String previewSql = """
+                SELECT id, headline, tickers::text
+                FROM news_articles
+                WHERE 'BA' = ANY(tickers)
+                  AND (headline ILIKE '%BAE Systems%' OR content ILIKE '%BAE Systems%')
+                LIMIT 100
+                """;
+        List<Map<String, Object>> targets = jdbc.queryForList(previewSql);
+        if (!confirm) {
+            return ResponseEntity.ok(Map.of(
+                    "preview", targets.stream().map(r -> Map.of(
+                            "id", r.get("id"),
+                            "headline", r.get("headline"),
+                            "tickers", r.get("tickers"))).toList(),
+                    "count", targets.size(),
+                    "hint", "삭제하려면 ?confirm=true 추가"));
+        }
+        int deleted = jdbc.update("""
+                DELETE FROM news_articles
+                WHERE 'BA' = ANY(tickers)
+                  AND (headline ILIKE '%BAE Systems%' OR content ILIKE '%BAE Systems%')
+                """);
+        log.warn("[어드민] BAE Systems 오태깅 기사 {}개 삭제 완료", deleted);
+        return ResponseEntity.ok(Map.of("deleted", deleted));
+    }
+
     private void requireAdmin(String key) {
         String expected = props.getAdmin().getApiKey();
         if (!MessageDigest.isEqual(
