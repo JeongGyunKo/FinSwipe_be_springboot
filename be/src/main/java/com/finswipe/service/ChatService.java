@@ -108,7 +108,7 @@ public class ChatService {
 
         // 가격 질문이면 관심 종목 현재가를 GenAI 컨텍스트로 주입 (토큰0 직접 응답 or LLM에 실제 가격 제공)
         Map<String, Double> tickerPrices = isPriceQuery(userContent)
-                ? buildTickerPrices(userContent, tickers) : Map.of();
+                ? buildTickerPrices(userContent) : Map.of();
 
         // 캐시 인사이트 우선 — 종목 인사이트 질문은 LLM 토큰 없이 분석된 DB 데이터로 응답
         String aiContent = tryCachedInsight(userContent, tickers)
@@ -204,18 +204,14 @@ public class ChatService {
         }
     }
 
-    private Map<String, Double> buildTickerPrices(String message, List<String> tickers) {
-        if (tickers == null || tickers.isEmpty()) return Map.of();
-
-        // 한글명·심볼·영문 사명 모두 매칭 (엔비디아 → NVDA 등)
-        Set<String> mentioned = tickerService.findMentionedTickers(message).stream()
-                .map(TickerInfo::getTicker)
-                .collect(Collectors.toSet());
+    private Map<String, Double> buildTickerPrices(String message) {
+        // 메시지에 언급된 종목 전체 — 관심 종목 여부 무관하게 가격 주입
+        List<TickerInfo> mentioned = tickerService.findMentionedTickers(message);
+        if (mentioned.isEmpty()) return Map.of();
 
         Map<String, Double> prices = new HashMap<>();
-        for (String raw : tickers) {
-            String ticker = raw.replace("\"", "").strip().toUpperCase();
-            if (ticker.isEmpty() || !mentioned.contains(ticker)) continue;
+        for (TickerInfo info : mentioned) {
+            String ticker = info.getTicker();
             try {
                 TechnicalsService.TechnicalsData td = technicalsService.getTechnicals(ticker);
                 if (td != null && td.currentPrice() != null) {
