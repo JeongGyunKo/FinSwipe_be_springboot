@@ -42,11 +42,12 @@ public class NewsCollectorService {
     );
 
     private static final Pattern VALID_US_TICKER = Pattern.compile("^[A-Z]{1,5}$");
-    // LSE·TSX·ASX 등 비미국 거래소 — exchange 필드가 이 값이면 US 티커가 아님
-    private static final Set<String> NON_US_EXCHANGES = Set.of(
-            "LSE", "LON", "LONDON", "TSX", "TSXV", "ASX", "HKEX", "HKG", "HKD",
-            "TSE", "TYO", "JPX", "XETR", "XFRA", "FRA", "EPA", "PAR", "AMS",
-            "BMV", "BSE", "NSE", "SGX", "NZX", "SWX", "STO", "OSL", "CPH", "HEL");
+    // Finlight는 ISO MIC 코드를 사용 — 미국 거래소만 허용 (allowlist)
+    // XNAS=NASDAQ, XNYS=NYSE, XASE=NYSE American, ARCX=NYSE Arca, BATS=CBOE BZX
+    private static final Set<String> US_EXCHANGE_MICS = Set.of(
+            "XNAS", "XNYS", "XASE", "ARCX", "BATS", "EDGX", "EDGA", "IEXG", "XOTC",
+            // 단축명 fallback (혹시 Finlight가 섞어 쓸 경우)
+            "NASDAQ", "NYSE", "AMEX", "ARCA", "OTC", "US");
     private static final List<String> TRANSCRIPT_KEYWORDS = List.of("transcript", "conference call");
 
     private final RestClient finlightClient;
@@ -213,12 +214,9 @@ public class NewsCollectorService {
                     if (t.contains(".")) return false;
                     // exchange 필드가 있으면 비미국 거래소 제외
                     String exchange = String.valueOf(c.getOrDefault("exchange", "")).toUpperCase().strip();
-                    if (!exchange.isBlank() && NON_US_EXCHANGES.contains(exchange)) {
+                    if (!exchange.isBlank() && !US_EXCHANGE_MICS.contains(exchange)) {
                         log.info("[티커필터] 비미국 거래소 제외: {} ({})", t, exchange);
                         return false;
-                    }
-                    if (!exchange.isBlank()) {
-                        log.info("[티커필터] exchange 필드 수신: {} → {}", t, exchange);
                     }
                     if (usTickers.isEmpty()) return VALID_US_TICKER.matcher(t).matches() && !CRYPTO_TICKERS.contains(t);
                     return usTickers.contains(t);
