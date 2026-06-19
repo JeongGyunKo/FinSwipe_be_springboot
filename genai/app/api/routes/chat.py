@@ -61,7 +61,7 @@ _LEAK_MARKERS = (
 
 # 빈칸(placeholder) 패턴 — Gemini가 채울 데이터 없이 [...] 형태로 응답하는 환각 차단
 _PLACEHOLDER_RE = re.compile(
-    r"\[[^\]\n]{2,80}(?:삽입|insert|정보|가격|시세|데이터|값|price|information|here)[^\]\n]{0,20}\]",
+    r"\[[^\]\n]{0,80}(?:삽입|insert|정보|가격|주가|현재가|시세|데이터|값|price|information|here)[^\]\n]{0,20}\]",
     re.IGNORECASE,
 )
 _PRICE_UNAVAILABLE = "실시간 주가는 제공이 어려워요. 앱 피드·카드에서 확인하실 수 있어요."
