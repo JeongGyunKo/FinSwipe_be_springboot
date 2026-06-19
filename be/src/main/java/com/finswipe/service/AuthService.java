@@ -28,9 +28,12 @@ public class AuthService {
         String normalized = email.strip().toLowerCase();
         String normalizedLoginId = loginId.strip().toLowerCase();
 
-        Integer emailCount = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_profiles WHERE email = ?", Integer.class, normalized);
-        if (emailCount != null && emailCount > 0) {
+        var existingProviders = jdbc.queryForList(
+                "SELECT auth_provider FROM user_profiles WHERE email = ?", String.class, normalized);
+        if (!existingProviders.isEmpty()) {
+            if ("google".equals(existingProviders.get(0))) {
+                throw new IllegalArgumentException("Google 계정으로 이미 가입된 이메일입니다. Google 로그인을 이용해주세요.");
+            }
             throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
         }
 

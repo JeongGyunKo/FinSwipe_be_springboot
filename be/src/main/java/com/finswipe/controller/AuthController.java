@@ -115,6 +115,40 @@ public class AuthController {
         }
     }
 
+    // ── 이메일 중복 확인 ──────────────────────────────────────────────────────
+
+    @Operation(summary = "이메일 중복 확인", description = "사용 가능 여부 확인. available=true면 사용 가능. Google 계정 이메일인 경우 reason=google 반환.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            { "available": false, "reason": "google", "message": "Google 계정으로 이미 가입된 이메일입니다. Google 로그인을 이용해주세요." }
+            """)))
+    @GetMapping("/check-email")
+    public ResponseEntity<Map<String, Object>> checkEmail(@RequestParam String email) {
+        if (email == null || email.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "이메일을 입력해주세요."));
+        }
+        String normalized = email.strip().toLowerCase();
+        try {
+            List<String> rows = jdbc.queryForList(
+                    "SELECT auth_provider FROM user_profiles WHERE email = ?",
+                    String.class, normalized);
+            if (rows.isEmpty()) {
+                return ResponseEntity.ok(Map.of("available", true));
+            }
+            String provider = rows.get(0);
+            if ("google".equals(provider)) {
+                return ResponseEntity.ok(Map.of(
+                        "available", false,
+                        "reason", "google",
+                        "message", "Google 계정으로 이미 가입된 이메일입니다. Google 로그인을 이용해주세요."));
+            }
+            return ResponseEntity.ok(Map.of("available", false, "message", "이미 사용 중인 이메일입니다."));
+        } catch (Exception e) {
+            log.error("[이메일 중복확인] 오류: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "서버 오류"));
+        }
+    }
+
     // ── 아이디 중복 확인 ──────────────────────────────────────────────────────
 
     @Operation(summary = "아이디 중복 확인", description = "사용 가능 여부 확인. available=true면 사용 가능.")
