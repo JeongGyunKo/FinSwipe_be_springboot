@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -107,12 +108,12 @@ public class ChatService {
                 .reversed();
 
         // 가격 질문이면 관심 종목 현재가를 GenAI 컨텍스트로 주입 (토큰0 직접 응답 or LLM에 실제 가격 제공)
-        Map<String, Double> tickerPrices = isPriceQuery(userContent)
-                ? buildTickerPrices(userContent) : Map.of();
+        PriceResult priceResult = isPriceQuery(userContent)
+                ? buildTickerPrices(userContent) : new PriceResult(Map.of(), List.of());
 
         // 캐시 인사이트 우선 — 종목 인사이트 질문은 LLM 토큰 없이 분석된 DB 데이터로 응답
         String aiContent = tryCachedInsight(userContent, tickers)
-                .orElseGet(() -> callGenAiChat(userContent, history, level, tendency, tickers, tickerPrices));
+                .orElseGet(() -> callGenAiChat(userContent, history, level, tendency, tickers, priceResult));
 
         ChatMessage assistantMsg = new ChatMessage();
         assistantMsg.setUserId(userId);
@@ -169,7 +170,7 @@ public class ChatService {
 
     private String callGenAiChat(String message, List<Map<String, String>> history,
                                   int level, String tendency, List<String> tickers,
-                                  Map<String, Double> tickerPrices) {
+                                  PriceResult priceResult) {
         try {
             Map<String, Object> body = new HashMap<>();
             body.put("message", message);
@@ -177,7 +178,8 @@ public class ChatService {
             body.put("user_level", level);
             body.put("user_tendency", tendency != null ? tendency : "");
             body.put("user_tickers", tickers != null ? tickers : List.of());
-            body.put("ticker_prices", tickerPrices != null ? tickerPrices : Map.of());
+            body.put("ticker_prices", priceResult.available());
+            body.put("unavailable_tickers", priceResult.unavailable());
 
             String raw = genaiClient.post()
                     .uri("/api/v1/chat/message")
@@ -204,24 +206,29 @@ public class ChatService {
         }
     }
 
-    private Map<String, Double> buildTickerPrices(String message) {
-        // 메시지에 언급된 종목 전체 — 관심 종목 여부 무관하게 가격 주입
+    record PriceResult(Map<String, Double> available, List<String> unavailable) {}
+
+    private PriceResult buildTickerPrices(String message) {
         List<TickerInfo> mentioned = tickerService.findMentionedTickers(message);
-        if (mentioned.isEmpty()) return Map.of();
+        if (mentioned.isEmpty()) return new PriceResult(Map.of(), List.of());
 
         Map<String, Double> prices = new HashMap<>();
+        List<String> unavailable = new ArrayList<>();
         for (TickerInfo info : mentioned) {
             String ticker = info.getTicker();
             try {
                 TechnicalsService.TechnicalsData td = technicalsService.getTechnicals(ticker);
                 if (td != null && td.currentPrice() != null) {
                     prices.put(ticker, td.currentPrice());
+                } else {
+                    unavailable.add(ticker); // 데이터 없는 종목 (상장폐지 등) 별도 추적
                 }
             } catch (Exception e) {
                 log.debug("[챗봇] {} 가격 조회 실패: {}", ticker, e.getMessage());
+                unavailable.add(ticker);
             }
         }
-        return prices;
+        return new PriceResult(prices, unavailable);
     }
 
     // ===================== 캐시 인사이트 라우터 (토큰 절감) =====================

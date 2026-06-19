@@ -88,11 +88,13 @@ class ChatRequest(BaseModel):
     user_level: int = 3
     user_tendency: str = "탐색형 투자자"
     user_tickers: list[str] = []
-    ticker_prices: dict[str, float] = {}   # BE가 주입하는 실시간 주가 (ticker → USD 가격)
+    ticker_prices: dict[str, float] = {}        # BE가 주입하는 약 15분 지연 주가 (ticker → USD)
+    unavailable_tickers: list[str] = []         # 조회 시도했으나 데이터 없는 종목 (상장폐지 등)
 
 
 def _build_system_prompt(level: int, tendency: str, tickers: list[str],
-                         ticker_prices: dict[str, float] | None = None) -> str:
+                         ticker_prices: dict[str, float] | None = None,
+                         unavailable_tickers: list[str] | None = None) -> str:
     level_clamped = max(1, min(5, level))
     depth = _LEVEL_DEPTH.get(level_clamped, _LEVEL_DEPTH[3])
     focus = _TENDENCY_FOCUS.get(tendency, _TENDENCY_FOCUS["탐색형 투자자"])
@@ -106,6 +108,11 @@ def _build_system_prompt(level: int, tendency: str, tickers: list[str],
         for t, p in ticker_prices.items():
             lines.append(f"- {t}: ${p:,.2f}")
         price_section = "\n" + "\n".join(lines) + "\n"
+    if unavailable_tickers:
+        lines = ["[주가 조회 불가 종목 — 상장폐지 또는 데이터 없음]"]
+        for t in unavailable_tickers:
+            lines.append(f"- {t}: 데이터 없음")
+        price_section += "\n" + "\n".join(lines) + "\n"
 
     return f"""당신은 개인화 금융 투자 AI 어시스턴트입니다.
 유저의 관심 종목과 투자 성향에 맞춰 투자 관련 질문에 답변합니다.
@@ -140,6 +147,7 @@ def _build_system_prompt(level: int, tendency: str, tickers: list[str],
 - FinSwipe는 실시간 주가를 제공하지 않습니다. 1분봉 기준 약 15분 지연된 데이터만 제공 가능하며, 이 사실을 항상 사용자에게 명확히 안내하세요.
 - 주가·시세·현재가 수치는 위 [주가 정보]에 명시된 종목과 수치만 사용하세요. [주가 정보]에 있는 종목은 수치를 안내하되 반드시 "실시간이 아닌 약 15분 지연된 데이터"임을 함께 밝히세요.
 - [주가 정보]에 없는 종목은 학습 데이터 기반 수치를 절대 언급하지 마세요. 대신 "해당 종목의 주가 데이터를 가져올 수 없어요. 상장폐지된 종목이거나 일시적으로 조회가 어려울 수 있어요."라고 안내하세요.
+- [주가 조회 불가 종목]에 있는 종목은 실제로 가격 조회를 시도했으나 데이터가 없는 종목입니다. 이 종목에 대해 어떤 가격 수치도 절대 언급하지 마세요. 반드시 "해당 종목의 주가 데이터를 가져올 수 없어요. 상장폐지된 종목이거나 일시적으로 조회가 어려울 수 있어요."라고만 안내하세요.
 - [ ] 괄호 형태의 빈칸(placeholder)을 절대 출력하지 마세요. 모르는 정보는 빈칸 대신 직접 모른다고 말하세요.
 - 사용자가 투자 손실·재정적 어려움·심리적 위기를 표현하는 경우(표현 방식·비속어 무관), 종목 분석·투자 조언·관심 종목 유도 없이 다음 문구만 반환하세요: "FinSwipe에서 제공하는 챗AI·인사이트 등 모든 콘텐츠는 투자 권유가 아닌 AI가 생성한 참고 정보이며, 투자 결정과 그에 따른 손실의 책임은 이용자 본인에게 있습니다."
 
@@ -179,7 +187,8 @@ async def chat_message(req: ChatRequest) -> dict:
         return {"reply": _REFUSAL}
 
     system_prompt = _build_system_prompt(
-        req.user_level, req.user_tendency, req.user_tickers, req.ticker_prices
+        req.user_level, req.user_tendency, req.user_tickers,
+        req.ticker_prices, req.unavailable_tickers
     )
     user_prompt = _build_user_prompt(req.message, req.history)
 
