@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -56,14 +57,31 @@ public class ChatService {
     // 이중 방어 — GenAI가 인젝션에 뚫려 프롬프트/탈옥 내용을 흘려도 백엔드에서 차단
     private static final String CHAT_REFUSAL =
             "해당 요청은 도와드릴 수 없어요. 시스템 내부 정보나 규칙은 공개할 수 없지만, 투자 정보 관련 질문이라면 기꺼이 도와드릴게요.";
+    private static final String PRICE_UNAVAILABLE =
+            "실시간 주가는 제공이 어려워요. 앱 피드·카드에서 확인하실 수 있어요.";
     private static final List<String> LEAK_MARKERS = List.of(
             "jailbroken", "[유저 프로필]", "[답변 규칙]", "[설명 깊이]", "[분석 관점]",
             "[보안 규칙", "시스템 프롬프트", "system prompt", "개인화 금융 투자 ai 어시스턴트입니다");
+    private static final Pattern PLACEHOLDER_RE = Pattern.compile(
+            "\\[[^\\]\\n]{2,80}(?:삽입|insert|정보|가격|시세|데이터|값|price|information|here)[^\\]\\n]{0,20}\\]",
+            Pattern.CASE_INSENSITIVE);
+    private static final List<String> PRICE_KEYWORDS = List.of(
+            "주가", "가격", "얼마", "price", "시세", "현재가");
 
     private static boolean leaksPrompt(String reply) {
         if (reply == null) return false;
         String low = reply.toLowerCase();
         return LEAK_MARKERS.stream().anyMatch(low::contains);
+    }
+
+    private static String sanitizePlaceholders(String reply) {
+        if (reply == null) return reply;
+        return PLACEHOLDER_RE.matcher(reply).replaceAll(PRICE_UNAVAILABLE);
+    }
+
+    private static boolean isPriceQuery(String message) {
+        String lower = message.toLowerCase();
+        return PRICE_KEYWORDS.stream().anyMatch(lower::contains);
     }
 
     /**
@@ -88,9 +106,13 @@ public class ChatService {
                 .toList()
                 .reversed();
 
+        // 가격 질문이면 관심 종목 현재가를 GenAI 컨텍스트로 주입 (토큰0 직접 응답 or LLM에 실제 가격 제공)
+        Map<String, Double> tickerPrices = isPriceQuery(userContent)
+                ? buildTickerPrices(userContent, tickers) : Map.of();
+
         // 캐시 인사이트 우선 — 종목 인사이트 질문은 LLM 토큰 없이 분석된 DB 데이터로 응답
         String aiContent = tryCachedInsight(userContent, tickers)
-                .orElseGet(() -> callGenAiChat(userContent, history, level, tendency, tickers));
+                .orElseGet(() -> callGenAiChat(userContent, history, level, tendency, tickers, tickerPrices));
 
         ChatMessage assistantMsg = new ChatMessage();
         assistantMsg.setUserId(userId);
@@ -146,7 +168,8 @@ public class ChatService {
     }
 
     private String callGenAiChat(String message, List<Map<String, String>> history,
-                                  int level, String tendency, List<String> tickers) {
+                                  int level, String tendency, List<String> tickers,
+                                  Map<String, Double> tickerPrices) {
         try {
             Map<String, Object> body = new HashMap<>();
             body.put("message", message);
@@ -154,6 +177,7 @@ public class ChatService {
             body.put("user_level", level);
             body.put("user_tendency", tendency != null ? tendency : "");
             body.put("user_tickers", tickers != null ? tickers : List.of());
+            body.put("ticker_prices", tickerPrices != null ? tickerPrices : Map.of());
 
             String raw = genaiClient.post()
                     .uri("/api/v1/chat/message")
@@ -165,7 +189,6 @@ public class ChatService {
                     });
 
             JsonNode node = objectMapper.readTree(raw);
-            // GenAI 응답 필드: reply 또는 message
             String reply = node.path("reply").asText(null);
             if (reply == null || reply.isBlank()) reply = node.path("message").asText(null);
             if (reply == null || reply.isBlank()) return "응답을 받아오지 못했습니다.";
@@ -173,11 +196,31 @@ public class ChatService {
                 log.warn("[챗봇] 프롬프트 누출 의심 응답 차단 (output guard)");
                 return CHAT_REFUSAL;
             }
-            return reply;
+            // BE 이중 placeholder 가드 — GenAI가 빈칸을 뱉으면 안전 문구로 치환
+            return sanitizePlaceholders(reply);
         } catch (Exception e) {
             log.error("[챗봇] GenAI 응답 실패: {}", e.getMessage());
             return "죄송합니다, 지금은 응답할 수 없습니다. 잠시 후 다시 시도해주세요.";
         }
+    }
+
+    private Map<String, Double> buildTickerPrices(String message, List<String> tickers) {
+        if (tickers == null || tickers.isEmpty()) return Map.of();
+        String lower = message.toLowerCase();
+        Map<String, Double> prices = new HashMap<>();
+        for (String raw : tickers) {
+            String ticker = raw.replace("\"", "").strip().toUpperCase();
+            if (ticker.isEmpty() || !lower.contains(ticker.toLowerCase())) continue;
+            try {
+                TechnicalsService.TechnicalsData td = technicalsService.getTechnicals(ticker);
+                if (td != null && td.currentPrice() != null) {
+                    prices.put(ticker, td.currentPrice());
+                }
+            } catch (Exception e) {
+                log.debug("[챗봇] {} 가격 조회 실패: {}", ticker, e.getMessage());
+            }
+        }
+        return prices;
     }
 
     // ===================== 캐시 인사이트 라우터 (토큰 절감) =====================
