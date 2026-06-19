@@ -42,6 +42,11 @@ public class NewsCollectorService {
     );
 
     private static final Pattern VALID_US_TICKER = Pattern.compile("^[A-Z]{1,5}$");
+    // LSE·TSX·ASX 등 비미국 거래소 — exchange 필드가 이 값이면 US 티커가 아님
+    private static final Set<String> NON_US_EXCHANGES = Set.of(
+            "LSE", "LON", "LONDON", "TSX", "TSXV", "ASX", "HKEX", "HKG", "HKD",
+            "TSE", "TYO", "JPX", "XETR", "XFRA", "FRA", "EPA", "PAR", "AMS",
+            "BMV", "BSE", "NSE", "SGX", "NZX", "SWX", "STO", "OSL", "CPH", "HEL");
     private static final List<String> TRANSCRIPT_KEYWORDS = List.of("transcript", "conference call");
 
     private final RestClient finlightClient;
@@ -203,7 +208,15 @@ public class NewsCollectorService {
         if (companies.isEmpty()) return;
         List<Map<String, Object>> filtered = companies.stream()
                 .filter(c -> {
-                    String t = String.valueOf(c.getOrDefault("ticker", ""));
+                    String t = String.valueOf(c.getOrDefault("ticker", "")).toUpperCase();
+                    // dot 포함 = 해외 거래소 접미사 (BA. = LSE:BA., BARC. = LSE:BARC. 등)
+                    if (t.contains(".")) return false;
+                    // exchange 필드가 있으면 비미국 거래소 제외
+                    String exchange = String.valueOf(c.getOrDefault("exchange", "")).toUpperCase().strip();
+                    if (!exchange.isBlank() && NON_US_EXCHANGES.contains(exchange)) {
+                        log.debug("[티커필터] 비미국 거래소 제외: {} ({})", t, exchange);
+                        return false;
+                    }
                     if (usTickers.isEmpty()) return VALID_US_TICKER.matcher(t).matches() && !CRYPTO_TICKERS.contains(t);
                     return usTickers.contains(t);
                 })
