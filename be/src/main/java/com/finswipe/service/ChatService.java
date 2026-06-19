@@ -206,11 +206,16 @@ public class ChatService {
 
     private Map<String, Double> buildTickerPrices(String message, List<String> tickers) {
         if (tickers == null || tickers.isEmpty()) return Map.of();
-        String lower = message.toLowerCase();
+
+        // 한글명·심볼·영문 사명 모두 매칭 (엔비디아 → NVDA 등)
+        Set<String> mentioned = tickerService.findMentionedTickers(message).stream()
+                .map(TickerInfo::getTicker)
+                .collect(Collectors.toSet());
+
         Map<String, Double> prices = new HashMap<>();
         for (String raw : tickers) {
             String ticker = raw.replace("\"", "").strip().toUpperCase();
-            if (ticker.isEmpty() || !lower.contains(ticker.toLowerCase())) continue;
+            if (ticker.isEmpty() || !mentioned.contains(ticker)) continue;
             try {
                 TechnicalsService.TechnicalsData td = technicalsService.getTechnicals(ticker);
                 if (td != null && td.currentPrice() != null) {
