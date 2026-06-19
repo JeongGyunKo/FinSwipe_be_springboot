@@ -66,6 +66,23 @@ _PLACEHOLDER_RE = re.compile(
 )
 _PRICE_UNAVAILABLE = "실시간 주가는 제공이 어려워요. 앱 피드·카드에서 확인하실 수 있어요."
 
+# 위기 상황 감지 — LLM 호출 전 즉시 면책 고지 응답
+_CRISIS_RE = re.compile(
+    r"자살|죽고\s*싶|죽어\s*버리|극단적\s*선택|목숨\s*(끊|끝|버리)|살기\s*싫"
+    r"|전재산\s*(날리|잃|다\s*날|다\s*잃|없어|탕진)"
+    r"|몰빵.{0,15}(날리|잃|망|파산|없어)"
+    r"|(다|전부|싹)\s*(날렸|잃었|날아)"
+    r"|파산\s*(했|위기|직전|났)"
+    r"|패가망신|빚더미",
+    re.IGNORECASE,
+)
+
+_CRISIS_REPLY = (
+    "많이 힘드셨겠어요.\n\n"
+    "FinSwipe에서 제공하는 챗AI·인사이트 등 모든 콘텐츠는 투자 권유가 아닌 "
+    "AI가 생성한 참고 정보이며, 투자 결정과 그에 따른 손실의 책임은 이용자 본인에게 있습니다."
+)
+
 
 def _looks_like_injection(message: str) -> bool:
     return bool(_INJECTION_RE.search(message or ""))
@@ -168,6 +185,11 @@ async def chat_message(req: ChatRequest) -> dict:
     if _looks_like_injection(req.message):
         logger.warning("[챗봇] 인젝션 시도 차단 (input guard)")
         return {"reply": _REFUSAL}
+
+    # 위기 상황 가드 — LLM 호출 없이 즉시 면책 고지
+    if _CRISIS_RE.search(req.message):
+        logger.warning("[챗봇] 위기 상황 감지 → 면책 고지 응답")
+        return {"reply": _CRISIS_REPLY}
 
     system_prompt = _build_system_prompt(
         req.user_level, req.user_tendency, req.user_tickers, req.ticker_prices
