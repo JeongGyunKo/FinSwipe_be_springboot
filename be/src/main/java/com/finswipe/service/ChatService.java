@@ -113,7 +113,17 @@ public class ChatService {
 
         // 캐시 인사이트 우선 — 종목 인사이트 질문은 LLM 토큰 없이 분석된 DB 데이터로 응답
         String aiContent = tryCachedInsight(userContent, tickers)
-                .orElseGet(() -> callGenAiChat(userContent, history, level, tendency, tickers, priceResult));
+                .orElseGet(() -> {
+                    // 가격 질문인데 언급 종목이 전부 조회 불가(상장폐지 등)인 경우 LLM 차단
+                    // — Gemini가 학습 데이터 가격을 할루시네이션하는 것을 사전에 막기 위함
+                    if (isPriceQuery(userContent)
+                            && priceResult.available().isEmpty()
+                            && !priceResult.unavailable().isEmpty()) {
+                        String names = String.join(", ", priceResult.unavailable());
+                        return names + "의 주가 데이터를 가져올 수 없어요. 상장폐지된 종목이거나 일시적으로 조회가 어려울 수 있어요.";
+                    }
+                    return callGenAiChat(userContent, history, level, tendency, tickers, priceResult);
+                });
 
         ChatMessage assistantMsg = new ChatMessage();
         assistantMsg.setUserId(userId);
