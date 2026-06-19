@@ -229,6 +229,7 @@ public class NewsCollectorService {
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> fetchPage(int page) {
         Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("query", "exchange:XNAS OR exchange:XNYS");
         payload.put("language", "en");
         payload.put("pageSize", 100);
         payload.put("page", page);
