@@ -10,6 +10,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -22,22 +24,26 @@ import java.util.stream.Collectors;
 @Slf4j
 public class TickerDiscoveryService {
 
+    // %s: ticker(따옴표 검색), startdt, enddt — %%22는 String.format 후 %22(URL 인코딩 따옴표)가 됨
+    private static final String SEC_EDGAR_TICKER_FORM25 =
+            "/LATEST/search-index?q=%%22%s%%22&forms=25&dateRange=custom&startdt=%s&enddt=%s";
+
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
     private final TickerService tickerService;
-    private final TechnicalsService technicalsService;
     private final RestClient genaiClient;
+    private final RestClient secEdgarClient;
 
     public TickerDiscoveryService(JdbcTemplate jdbc,
                                   ObjectMapper objectMapper,
                                   TickerService tickerService,
-                                  TechnicalsService technicalsService,
-                                  @Qualifier("genaiRestClient") RestClient genaiClient) {
+                                  @Qualifier("genaiRestClient") RestClient genaiClient,
+                                  @Qualifier("secEdgarRestClient") RestClient secEdgarClient) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
         this.tickerService = tickerService;
-        this.technicalsService = technicalsService;
         this.genaiClient = genaiClient;
+        this.secEdgarClient = secEdgarClient;
     }
 
     /**
@@ -107,37 +113,41 @@ public class TickerDiscoveryService {
     }
 
     /**
-     * 매일 새벽 0시 UTC (오전 9시 KST) — 전체 활성 종목의 가격 조회를 시도해
-     * N회 연속 실패 시 delisted_at을 기록한다.
+     * 매일 오전 1시 UTC — 활성 종목 각각을 SEC EDGAR Form 25에서 직접 검색.
+     * q="TICKER"&forms=25 로 해당 티커의 상장폐지 신청서가 존재하면 delisted_at 기록.
+     * entity_name 문자열 매칭 없이 티커를 직접 검색하므로 오탐이 없다.
      */
-    @Scheduled(cron = "0 0 0 * * *")
-    public void detectDelistedTickers() {
-        List<String> tickers;
-        try {
-            tickers = jdbc.queryForList(
-                    "SELECT ticker FROM ticker_names WHERE delisted_at IS NULL", String.class);
-        } catch (Exception e) {
-            log.error("[상장폐지 감지] 티커 목록 조회 실패: {}", e.getMessage());
-            return;
-        }
+    @Scheduled(cron = "0 0 1 * * *")
+    public void detectDelistedTickersFromSec() {
+        String today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
+        String startdt = LocalDate.now().minusYears(10).format(DateTimeFormatter.ISO_LOCAL_DATE);
+
+        List<String> activeTickers = jdbc.queryForList(
+                "SELECT ticker FROM ticker_names WHERE delisted_at IS NULL", String.class);
 
         int delisted = 0;
-        for (String ticker : tickers) {
+        for (String ticker : activeTickers) {
             try {
-                TechnicalsService.TechnicalsData td = technicalsService.getTechnicals(ticker);
-                if (td == null || td.currentPrice() == null) {
+                String url = String.format(SEC_EDGAR_TICKER_FORM25, ticker, startdt, today);
+                String raw = secEdgarClient.get().uri(url).retrieve().body(String.class);
+                JsonNode root = objectMapper.readTree(raw);
+                int total = root.path("hits").path("total").path("value").asInt(0);
+                if (total > 0) {
                     markDelisted(ticker);
                     delisted++;
+                    log.info("[SEC EDGAR] 상장폐지 감지: {}", ticker);
                 }
+                Thread.sleep(300); // SEC API rate limit 방지
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                break;
             } catch (Exception e) {
-                log.debug("[상장폐지 감지] {} 조회 오류: {}", ticker, e.getMessage());
+                log.warn("[SEC EDGAR] {} 조회 실패: {}", ticker, e.getMessage());
             }
         }
 
-        if (delisted > 0) {
-            tickerService.invalidateCache();
-            log.info("[상장폐지 감지] {}개 종목 상장폐지 처리", delisted);
-        }
+        if (delisted > 0) tickerService.invalidateCache();
+        log.info("[SEC EDGAR] Form 25 체크 완료 — {}개 상장폐지 / {}개 활성", delisted, activeTickers.size() - delisted);
     }
 
     private void markDelisted(String ticker) {

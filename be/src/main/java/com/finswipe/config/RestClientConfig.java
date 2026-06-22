@@ -53,6 +53,15 @@ public class RestClientConfig {
                 .build();
     }
 
+    @Bean("secEdgarRestClient")
+    public RestClient secEdgarRestClient() {
+        return RestClient.builder()
+                .baseUrl("https://efts.sec.gov")
+                .defaultHeader("User-Agent", "FinSwipe swj0718820@gmail.com")
+                .requestFactory(simpleFactory(10, 30))
+                .build();
+    }
+
     private String buildBasicAuth() {
         String credentials = props.getGenai().getUser() + ":" + props.getGenai().getPassword();
         return "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
