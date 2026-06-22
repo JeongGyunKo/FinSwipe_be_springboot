@@ -33,6 +33,13 @@ public class ChatRateLimiter {
                 probe.getNanosToWaitForRefill());
     }
 
+    /** 토큰을 소비하지 않고 현재 남은 횟수만 조회 (GET 엔드포인트용) */
+    public ProbeResult peek(UUID userId) {
+        Bucket bucket = buckets.get(userId, k -> newBucket());
+        long available = bucket.getAvailableTokens();
+        return new ProbeResult(true, available, 0);
+    }
+
     private Bucket newBucket() {
         return Bucket.builder()
                 .addLimit(Bandwidth.builder()
@@ -45,6 +52,9 @@ public class ChatRateLimiter {
     public record ProbeResult(boolean allowed, long remaining, long nanosToWait) {
         public long retryAfterSeconds() {
             return TimeUnit.NANOSECONDS.toSeconds(nanosToWait) + 1;
+        }
+        public long resetEpochSeconds() {
+            return System.currentTimeMillis() / 1000 + retryAfterSeconds();
         }
     }
 }
