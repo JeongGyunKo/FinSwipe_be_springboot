@@ -25,9 +25,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class TickerDiscoveryService {
 
-    // %s: ticker(따옴표 검색), startdt, enddt — %%22는 String.format 후 %22(URL 인코딩 따옴표)가 됨
+    // 전체 URL 사용 — 상대 경로 + baseUrl 조합 시 이중 인코딩 방지
     private static final String SEC_EDGAR_TICKER_FORM25 =
-            "/LATEST/search-index?q=%%22%s%%22&forms=25&dateRange=custom&startdt=%s&enddt=%s";
+            "https://efts.sec.gov/LATEST/search-index?q=%%22%s%%22&forms=25&dateRange=custom&startdt=%s&enddt=%s";
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
