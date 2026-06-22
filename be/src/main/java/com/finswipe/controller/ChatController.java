@@ -2,6 +2,7 @@ package com.finswipe.controller;
 
 import com.finswipe.dto.request.ChatMessageRequest;
 import com.finswipe.dto.response.ChatMessageDto;
+import com.finswipe.service.ChatRateLimiter;
 import com.finswipe.service.ChatService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -30,6 +31,7 @@ import java.util.UUID;
 public class ChatController {
 
     private final ChatService chatService;
+    private final ChatRateLimiter rateLimiter;
     private final JdbcTemplate jdbc;
 
     @Operation(summary = "메시지 전송", description = "유저 메시지를 AI에게 전달하고 응답을 반환합니다. 대화는 DB에 저장되어 히스토리 조회 가능.")
@@ -50,6 +52,18 @@ public class ChatController {
         if (userId == null) return ResponseEntity.status(401).body(Map.of("error", "인증이 필요합니다"));
         if (req.content() == null || req.content().isBlank())
             return ResponseEntity.badRequest().body(Map.of("error", "메시지를 입력하세요"));
+        if (req.content().length() > ChatRateLimiter.MSG_MAX_CHARS)
+            return ResponseEntity.badRequest().body(Map.of("error",
+                    "메시지는 " + ChatRateLimiter.MSG_MAX_CHARS + "자 이하로 입력해주세요"));
+
+        ChatRateLimiter.ProbeResult probe = rateLimiter.probe(userId);
+        if (!probe.allowed()) {
+            return ResponseEntity.status(429)
+                    .header("Retry-After", String.valueOf(probe.retryAfterSeconds()))
+                    .header("X-RateLimit-Limit", String.valueOf(ChatRateLimiter.RPM))
+                    .header("X-RateLimit-Remaining", "0")
+                    .body(Map.of("error", "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."));
+        }
 
         UserContext ctx = loadUserContext(userId);
         ChatMessageDto response = chatService.sendUserMessage(
