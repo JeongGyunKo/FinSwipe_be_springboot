@@ -88,7 +88,7 @@ class ChatRequest(BaseModel):
     user_level: int = 3
     user_tendency: str = "탐색형 투자자"
     user_tickers: list[str] = []
-    ticker_prices: dict[str, float] = {}        # BE가 주입하는 약 15분 지연 주가 (ticker → USD)
+    ticker_prices: dict[str, dict] = {}          # BE가 주입하는 가격 정보 {ticker → {price, open, change_1d_pct, change_open_to_close_pct}}
     unavailable_tickers: list[str] = []         # 조회 시도했으나 데이터 없는 종목 (상장폐지 등)
 
 
@@ -105,8 +105,19 @@ def _build_system_prompt(level: int, tendency: str, tickers: list[str],
     price_section = ""
     if ticker_prices:
         lines = ["[주가 정보 — 약 15분 지연 데이터]"]
-        for t, p in ticker_prices.items():
-            lines.append(f"- {t}: ${p:,.2f}")
+        for t, detail in ticker_prices.items():
+            price = detail.get("price") if isinstance(detail, dict) else detail
+            line = f"- {t}: 종가 ${price:,.2f}"
+            if isinstance(detail, dict):
+                if detail.get("open") is not None:
+                    line += f" / 시가 ${detail['open']:,.2f}"
+                if detail.get("change_open_to_close_pct") is not None:
+                    sign = "+" if detail["change_open_to_close_pct"] >= 0 else ""
+                    line += f" / 시가 대비 {sign}{detail['change_open_to_close_pct']:.2f}%"
+                if detail.get("change_1d_pct") is not None:
+                    sign = "+" if detail["change_1d_pct"] >= 0 else ""
+                    line += f" / 전일 대비 {sign}{detail['change_1d_pct']:.2f}%"
+            lines.append(line)
         price_section = "\n" + "\n".join(lines) + "\n"
     if unavailable_tickers:
         lines = ["[주가 조회 불가 종목 — 상장 확인됨, 현재 가격 데이터 없음]"]

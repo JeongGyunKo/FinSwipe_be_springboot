@@ -22,7 +22,9 @@ public class TechnicalsService {
     public record TechnicalsData(
             List<IndicatorSnapshot> indicators,
             Double currentPrice,
+            Double openPrice,
             Double changePct1d,
+            Double changeOpenToClose,
             List<Double> sparkline
     ) {}
 
@@ -64,8 +66,12 @@ public class TechnicalsService {
 
             Double currentPrice = root.has("current_price") && !root.get("current_price").isNull()
                     ? root.get("current_price").asDouble() : null;
+            Double openPrice = root.has("open_price") && !root.get("open_price").isNull()
+                    ? root.get("open_price").asDouble() : null;
             Double changePct1d = root.has("change_pct_1d") && !root.get("change_pct_1d").isNull()
                     ? root.get("change_pct_1d").asDouble() : null;
+            Double changeOpenToClose = root.has("change_open_to_close") && !root.get("change_open_to_close").isNull()
+                    ? root.get("change_open_to_close").asDouble() : null;
 
             List<Double> sparkline = null;
             if (root.has("sparkline") && root.get("sparkline").isArray()) {
@@ -73,7 +79,7 @@ public class TechnicalsService {
                 for (JsonNode n : root.get("sparkline")) sparkline.add(n.asDouble());
             }
 
-            return new TechnicalsData(result.isEmpty() ? null : result, currentPrice, changePct1d, sparkline);
+            return new TechnicalsData(result.isEmpty() ? null : result, currentPrice, openPrice, changePct1d, changeOpenToClose, sparkline);
         } catch (RestClientResponseException e) {
             log.warn("[기술적지표] {} HTTP {}: {}", ticker, e.getStatusCode().value(), e.getMessage());
             return null;

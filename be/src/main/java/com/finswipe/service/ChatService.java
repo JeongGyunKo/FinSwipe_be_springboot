@@ -222,7 +222,7 @@ public class ChatService {
         }
     }
 
-    record PriceResult(Map<String, Double> available, List<String> unavailable) {}
+    record PriceResult(Map<String, Map<String, Object>> available, List<String> unavailable) {}
 
     /** 가격 조회 없이 언급된 DB 종목만 unavailable로 반환 — 상장 확인 컨텍스트 제공용 */
     private PriceResult buildListedTickersOnly(String message) {
@@ -235,16 +235,21 @@ public class ChatService {
         List<TickerInfo> mentioned = tickerService.findMentionedTickers(message);
         if (mentioned.isEmpty()) return new PriceResult(Map.of(), List.of());
 
-        Map<String, Double> prices = new HashMap<>();
+        Map<String, Map<String, Object>> prices = new HashMap<>();
         List<String> unavailable = new ArrayList<>();
         for (TickerInfo info : mentioned) {
             String ticker = info.getTicker();
             try {
                 TechnicalsService.TechnicalsData td = technicalsService.getTechnicals(ticker);
                 if (td != null && td.currentPrice() != null) {
-                    prices.put(ticker, td.currentPrice());
+                    Map<String, Object> detail = new HashMap<>();
+                    detail.put("price", td.currentPrice());
+                    if (td.openPrice() != null) detail.put("open", td.openPrice());
+                    if (td.changePct1d() != null) detail.put("change_1d_pct", td.changePct1d());
+                    if (td.changeOpenToClose() != null) detail.put("change_open_to_close_pct", td.changeOpenToClose());
+                    prices.put(ticker, detail);
                 } else {
-                    unavailable.add(ticker); // 데이터 없는 종목 (상장폐지 등) 별도 추적
+                    unavailable.add(ticker);
                 }
             } catch (Exception e) {
                 log.debug("[챗봇] {} 가격 조회 실패: {}", ticker, e.getMessage());

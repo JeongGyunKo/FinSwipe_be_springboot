@@ -180,8 +180,11 @@ def _fetch_technicals(ticker: str) -> dict | None:
             return None
 
         prices = hist["Close"].values.astype(float)
+        opens = hist["Open"].values.astype(float)
         volumes = hist["Volume"].values.astype(float)
 
+        open_price = round(float(opens[-1]), 2) if len(opens) >= 1 else None
+        change_open_to_close = round((prices[-1] / opens[-1] - 1) * 100, 2) if len(opens) >= 1 and opens[-1] > 0 else None
         change_1d = round((prices[-1] / prices[-2] - 1) * 100, 2) if len(prices) >= 2 else None
         change_1m = round((prices[-1] / prices[-22] - 1) * 100, 2) if len(prices) >= 22 else None
 
@@ -270,6 +273,8 @@ def _fetch_technicals(ticker: str) -> dict | None:
 
         return {
             "current_price": current_price,
+            "open_price": open_price,
+            "change_open_to_close": change_open_to_close,
             "change_pct_1d": change_1d,
             "change_pct_1m": change_1m,
             "volume_ratio": volume_ratio,
