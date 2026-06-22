@@ -12,7 +12,7 @@ import org.springframework.web.client.RestClient;
 
 import java.net.URI;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
+
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -25,9 +25,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class TickerDiscoveryService {
 
-    // 전체 URL 사용 — 상대 경로 + baseUrl 조합 시 이중 인코딩 방지
-    private static final String SEC_EDGAR_TICKER_FORM25 =
-            "https://efts.sec.gov/LATEST/search-index?q=%%22%s%%22&forms=25&dateRange=custom&startdt=%s&enddt=%s";
+    private volatile Map<String, String> cikCache = null;
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
@@ -114,42 +112,45 @@ public class TickerDiscoveryService {
     }
 
     /**
-     * 매일 UTC 22:00 (미국 장 마감 2시간 후) — 활성 종목 각각을 SEC EDGAR Form 25에서 직접 검색.
-     * Form 25의 period_of_report(상장폐지 예정일)를 delisting_date에 저장.
-     * delisted_at은 예정일 당일 confirmDelistedTickers()가 기록한다.
+     * 매일 UTC 22:00 — SEC CIK 기반으로 Form 25(상장폐지 신청서) 감지.
+     * 전체 텍스트 검색이 아닌 해당 회사의 제출 서류 목록에서 직접 확인 → 오탐 없음.
      */
     @Scheduled(cron = "0 0 22 * * *")
     public void detectDelistedTickersFromSec() {
-        String today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
-        String startdt = LocalDate.now().minusYears(10).format(DateTimeFormatter.ISO_LOCAL_DATE);
+        Map<String, String> cikMap = getCikMap();
+        if (cikMap.isEmpty()) {
+            log.error("[SEC EDGAR] CIK 맵 로드 실패 — 스킵");
+            return;
+        }
 
-        // delisting_date가 이미 기록된 종목은 재검색 불필요
         List<String> activeTickers = jdbc.queryForList(
                 "SELECT ticker FROM ticker_names WHERE delisted_at IS NULL AND delisting_date IS NULL",
                 String.class);
 
         int detected = 0;
         for (String ticker : activeTickers) {
+            String cik = cikMap.get(ticker.toUpperCase());
+            if (cik == null) continue;
             try {
-                String url = String.format(SEC_EDGAR_TICKER_FORM25, ticker, startdt, today);
+                String url = "https://data.sec.gov/submissions/CIK" + cik + ".json";
                 String raw = secEdgarClient.get().uri(URI.create(url)).retrieve().body(String.class);
                 JsonNode root = objectMapper.readTree(raw);
-                int total = root.path("hits").path("total").path("value").asInt(0);
-                if (total > 0) {
-                    // hits 중 가장 최근 period_of_report를 상장폐지 예정일로 사용
-                    JsonNode firstHit = root.path("hits").path("hits").get(0);
-                    String periodStr = firstHit != null
-                            ? firstHit.path("_source").path("period_of_report").asText(null) : null;
-                    LocalDate delistingDate = null;
-                    if (periodStr != null && !periodStr.isBlank()) {
-                        try { delistingDate = LocalDate.parse(periodStr); } catch (Exception ignored) {}
+                JsonNode forms = root.path("filings").path("recent").path("form");
+                JsonNode dates = root.path("filings").path("recent").path("filingDate");
+
+                for (int i = 0; i < forms.size(); i++) {
+                    String form = forms.get(i).asText();
+                    if ("25".equals(form) || "25-NSE".equals(form)) {
+                        String dateStr = dates.get(i).asText(null);
+                        LocalDate filingDate = dateStr != null ? LocalDate.parse(dateStr) : LocalDate.now();
+                        LocalDate delistingDate = filingDate.plusDays(10);
+                        setDelistingDate(ticker, delistingDate);
+                        detected++;
+                        log.info("[SEC EDGAR] 상장폐지 예정 감지: {} (신청일: {}) → 예정일: {}", ticker, dateStr, delistingDate);
+                        break;
                     }
-                    if (delistingDate == null) delistingDate = LocalDate.now().plusDays(10);
-                    setDelistingDate(ticker, delistingDate);
-                    detected++;
-                    log.info("[SEC EDGAR] 상장폐지 예정 감지: {} → {}", ticker, delistingDate);
                 }
-                Thread.sleep(300);
+                Thread.sleep(200);
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
                 break;
@@ -159,7 +160,40 @@ public class TickerDiscoveryService {
         }
 
         if (detected > 0) tickerService.invalidateCache();
-        log.info("[SEC EDGAR] Form 25 체크 완료 — {}개 상장폐지 예정 감지", detected);
+        log.info("[SEC EDGAR] CIK 기반 체크 완료 — {}개 상장폐지 예정 / {}개 체크", detected, activeTickers.size());
+    }
+
+    /** 티커→CIK 맵 (앱 수명 동안 캐시, 첫 호출 시 SEC에서 다운로드) */
+    private Map<String, String> getCikMap() {
+        if (cikCache == null) {
+            synchronized (this) {
+                if (cikCache == null) cikCache = loadCikMap();
+            }
+        }
+        return cikCache;
+    }
+
+    private Map<String, String> loadCikMap() {
+        try {
+            String raw = secEdgarClient.get()
+                    .uri(URI.create("https://www.sec.gov/files/company_tickers.json"))
+                    .retrieve()
+                    .body(String.class);
+            JsonNode root = objectMapper.readTree(raw);
+            Map<String, String> map = new HashMap<>();
+            root.properties().forEach(e -> {
+                JsonNode v = e.getValue();
+                String ticker = v.path("ticker").asText("");
+                long cikLong = v.path("cik_str").asLong(0);
+                if (!ticker.isEmpty() && cikLong > 0)
+                    map.put(ticker.toUpperCase(), String.format("%010d", cikLong));
+            });
+            log.info("[CIK 맵] {}개 로드 완료", map.size());
+            return map;
+        } catch (Exception e) {
+            log.error("[CIK 맵] 로드 실패: {}", e.getMessage());
+            return Map.of();
+        }
     }
 
     /** 매일 UTC 22:10 — delisting_date가 오늘 이하인 종목을 delisted_at으로 확정 처리 */
