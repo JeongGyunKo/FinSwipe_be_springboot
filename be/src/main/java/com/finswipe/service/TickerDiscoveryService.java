@@ -113,19 +113,21 @@ public class TickerDiscoveryService {
     }
 
     /**
-     * 매일 오전 1시 UTC — 활성 종목 각각을 SEC EDGAR Form 25에서 직접 검색.
-     * q="TICKER"&forms=25 로 해당 티커의 상장폐지 신청서가 존재하면 delisted_at 기록.
-     * entity_name 문자열 매칭 없이 티커를 직접 검색하므로 오탐이 없다.
+     * 매일 UTC 22:00 (미국 장 마감 2시간 후) — 활성 종목 각각을 SEC EDGAR Form 25에서 직접 검색.
+     * Form 25의 period_of_report(상장폐지 예정일)를 delisting_date에 저장.
+     * delisted_at은 예정일 당일 confirmDelistedTickers()가 기록한다.
      */
-    @Scheduled(cron = "0 0 1 * * *")
+    @Scheduled(cron = "0 0 22 * * *")
     public void detectDelistedTickersFromSec() {
         String today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
         String startdt = LocalDate.now().minusYears(10).format(DateTimeFormatter.ISO_LOCAL_DATE);
 
+        // delisting_date가 이미 기록된 종목은 재검색 불필요
         List<String> activeTickers = jdbc.queryForList(
-                "SELECT ticker FROM ticker_names WHERE delisted_at IS NULL", String.class);
+                "SELECT ticker FROM ticker_names WHERE delisted_at IS NULL AND delisting_date IS NULL",
+                String.class);
 
-        int delisted = 0;
+        int detected = 0;
         for (String ticker : activeTickers) {
             try {
                 String url = String.format(SEC_EDGAR_TICKER_FORM25, ticker, startdt, today);
@@ -133,11 +135,20 @@ public class TickerDiscoveryService {
                 JsonNode root = objectMapper.readTree(raw);
                 int total = root.path("hits").path("total").path("value").asInt(0);
                 if (total > 0) {
-                    markDelisted(ticker);
-                    delisted++;
-                    log.info("[SEC EDGAR] 상장폐지 감지: {}", ticker);
+                    // hits 중 가장 최근 period_of_report를 상장폐지 예정일로 사용
+                    JsonNode firstHit = root.path("hits").path("hits").get(0);
+                    String periodStr = firstHit != null
+                            ? firstHit.path("_source").path("period_of_report").asText(null) : null;
+                    LocalDate delistingDate = null;
+                    if (periodStr != null && !periodStr.isBlank()) {
+                        try { delistingDate = LocalDate.parse(periodStr); } catch (Exception ignored) {}
+                    }
+                    if (delistingDate == null) delistingDate = LocalDate.now().plusDays(10);
+                    setDelistingDate(ticker, delistingDate);
+                    detected++;
+                    log.info("[SEC EDGAR] 상장폐지 예정 감지: {} → {}", ticker, delistingDate);
                 }
-                Thread.sleep(300); // SEC API rate limit 방지
+                Thread.sleep(300);
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
                 break;
@@ -146,13 +157,24 @@ public class TickerDiscoveryService {
             }
         }
 
-        if (delisted > 0) tickerService.invalidateCache();
-        log.info("[SEC EDGAR] Form 25 체크 완료 — {}개 상장폐지 / {}개 활성", delisted, activeTickers.size() - delisted);
+        if (detected > 0) tickerService.invalidateCache();
+        log.info("[SEC EDGAR] Form 25 체크 완료 — {}개 상장폐지 예정 감지", detected);
     }
 
-    private void markDelisted(String ticker) {
-        jdbc.update("UPDATE ticker_names SET delisted_at = NOW() WHERE ticker = ? AND delisted_at IS NULL", ticker);
-        log.info("[상장폐지] {} → delisted_at 기록", ticker);
+    /** 매일 UTC 22:10 — delisting_date가 오늘 이하인 종목을 delisted_at으로 확정 처리 */
+    @Scheduled(cron = "0 10 22 * * *")
+    public void confirmDelistedTickers() {
+        int updated = jdbc.update(
+                "UPDATE ticker_names SET delisted_at = NOW() WHERE delisting_date <= CURRENT_DATE AND delisted_at IS NULL");
+        if (updated > 0) {
+            tickerService.invalidateCache();
+            log.info("[상장폐지 확정] {}개 종목 캐시에서 제거", updated);
+        }
+    }
+
+    private void setDelistingDate(String ticker, LocalDate date) {
+        jdbc.update("UPDATE ticker_names SET delisting_date = ? WHERE ticker = ? AND delisting_date IS NULL",
+                date, ticker);
     }
 
     private record TranslateResult(String ko, List<String> aliases) {}

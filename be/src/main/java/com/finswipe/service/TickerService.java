@@ -10,6 +10,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.sql.Array;
+import java.sql.Date;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -42,10 +44,10 @@ public class TickerService {
         return tickerInfoCache;
     }
 
-    /** 상장폐지(delisted_at IS NOT NULL) 제외한 활성 종목만 로드. aliases 포함. */
+    /** 상장폐지(delisted_at IS NOT NULL) 제외한 활성 종목만 로드. aliases·delisting_date 포함. */
     private Map<String, TickerInfo> loadActiveTickersFromDb() {
         return jdbc.query(
-                "SELECT ticker, corp, ko, aliases FROM ticker_names WHERE delisted_at IS NULL",
+                "SELECT ticker, corp, ko, aliases, delisting_date FROM ticker_names WHERE delisted_at IS NULL",
                 (rs, i) -> {
                     String ticker = rs.getString("ticker");
                     String corp   = rs.getString("corp");
@@ -56,7 +58,9 @@ public class TickerService {
                         Object raw = arr.getArray();
                         if (raw instanceof String[] sa) aliases = Arrays.asList(sa);
                     }
-                    return new TickerInfo(ticker, corp, ko, aliases);
+                    Date delistingDateSql = rs.getDate("delisting_date");
+                    LocalDate delistingDate = delistingDateSql != null ? delistingDateSql.toLocalDate() : null;
+                    return new TickerInfo(ticker, corp, ko, aliases, delistingDate);
                 }
         ).stream().collect(Collectors.toMap(TickerInfo::getTicker, t -> t));
     }

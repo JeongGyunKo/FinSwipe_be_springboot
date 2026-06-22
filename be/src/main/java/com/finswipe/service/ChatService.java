@@ -111,8 +111,12 @@ public class ChatService {
         PriceResult priceResult = isPriceQuery(userContent)
                 ? buildTickerPrices(userContent) : new PriceResult(Map.of(), List.of());
 
+        // 상장폐지 예정 종목 언급 시 즉시 안내 (인사이트 여부 무관)
+        String delistingNotice = buildDelistingNotice(userContent);
+
         // 캐시 인사이트 우선 — 종목 인사이트 질문은 LLM 토큰 없이 분석된 DB 데이터로 응답
         String aiContent = tryCachedInsight(userContent, tickers)
+                .map(insight -> delistingNotice != null ? delistingNotice + "\n\n" + insight : insight)
                 .orElseGet(() -> {
                     // 가격 질문인데 언급 종목이 전부 조회 불가(상장폐지 등)인 경우 LLM 차단
                     // — Gemini가 학습 데이터 가격을 할루시네이션하는 것을 사전에 막기 위함
@@ -122,7 +126,8 @@ public class ChatService {
                         String names = String.join(", ", priceResult.unavailable());
                         return names + "의 주가 데이터를 가져올 수 없어요. 상장폐지된 종목이거나 일시적으로 조회가 어려울 수 있어요.";
                     }
-                    return callGenAiChat(userContent, history, level, tendency, tickers, priceResult);
+                    String llmReply = callGenAiChat(userContent, history, level, tendency, tickers, priceResult);
+                    return delistingNotice != null ? delistingNotice + "\n\n" + llmReply : llmReply;
                 });
 
         ChatMessage assistantMsg = new ChatMessage();
@@ -239,6 +244,19 @@ public class ChatService {
             }
         }
         return new PriceResult(prices, unavailable);
+    }
+
+    /** 메시지에 언급된 종목 중 상장폐지 예정이 있으면 안내 문구 반환, 없으면 null */
+    private String buildDelistingNotice(String message) {
+        return tickerService.findMentionedTickers(message).stream()
+                .filter(TickerInfo::isDelistingPending)
+                .map(info -> {
+                    String name = (info.getKo() != null && !info.getKo().isBlank()) ? info.getKo() : info.getTicker();
+                    return "⚠️ " + name + "(" + info.getTicker() + ")은 "
+                            + info.getDelistingDate() + " 상장폐지 예정입니다.";
+                })
+                .reduce((a, b) -> a + "\n" + b)
+                .orElse(null);
     }
 
     // ===================== 캐시 인사이트 라우터 (토큰 절감) =====================
