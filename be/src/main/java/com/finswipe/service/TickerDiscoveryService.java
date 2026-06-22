@@ -10,6 +10,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import java.net.URI;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -131,7 +132,7 @@ public class TickerDiscoveryService {
         for (String ticker : activeTickers) {
             try {
                 String url = String.format(SEC_EDGAR_TICKER_FORM25, ticker, startdt, today);
-                String raw = secEdgarClient.get().uri(url).retrieve().body(String.class);
+                String raw = secEdgarClient.get().uri(URI.create(url)).retrieve().body(String.class);
                 JsonNode root = objectMapper.readTree(raw);
                 int total = root.path("hits").path("total").path("value").asInt(0);
                 if (total > 0) {
