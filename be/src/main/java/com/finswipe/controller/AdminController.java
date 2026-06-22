@@ -25,13 +25,16 @@ public class AdminController {
     private final JdbcTemplate jdbc;
     private final AppProperties props;
     private final RestClient genaiClient;
+    private final com.finswipe.service.TickerDiscoveryService tickerDiscoveryService;
 
     public AdminController(JdbcTemplate jdbc,
                            AppProperties props,
-                           @Qualifier("genaiRestClient") RestClient genaiClient) {
+                           @Qualifier("genaiRestClient") RestClient genaiClient,
+                           com.finswipe.service.TickerDiscoveryService tickerDiscoveryService) {
         this.jdbc = jdbc;
         this.props = props;
         this.genaiClient = genaiClient;
+        this.tickerDiscoveryService = tickerDiscoveryService;
     }
 
     /** 전체 유저 목록 — 프리뷰 도구용 */
@@ -215,6 +218,15 @@ public class AdminController {
                 """);
         log.warn("[어드민] BAE Systems 오태깅 기사 {}개 삭제 완료", deleted);
         return ResponseEntity.ok(Map.of("deleted", deleted));
+    }
+
+    /** SEC EDGAR Form 25 상장폐지 감지 수동 트리거 */
+    @PostMapping("/trigger/delisting-check")
+    public ResponseEntity<Map<String, String>> triggerDelistingCheck(
+            @RequestHeader("X-Admin-Key") String adminKey) {
+        requireAdmin(adminKey);
+        Thread.ofVirtual().start(tickerDiscoveryService::detectDelistedTickersFromSec);
+        return ResponseEntity.accepted().body(Map.of("status", "started"));
     }
 
     private void requireAdmin(String key) {
