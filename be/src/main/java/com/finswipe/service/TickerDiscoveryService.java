@@ -2,7 +2,6 @@ package com.finswipe.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
@@ -20,7 +19,6 @@ import java.util.stream.Collectors;
  * - 주기적으로 전체 종목 가격 조회 → 실패 시 delisted_at 플래그
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class TickerDiscoveryService {
 
@@ -28,8 +26,19 @@ public class TickerDiscoveryService {
     private final ObjectMapper objectMapper;
     private final TickerService tickerService;
     private final TechnicalsService technicalsService;
-    @Qualifier("genaiRestClient")
     private final RestClient genaiClient;
+
+    public TickerDiscoveryService(JdbcTemplate jdbc,
+                                  ObjectMapper objectMapper,
+                                  TickerService tickerService,
+                                  TechnicalsService technicalsService,
+                                  @Qualifier("genaiRestClient") RestClient genaiClient) {
+        this.jdbc = jdbc;
+        this.objectMapper = objectMapper;
+        this.tickerService = tickerService;
+        this.technicalsService = technicalsService;
+        this.genaiClient = genaiClient;
+    }
 
     /**
      * 뉴스 수집 결과의 companies 목록에서 ticker_names에 없는 신규 티커를 감지해 DB에 등록.
