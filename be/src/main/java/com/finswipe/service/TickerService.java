@@ -6,8 +6,10 @@ import com.finswipe.dto.response.TickerInfo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.sql.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -23,6 +25,7 @@ import java.util.stream.Collectors;
 public class TickerService {
 
     private final TickerNameRepository repo;
+    private final JdbcTemplate jdbc;
 
     // self-invocation 시 @Cacheable 우회 방지 — 앱 생명주기 동안 유효한 필드 캐시
     private volatile Map<String, TickerInfo> tickerInfoCache = null;
@@ -31,15 +34,38 @@ public class TickerService {
         if (tickerInfoCache == null) {
             synchronized (this) {
                 if (tickerInfoCache == null) {
-                    tickerInfoCache = repo.findAll().stream()
-                            .collect(java.util.stream.Collectors.toMap(
-                                    t -> t.getTicker(),
-                                    TickerInfo::from));
+                    tickerInfoCache = loadActiveTickersFromDb();
                     log.info("[티커 캐시] {}개 로드", tickerInfoCache.size());
                 }
             }
         }
         return tickerInfoCache;
+    }
+
+    /** 상장폐지(delisted_at IS NOT NULL) 제외한 활성 종목만 로드. aliases 포함. */
+    private Map<String, TickerInfo> loadActiveTickersFromDb() {
+        return jdbc.query(
+                "SELECT ticker, corp, ko, aliases FROM ticker_names WHERE delisted_at IS NULL",
+                (rs, i) -> {
+                    String ticker = rs.getString("ticker");
+                    String corp   = rs.getString("corp");
+                    String ko     = rs.getString("ko");
+                    List<String> aliases = List.of();
+                    Array arr = rs.getArray("aliases");
+                    if (arr != null) {
+                        Object raw = arr.getArray();
+                        if (raw instanceof String[] sa) aliases = Arrays.asList(sa);
+                    }
+                    return new TickerInfo(ticker, corp, ko, aliases);
+                }
+        ).stream().collect(Collectors.toMap(TickerInfo::getTicker, t -> t));
+    }
+
+    /** 캐시 무효화 — 신규 티커 추가/상장폐지 처리 후 호출 */
+    public void invalidateCache() {
+        synchronized (this) {
+            tickerInfoCache = null;
+        }
     }
 
     @Cacheable(CacheConfig.CACHE_TICKERS)
@@ -106,7 +132,8 @@ public class TickerService {
             String sym = info.getTicker();
             boolean hit = (ko != null && ko.length() >= 2 && text.contains(ko))
                     || (sym != null && sym.length() >= 2 && tokens.contains(sym))
-                    || (corp != null && corp.length() >= 5 && upper.contains(corp.toUpperCase()));
+                    || (corp != null && corp.length() >= 5 && upper.contains(corp.toUpperCase()))
+                    || info.getAliases().stream().anyMatch(a -> a.length() >= 2 && text.contains(a));
             if (hit) matches.add(info);
         }
         matches.sort((a, b) -> {

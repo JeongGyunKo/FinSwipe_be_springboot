@@ -56,6 +56,7 @@ public class NewsCollectorService {
     private final NotificationService notificationService;
     private final ChatService chatService;
     private final TechnicalsService technicalsService;
+    private final TickerDiscoveryService tickerDiscoveryService;
     private final ObjectMapper objectMapper;
     private final AppProperties props;
     private final org.springframework.jdbc.core.JdbcTemplate jdbc;
@@ -70,6 +71,7 @@ public class NewsCollectorService {
                                 NotificationService notificationService,
                                 ChatService chatService,
                                 TechnicalsService technicalsService,
+                                TickerDiscoveryService tickerDiscoveryService,
                                 ObjectMapper objectMapper,
                                 AppProperties props,
                                 org.springframework.jdbc.core.JdbcTemplate jdbc) {
@@ -79,6 +81,7 @@ public class NewsCollectorService {
         this.notificationService = notificationService;
         this.chatService = chatService;
         this.technicalsService = technicalsService;
+        this.tickerDiscoveryService = tickerDiscoveryService;
         this.objectMapper = objectMapper;
         this.props = props;
         this.jdbc = jdbc;
@@ -191,6 +194,12 @@ public class NewsCollectorService {
         int dupRemoved = newArticles.size() - deduplicated.size();
         if (dupRemoved > 0) log.info("[중복탐지] 유사 기사 {}개 제거됨", dupRemoved);
 
+        // 신규 티커 감지 — companies 필드에서 ticker→corp 맵 수집 후 백그라운드 처리
+        Map<String, String> tickerCorpMap = extractTickerCorpMap(deduplicated);
+        if (!tickerCorpMap.isEmpty()) {
+            Thread.ofVirtual().start(() -> tickerDiscoveryService.discoverNewTickers(tickerCorpMap));
+        }
+
         return deduplicated.stream().map(this::toEntity).filter(Objects::nonNull).toList();
     }
 
@@ -226,6 +235,22 @@ public class NewsCollectorService {
                 })
                 .toList();
         article.put("companies", filtered);
+    }
+
+    /** 기사 목록에서 ticker → corp(영문 회사명) 맵 추출 (신규 티커 감지용) */
+    @SuppressWarnings("unchecked")
+    private Map<String, String> extractTickerCorpMap(List<Map<String, Object>> articles) {
+        Map<String, String> result = new LinkedHashMap<>();
+        for (Map<String, Object> article : articles) {
+            List<Map<String, Object>> companies =
+                    (List<Map<String, Object>>) article.getOrDefault("companies", List.of());
+            for (Map<String, Object> c : companies) {
+                String ticker = String.valueOf(c.getOrDefault("ticker", "")).toUpperCase().strip();
+                String name   = String.valueOf(c.getOrDefault("name", "")).strip();
+                if (!ticker.isBlank() && !name.isBlank()) result.putIfAbsent(ticker, name);
+            }
+        }
+        return result;
     }
 
     /** 필터 없이 Finlight 전체 뉴스 페이지 단위 조회 */
