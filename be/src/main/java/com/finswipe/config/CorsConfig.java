@@ -26,7 +26,7 @@ public class CorsConfig {
         config.setAllowedOriginPatterns(origins);
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
-        config.setExposedHeaders(List.of("X-RateLimit-Limit", "X-RateLimit-Remaining", "Retry-After"));
+        config.setExposedHeaders(List.of("X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "Retry-After"));
         config.setAllowCredentials(true);
         config.setMaxAge(86400L);
 
@@ -45,7 +45,7 @@ public class CorsConfig {
                         .allowedOriginPatterns(origins)
                         .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                         .allowedHeaders("*")
-                        .exposedHeaders("X-RateLimit-Limit", "X-RateLimit-Remaining", "Retry-After")
+                        .exposedHeaders("X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "Retry-After")
                         .allowCredentials(true)
                         .maxAge(86400);
             }

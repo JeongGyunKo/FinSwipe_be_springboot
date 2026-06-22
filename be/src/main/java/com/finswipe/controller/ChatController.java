@@ -47,7 +47,7 @@ public class ChatController {
             """)))
     @PostMapping("/message")
     public ResponseEntity<?> sendMessage(Authentication auth,
-                                         @RequestBody ChatMessageRequest req) {
+                                         @RequestBody(required = false) ChatMessageRequest req) {
         UUID userId = extractUserId(auth);
         if (userId == null) return ResponseEntity.status(401).body(Map.of("error", "인증이 필요합니다"));
 
@@ -62,7 +62,7 @@ public class ChatController {
                     .body(Map.of("error", "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."));
         }
 
-        if (req.content() == null || req.content().isBlank())
+        if (req == null || req.content() == null || req.content().isBlank())
             return ResponseEntity.badRequest().body(Map.of("error", "메시지를 입력하세요"));
         if (req.content().length() > ChatRateLimiter.MSG_MAX_CHARS)
             return ResponseEntity.badRequest().body(Map.of("error",
