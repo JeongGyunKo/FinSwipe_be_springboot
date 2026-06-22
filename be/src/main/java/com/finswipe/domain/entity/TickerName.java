@@ -7,6 +7,8 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
+
 @Entity
 @Table(name = "ticker_names")
 @Getter
@@ -21,4 +23,7 @@ public class TickerName {
 
     @Column(nullable = false)
     private String ko;
+
+    @Column(name = "delisted_at")
+    private Instant delistedAt;
 }
