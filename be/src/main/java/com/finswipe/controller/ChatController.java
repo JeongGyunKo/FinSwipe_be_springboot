@@ -57,6 +57,7 @@ public class ChatController {
                     "메시지는 " + ChatRateLimiter.MSG_MAX_CHARS + "자 이하로 입력해주세요"));
 
         ChatRateLimiter.ProbeResult probe = rateLimiter.probe(userId);
+        log.debug("[챗봇 레이트리밋] userId={} remaining={} allowed={}", userId, probe.remaining(), probe.allowed());
         if (!probe.allowed()) {
             return ResponseEntity.status(429)
                     .header("Retry-After", String.valueOf(probe.retryAfterSeconds()))
