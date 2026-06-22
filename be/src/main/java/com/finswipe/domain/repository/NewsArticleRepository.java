@@ -206,7 +206,7 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
     @Query("SELECT a FROM NewsArticle a WHERE a.id IN :ids ORDER BY a.publishedAt DESC")
     List<NewsArticle> findByIdIn(@Param("ids") List<java.util.UUID> ids);
 
-    // 미분석 기사 — sentiment_reason 없는 기사 대상
+    // 미분석 기사 — sentiment_reason 또는 summary_3lines_ko 없는 기사 대상
     @Query(value = """
             SELECT * FROM news_articles
             WHERE content IS NOT NULL
@@ -215,8 +215,8 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
               AND (
                 sentiment_label IS NULL
                 OR headline_ko IS NULL    OR headline_ko    !~ '[가-힣ㄱ-ㅎㅏ-ㅣ]'
-
                 OR sentiment_reason IS NULL
+                OR summary_3lines_ko IS NULL OR array_length(summary_3lines_ko, 1) = 0
               )
               AND (
                 NOT EXISTS (
