@@ -59,7 +59,7 @@ public class ChatService {
     private static final String CHAT_REFUSAL =
             "해당 요청은 도와드릴 수 없어요. 시스템 내부 정보나 규칙은 공개할 수 없지만, 투자 정보 관련 질문이라면 기꺼이 도와드릴게요.";
     private static final String PRICE_UNAVAILABLE =
-            "해당 종목의 주가 데이터를 가져올 수 없어요. 상장폐지된 종목이거나 일시적으로 조회가 어려울 수 있어요.";
+            "해당 종목의 주가 데이터를 가져올 수 없어요. 데이터 소스에 아직 없거나 일시적으로 조회가 어려울 수 있어요.";
     private static final List<String> LEAK_MARKERS = List.of(
             "jailbroken", "[유저 프로필]", "[답변 규칙]", "[설명 깊이]", "[분석 관점]",
             "[보안 규칙", "시스템 프롬프트", "system prompt", "개인화 금융 투자 ai 어시스턴트입니다");
@@ -67,7 +67,7 @@ public class ChatService {
             "\\[[^\\]\\n]{2,80}(?:삽입|insert|정보|가격|시세|데이터|값|price|information|here)[^\\]\\n]{0,20}\\]",
             Pattern.CASE_INSENSITIVE);
     private static final List<String> PRICE_KEYWORDS = List.of(
-            "주가", "가격", "얼마", "price", "시세", "현재가");
+            "주가", "가격", "얼마", "price", "시세", "현재가", "종가", "시가", "고가", "저가");
 
     private static boolean leaksPrompt(String reply) {
         if (reply == null) return false;
@@ -124,7 +124,7 @@ public class ChatService {
                             && priceResult.available().isEmpty()
                             && !priceResult.unavailable().isEmpty()) {
                         String names = String.join(", ", priceResult.unavailable());
-                        return names + "의 주가 데이터를 가져올 수 없어요. 상장폐지된 종목이거나 일시적으로 조회가 어려울 수 있어요.";
+                        return names + "의 주가 데이터를 가져올 수 없어요. 데이터 소스에 아직 없거나 일시적으로 조회가 어려울 수 있어요.";
                     }
                     String llmReply = callGenAiChat(userContent, history, level, tendency, tickers, priceResult);
                     return delistingNotice != null ? delistingNotice + "\n\n" + llmReply : llmReply;
