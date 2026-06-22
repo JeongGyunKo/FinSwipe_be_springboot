@@ -89,6 +89,9 @@ public class NewsArticle {
     @Column(name = "novelty_score")
     private Double noveltyScore;
 
+    @Column(name = "price_at_collection")
+    private Double priceAtCollection;
+
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
 

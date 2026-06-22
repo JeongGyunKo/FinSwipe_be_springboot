@@ -214,7 +214,7 @@ public class NewsController {
                     TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
                     data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false,
                             td != null ? td.indicators() : null,
-                            td != null ? td.currentPrice() : null,
+                            price(a, td),
                             td != null ? td.changePct1d() : null,
                             td != null ? td.sparkline() : null));
                 }
@@ -224,7 +224,7 @@ public class NewsController {
                     TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
                     data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), true,
                             td != null ? td.indicators() : null,
-                            td != null ? td.currentPrice() : null,
+                            price(a, td),
                             td != null ? td.changePct1d() : null,
                             td != null ? td.sparkline() : null));
                 }
@@ -234,7 +234,7 @@ public class NewsController {
                     TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
                     data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), true,
                             td != null ? td.indicators() : null,
-                            td != null ? td.currentPrice() : null,
+                            price(a, td),
                             td != null ? td.changePct1d() : null,
                             td != null ? td.sparkline() : null));
                 }
@@ -253,7 +253,7 @@ public class NewsController {
                     TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
                     return new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false,
                             td != null ? td.indicators() : null,
-                            td != null ? td.currentPrice() : null,
+                            price(a, td),
                             td != null ? td.changePct1d() : null,
                             td != null ? td.sparkline() : null);
                 })
@@ -688,6 +688,12 @@ public class NewsController {
     private String repTicker(NewsArticle a) {
         List<String> t = a.getTickers();
         return (t != null && !t.isEmpty()) ? t.get(0) : null;
+    }
+
+    /** 수집 시 저장된 주가 우선, 없으면 실시간 현재가 사용 */
+    private Double price(NewsArticle a, TechnicalsService.TechnicalsData td) {
+        if (a.getPriceAtCollection() != null) return a.getPriceAtCollection();
+        return td != null ? td.currentPrice() : null;
     }
 
     private Map<String, TechnicalsService.TechnicalsData> buildTechnicalsMap(List<NewsArticle> articles) {

@@ -55,6 +55,7 @@ public class NewsCollectorService {
     private final AnalyzerService analyzerService;
     private final NotificationService notificationService;
     private final ChatService chatService;
+    private final TechnicalsService technicalsService;
     private final ObjectMapper objectMapper;
     private final AppProperties props;
     private final org.springframework.jdbc.core.JdbcTemplate jdbc;
@@ -68,6 +69,7 @@ public class NewsCollectorService {
                                 AnalyzerService analyzerService,
                                 NotificationService notificationService,
                                 ChatService chatService,
+                                TechnicalsService technicalsService,
                                 ObjectMapper objectMapper,
                                 AppProperties props,
                                 org.springframework.jdbc.core.JdbcTemplate jdbc) {
@@ -76,6 +78,7 @@ public class NewsCollectorService {
         this.analyzerService = analyzerService;
         this.notificationService = notificationService;
         this.chatService = chatService;
+        this.technicalsService = technicalsService;
         this.objectMapper = objectMapper;
         this.props = props;
         this.jdbc = jdbc;
@@ -469,6 +472,7 @@ public class NewsCollectorService {
         for (NewsArticle article : articles) {
             try {
                 article.setNoveltyScore(computeNoveltyScore(article));
+                article.setPriceAtCollection(fetchPriceAtCollection(article));
                 NewsArticle persisted = newsRepo.save(article);
                 article.setId(persisted.getId());
                 saved++;
@@ -478,6 +482,20 @@ public class NewsCollectorService {
             }
         }
         return Map.of("saved", saved, "skipped", skipped);
+    }
+
+    /** 수집 시점 대표 티커 주가 조회 — 장중이면 1분봉 현재가, 장외면 전일 종가. 실패 시 null. */
+    private Double fetchPriceAtCollection(NewsArticle article) {
+        List<String> tickers = article.getTickers();
+        if (tickers == null || tickers.isEmpty()) return null;
+        String ticker = tickers.get(0);
+        try {
+            TechnicalsService.TechnicalsData td = technicalsService.getTechnicals(ticker);
+            return td != null ? td.currentPrice() : null;
+        } catch (Exception e) {
+            log.debug("[수집주가] {} 조회 실패: {}", ticker, e.getMessage());
+            return null;
+        }
     }
 
     /**
