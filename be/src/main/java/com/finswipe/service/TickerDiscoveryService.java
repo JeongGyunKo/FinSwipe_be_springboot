@@ -240,17 +240,23 @@ public class TickerDiscoveryService {
     /** 매일 UTC 22:10 — delisting_date가 오늘 이하인 종목을 delisted_at으로 확정 처리 */
     @Scheduled(cron = "0 10 22 * * *")
     public void confirmDelistedTickers() {
-        int updated = jdbc.update(
-                "UPDATE ticker_names SET delisted_at = NOW() WHERE delisting_date <= CURRENT_DATE AND delisted_at IS NULL");
-        if (updated > 0) {
-            tickerService.invalidateCache();
-            log.info("[상장폐지 확정] {}개 종목 캐시에서 제거", updated);
+        List<String> toConfirm = jdbc.queryForList(
+                "SELECT ticker FROM ticker_names WHERE delisting_date <= CURRENT_DATE AND delisted_at IS NULL",
+                String.class);
+        if (toConfirm.isEmpty()) return;
+
+        jdbc.update("UPDATE ticker_names SET delisted_at = NOW() WHERE delisting_date <= CURRENT_DATE AND delisted_at IS NULL");
+        for (String ticker : toConfirm) {
+            jdbc.update("UPDATE user_profiles SET tickers = array_remove(tickers, ?) WHERE ? = ANY(tickers)", ticker, ticker);
         }
+        tickerService.invalidateCache();
+        log.info("[상장폐지 확정] {}개 종목 확정 + 관심 종목에서 제거", toConfirm.size());
     }
 
     private void markDelisted(String ticker) {
         jdbc.update("UPDATE ticker_names SET delisted_at = NOW() WHERE ticker = ? AND delisted_at IS NULL", ticker);
-        log.info("[상장폐지] {} → delisted_at 기록", ticker);
+        jdbc.update("UPDATE user_profiles SET tickers = array_remove(tickers, ?) WHERE ? = ANY(tickers)", ticker, ticker);
+        log.info("[상장폐지] {} → delisted_at 기록 + 관심 종목에서 제거", ticker);
     }
 
     private void setDelistingDate(String ticker, LocalDate date) {
