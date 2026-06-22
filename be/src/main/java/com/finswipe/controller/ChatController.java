@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
@@ -48,8 +49,7 @@ public class ChatController {
             }
             """)))
     @PostMapping("/message")
-    public ResponseEntity<?> sendMessage(Authentication auth,
-                                         @RequestBody(required = false) String rawBody) {
+    public ResponseEntity<?> sendMessage(Authentication auth, HttpServletRequest servletRequest) {
         UUID userId = extractUserId(auth);
         if (userId == null) return ResponseEntity.status(401).body(Map.of("error", "인증이 필요합니다"));
 
@@ -65,12 +65,13 @@ public class ChatController {
         }
 
         String content = null;
-        if (rawBody != null && !rawBody.isBlank()) {
-            try {
-                ChatMessageRequest req = objectMapper.readValue(rawBody, ChatMessageRequest.class);
+        try {
+            byte[] bytes = servletRequest.getInputStream().readAllBytes();
+            if (bytes.length > 0) {
+                ChatMessageRequest req = objectMapper.readValue(bytes, ChatMessageRequest.class);
                 content = req != null ? req.content() : null;
-            } catch (Exception ignored) {}
-        }
+            }
+        } catch (Exception ignored) {}
 
         if (content == null || content.isBlank())
             return ResponseEntity.badRequest().body(Map.of("error", "메시지를 입력하세요"));
