@@ -107,9 +107,10 @@ public class ChatService {
                 .toList()
                 .reversed();
 
-        // 가격 질문이면 관심 종목 현재가를 GenAI 컨텍스트로 주입 (토큰0 직접 응답 or LLM에 실제 가격 제공)
+        // 가격 질문이면 현재가 조회, 아니면 상장 확인 정보만 전달 (LLM이 "비상장" 오답 방지)
         PriceResult priceResult = isPriceQuery(userContent)
-                ? buildTickerPrices(userContent) : new PriceResult(Map.of(), List.of());
+                ? buildTickerPrices(userContent)
+                : buildListedTickersOnly(userContent);
 
         // 상장폐지 예정 종목 언급 시 즉시 안내 (인사이트 여부 무관)
         String delistingNotice = buildDelistingNotice(userContent);
@@ -222,6 +223,13 @@ public class ChatService {
     }
 
     record PriceResult(Map<String, Double> available, List<String> unavailable) {}
+
+    /** 가격 조회 없이 언급된 DB 종목만 unavailable로 반환 — 상장 확인 컨텍스트 제공용 */
+    private PriceResult buildListedTickersOnly(String message) {
+        List<String> mentioned = tickerService.findMentionedTickers(message)
+                .stream().map(TickerInfo::getTicker).toList();
+        return new PriceResult(Map.of(), mentioned);
+    }
 
     private PriceResult buildTickerPrices(String message) {
         List<TickerInfo> mentioned = tickerService.findMentionedTickers(message);

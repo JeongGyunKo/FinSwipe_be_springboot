@@ -174,9 +174,9 @@ def _fetch_technicals(ticker: str) -> dict | None:
         import numpy as np
         import yfinance as yf
 
-        # 52주 위치 계산을 위해 1y 데이터 사용
+        # 52주 위치 계산을 위해 1y 데이터 사용 — 신규 상장 종목은 데이터가 적어도 현재가/등락률 반환
         hist = yf.Ticker(ticker).history(period="1y", interval="1d")
-        if hist.empty or len(hist) < 26:
+        if hist.empty or len(hist) < 2:
             return None
 
         prices = hist["Close"].values.astype(float)
@@ -202,49 +202,63 @@ def _fetch_technicals(ticker: str) -> dict | None:
             round(float(volumes[-1] / avg_daily_volume), 2) if avg_daily_volume else None
         )
 
-        # RSI (14일)
-        deltas = np.diff(prices[-29:])
-        gains = np.where(deltas > 0, deltas, 0.0)
-        losses = np.where(deltas < 0, -deltas, 0.0)
-        avg_gain = gains[-14:].mean()
-        avg_loss = losses[-14:].mean()
-        rsi = round(100 - 100 / (1 + avg_gain / avg_loss), 1) if avg_loss != 0 else 100.0
+        # RSI (14일) — 데이터 부족 시 None
+        rsi = None
+        rsi_signal = None
+        if len(prices) >= 15:
+            deltas = np.diff(prices[-29:])
+            gains = np.where(deltas > 0, deltas, 0.0)
+            losses = np.where(deltas < 0, -deltas, 0.0)
+            avg_gain = gains[-14:].mean()
+            avg_loss = losses[-14:].mean()
+            rsi = round(100 - 100 / (1 + avg_gain / avg_loss), 1) if avg_loss != 0 else 100.0
+            rsi_signal = "과매수" if rsi > 70 else "과매도" if rsi < 30 else "중립"
 
-        # MACD (12/26/9)
-        def ema(arr: "np.ndarray", span: int) -> "np.ndarray":
-            k = 2 / (span + 1)
-            r = np.zeros(len(arr))
-            r[0] = arr[0]
-            for i in range(1, len(arr)):
-                r[i] = arr[i] * k + r[i - 1] * (1 - k)
-            return r
+        # MACD (12/26/9) — 데이터 부족 시 None
+        macd_data = None
+        if len(prices) >= 26:
+            def ema(arr: "np.ndarray", span: int) -> "np.ndarray":
+                k = 2 / (span + 1)
+                r = np.zeros(len(arr))
+                r[0] = arr[0]
+                for i in range(1, len(arr)):
+                    r[i] = arr[i] * k + r[i - 1] * (1 - k)
+                return r
 
-        ema12 = ema(prices, 12)
-        ema26 = ema(prices, 26)
-        macd_line = ema12 - ema26
-        signal_line = ema(macd_line, 9)
-        histogram = round(float(macd_line[-1] - signal_line[-1]), 4)
+            ema12 = ema(prices, 12)
+            ema26 = ema(prices, 26)
+            macd_line = ema12 - ema26
+            signal_line = ema(macd_line, 9)
+            histogram = round(float(macd_line[-1] - signal_line[-1]), 4)
+            macd_data = {
+                "macd": round(float(macd_line[-1]), 4),
+                "signal": round(float(signal_line[-1]), 4),
+                "histogram": histogram,
+                "trend": "상승" if histogram > 0 else "하락",
+            }
 
-        # 볼린저밴드 (20일)
-        ma20 = float(prices[-20:].mean())
-        std20 = float(prices[-20:].std())
-        bb_upper = ma20 + 2 * std20
-        bb_lower = ma20 - 2 * std20
-        bb_width = bb_upper - bb_lower
-        bb_pct_b = round((prices[-1] - bb_lower) / bb_width * 100, 1) if bb_width > 0 else 50.0
-        if prices[-1] > bb_upper:
-            bb_position = "상단돌파"
-        elif prices[-1] < bb_lower:
-            bb_position = "하단돌파"
-        elif bb_pct_b >= 60:
-            bb_position = "상단"
-        elif bb_pct_b <= 40:
-            bb_position = "하단"
-        else:
-            bb_position = "중립"
-
-        # 20일 이동평균 대비 %
-        ma20_diff_pct = round((prices[-1] / ma20 - 1) * 100, 2)
+        # 볼린저밴드 (20일) — 데이터 부족 시 None
+        bb_data = None
+        ma20_diff_pct = None
+        if len(prices) >= 20:
+            ma20 = float(prices[-20:].mean())
+            std20 = float(prices[-20:].std())
+            bb_upper = ma20 + 2 * std20
+            bb_lower = ma20 - 2 * std20
+            bb_width = bb_upper - bb_lower
+            bb_pct_b = round((prices[-1] - bb_lower) / bb_width * 100, 1) if bb_width > 0 else 50.0
+            if prices[-1] > bb_upper:
+                bb_position = "상단돌파"
+            elif prices[-1] < bb_lower:
+                bb_position = "하단돌파"
+            elif bb_pct_b >= 60:
+                bb_position = "상단"
+            elif bb_pct_b <= 40:
+                bb_position = "하단"
+            else:
+                bb_position = "중립"
+            bb_data = {"upper": round(bb_upper, 2), "lower": round(bb_lower, 2), "pct_b": bb_pct_b, "position": bb_position}
+            ma20_diff_pct = round((prices[-1] / ma20 - 1) * 100, 2)
 
         # 52주 고저 위치
         high_52w = float(prices.max())
@@ -260,19 +274,9 @@ def _fetch_technicals(ticker: str) -> dict | None:
             "change_pct_1m": change_1m,
             "volume_ratio": volume_ratio,
             "RSI": rsi,
-            "RSI_signal": "과매수" if rsi > 70 else "과매도" if rsi < 30 else "중립",
-            "MACD": {
-                "macd": round(float(macd_line[-1]), 4),
-                "signal": round(float(signal_line[-1]), 4),
-                "histogram": histogram,
-                "trend": "상승" if histogram > 0 else "하락",
-            },
-            "BB": {
-                "upper": round(bb_upper, 2),
-                "lower": round(bb_lower, 2),
-                "pct_b": bb_pct_b,
-                "position": bb_position,
-            },
+            "RSI_signal": rsi_signal,
+            "MACD": macd_data,
+            "BB": bb_data,
             "MA20_diff_pct": ma20_diff_pct,
             "week52": {
                 "high": round(high_52w, 2),
