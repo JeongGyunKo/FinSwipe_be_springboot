@@ -68,7 +68,10 @@ public class ChatController {
         UserContext ctx = loadUserContext(userId);
         ChatMessageDto response = chatService.sendUserMessage(
                 userId, req.content(), ctx.level(), ctx.tendency(), ctx.tickers());
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok()
+                .header("X-RateLimit-Limit", String.valueOf(ChatRateLimiter.RPM))
+                .header("X-RateLimit-Remaining", String.valueOf(probe.remaining()))
+                .body(response);
     }
 
     @Operation(summary = "채팅 히스토리", description = "최근 채팅 메시지(대화 + 알림)를 반환합니다. 기본 50개. role: user(유저입력) | assistant(AI응답) | alert(감성알림). alert는 ticker·articleId 포함.")
