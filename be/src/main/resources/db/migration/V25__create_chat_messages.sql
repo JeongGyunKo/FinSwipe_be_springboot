@@ -1,4 +1,4 @@
-CREATE TABLE chat_messages (
+CREATE TABLE IF NOT EXISTS chat_messages (
     id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id     UUID        NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
     role        TEXT        NOT NULL CHECK (role IN ('user', 'assistant', 'alert')),
@@ -8,4 +8,4 @@ CREATE TABLE chat_messages (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_chat_messages_user_created ON chat_messages(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_user_created ON chat_messages(user_id, created_at DESC);
