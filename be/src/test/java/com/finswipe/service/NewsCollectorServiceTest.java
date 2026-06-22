@@ -43,6 +43,6 @@ class NewsCollectorServiceTest {
 
     private NewsCollectorService createService() {
         // null 주입 — filterTickers()는 외부 의존성 없이 동작
-        return new NewsCollectorService(null, null, null, null, null, null, null, null, null);
+        return new NewsCollectorService(null, null, null, null, null, null, null, null, null, null);
     }
 }
