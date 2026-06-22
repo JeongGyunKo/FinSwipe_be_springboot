@@ -74,19 +74,16 @@ public class ChatController {
         } catch (Exception ignored) {}
 
         if (content == null || content.isBlank())
-            return ResponseEntity.badRequest().body(Map.of("error", "메시지를 입력하세요"));
+            return rateLimitHeaders(ResponseEntity.badRequest(), probe)
+                    .body(Map.of("error", "메시지를 입력하세요"));
         if (content.length() > ChatRateLimiter.MSG_MAX_CHARS)
-            return ResponseEntity.badRequest().body(Map.of("error",
-                    "메시지는 " + ChatRateLimiter.MSG_MAX_CHARS + "자 이하로 입력해주세요"));
+            return rateLimitHeaders(ResponseEntity.badRequest(), probe)
+                    .body(Map.of("error", "메시지는 " + ChatRateLimiter.MSG_MAX_CHARS + "자 이하로 입력해주세요"));
 
         UserContext ctx = loadUserContext(userId);
         ChatMessageDto response = chatService.sendUserMessage(
                 userId, content, ctx.level(), ctx.tendency(), ctx.tickers());
-        return ResponseEntity.ok()
-                .header("X-RateLimit-Limit", String.valueOf(ChatRateLimiter.RPM))
-                .header("X-RateLimit-Remaining", String.valueOf(probe.remaining()))
-                .header("X-RateLimit-Reset", String.valueOf(probe.resetEpochSeconds()))
-                .body(response);
+        return rateLimitHeaders(ResponseEntity.ok(), probe).body(response);
     }
 
     @Operation(summary = "채팅 히스토리", description = "최근 채팅 메시지(대화 + 알림)를 반환합니다. 기본 50개. role: user(유저입력) | assistant(AI응답) | alert(감성알림). alert는 ticker·articleId 포함.")
@@ -128,11 +125,15 @@ public class ChatController {
 
         ChatRateLimiter.ProbeResult probe = rateLimiter.peek(userId);
         List<ChatMessageDto> messages = chatService.getHistory(userId, limit);
-        return ResponseEntity.ok()
+        return rateLimitHeaders(ResponseEntity.ok(), probe).body(Map.of("messages", messages));
+    }
+
+    private ResponseEntity.BodyBuilder rateLimitHeaders(ResponseEntity.BodyBuilder builder,
+                                                         ChatRateLimiter.ProbeResult probe) {
+        return builder
                 .header("X-RateLimit-Limit", String.valueOf(ChatRateLimiter.RPM))
                 .header("X-RateLimit-Remaining", String.valueOf(probe.remaining()))
-                .header("X-RateLimit-Reset", String.valueOf(probe.resetEpochSeconds()))
-                .body(Map.of("messages", messages));
+                .header("X-RateLimit-Reset", String.valueOf(probe.resetEpochSeconds()));
     }
 
     private UUID extractUserId(Authentication auth) {
