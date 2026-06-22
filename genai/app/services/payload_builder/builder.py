@@ -248,11 +248,15 @@ def _build_stored_localized_content(
 
     # 통합 분석 결과가 있으면 Gemini 번역 호출 없이 바로 생성
     if prebuilt_headline_ko:
+        localized_summary = [
+            SummaryLine(line_number=i + 1, text=line)
+            for i, line in enumerate(summary_3lines)
+        ] if summary_3lines else []
         return LocalizedArticleContent(
             language="ko",
             title=prebuilt_headline_ko,
             content=None,
-            summary_3lines=[],
+            summary_3lines=localized_summary,
             xai=None,
             sentiment_label=_SENTIMENT_LABELS_KO.get(localized_sentiment),
             ticker_box_labels=dict(_TICKER_BOX_LABELS_KO),

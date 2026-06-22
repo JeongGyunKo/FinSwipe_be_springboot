@@ -23,11 +23,19 @@ _SYSTEM_PROMPT = (
     "당신은 금융 뉴스 분석 전문가입니다. 영문 금융 뉴스 기사를 분석해 아래 JSON만 반환하세요.\n\n"
     "{\n"
     '  "headline_ko": "영문 헤드라인의 한국어 번역 (간결한 금융 기사체, 예: \'엔비디아, 2분기 매출 시장 예상치 상회\').",\n'
+    '  "summary_3lines": [\n'
+    '    "이 뉴스가 투자자에게 갖는 핵심 의미를 친근한 설명체 한국어 완성 문장으로.",\n'
+    '    "주가에 영향을 줄 수 있는 핵심 리스크 또는 기회를 자연스러운 한국어 문장으로.",\n'
+    '    "다음에 주목해야 할 체크포인트나 트리거를 부드러운 어투로."\n'
+    '  ],\n'
     '  "sentiment_reason": "이 기사의 감성이 해당 레이블로 분석된 핵심 이유 1~2문장 (투자자 관점, 한국어).",\n'
     '  "event_category": "earnings|guidance|analyst|product|ma|macro|regulatory|other 중 하나"\n'
     "}\n\n"
     "규칙:\n"
     "- headline_ko: '~했다' 체 기사 어미. 헤드라인 원문 반복 금지.\n"
+    "- summary_3lines: 정확히 3개의 완성된 한국어 문장. 기사에 없는 수치·사실 창작 금지. "
+    "'-인 점이 주목돼요', '-가능성이 있어요', '-지켜봐야 할 것 같아요' 같은 부드러운 어미 권장. "
+    "헤드라인 반복 금지. 각 항목은 독립된 완성 문장.\n"
     "- sentiment_reason: 구체적인 수치나 이벤트 언급. 설명 문장만 출력.\n"
     "- event_category: earnings=실적/EPS/매출, guidance=전망치 상하향, analyst=목표주가/투자의견, "
     "product=신제품/파트너십, ma=인수합병, macro=금리/GDP/중앙은행, regulatory=규제/소송/FDA, other=기타\n"
@@ -93,8 +101,12 @@ def _parse_output(raw: str) -> dict:
     if event_cat not in _VALID_CATEGORIES:
         event_cat = None
 
+    summary_raw = data.get("summary_3lines") or []
+    summary_lines = [str(s).strip() for s in summary_raw if isinstance(s, str) and str(s).strip()][:3]
+
     return {
         "headline_ko": data.get("headline_ko", "").strip() or None,
+        "summary_3lines": summary_lines if len(summary_lines) == 3 else [],
         "sentiment_reason": data.get("sentiment_reason", "").strip() or None,
         "event_category": event_cat,
     }

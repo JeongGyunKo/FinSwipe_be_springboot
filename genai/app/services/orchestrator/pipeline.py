@@ -171,6 +171,9 @@ class EnrichmentOrchestrator:
                     sentiment_reason = unified.get("sentiment_reason")
                     event_category = unified.get("event_category")
                     headline_ko = unified.get("headline_ko")
+                    unified_summary = unified.get("summary_3lines")
+                    if unified_summary:
+                        summary_3lines = unified_summary
 
                     article_mixed, ticker_mixed = self._run_mixed_detection_stage(
                         request=request,
