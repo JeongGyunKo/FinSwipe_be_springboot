@@ -112,14 +112,15 @@ public class TickerDiscoveryService {
     }
 
     /**
-     * 매일 UTC 22:00 — SEC CIK 기반으로 Form 25(상장폐지 신청서) 감지.
-     * 전체 텍스트 검색이 아닌 해당 회사의 제출 서류 목록에서 직접 확인 → 오탐 없음.
+     * 매일 UTC 22:00 (미국 장 마감 2시간 후) — 나스닥+NYSE 현재 상장 목록과 DB를 대조.
+     * 목록에서 사라진 종목 = 상장폐지 확정 → Form 25로 예정일 조회 후 처리.
+     * 오탐 없음: 목록 자체가 현재 상장 여부의 공식 기준.
      */
     @Scheduled(cron = "0 0 22 * * *")
-    public void detectDelistedTickersFromSec() {
-        Map<String, String> cikMap = getCikMap();
-        if (cikMap.isEmpty()) {
-            log.error("[SEC EDGAR] CIK 맵 로드 실패 — 스킵");
+    public void syncListingStatus() {
+        Set<String> listed = fetchListedTickers();
+        if (listed.isEmpty()) {
+            log.error("[상장 동기화] 나스닥/NYSE 목록 조회 실패 — 스킵");
             return;
         }
 
@@ -127,40 +128,80 @@ public class TickerDiscoveryService {
                 "SELECT ticker FROM ticker_names WHERE delisted_at IS NULL AND delisting_date IS NULL",
                 String.class);
 
-        int detected = 0;
-        for (String ticker : activeTickers) {
-            String cik = cikMap.get(ticker.toUpperCase());
-            if (cik == null) continue;
-            try {
-                String url = "https://data.sec.gov/submissions/CIK" + cik + ".json";
-                String raw = secEdgarClient.get().uri(URI.create(url)).retrieve().body(String.class);
-                JsonNode root = objectMapper.readTree(raw);
-                JsonNode forms = root.path("filings").path("recent").path("form");
-                JsonNode dates = root.path("filings").path("recent").path("filingDate");
+        List<String> gone = activeTickers.stream()
+                .filter(t -> !listed.contains(t.toUpperCase()))
+                .toList();
 
-                for (int i = 0; i < forms.size(); i++) {
-                    String form = forms.get(i).asText();
-                    if ("25".equals(form) || "25-NSE".equals(form)) {
-                        String dateStr = dates.get(i).asText(null);
-                        LocalDate filingDate = dateStr != null ? LocalDate.parse(dateStr) : LocalDate.now();
-                        LocalDate delistingDate = filingDate.plusDays(10);
-                        setDelistingDate(ticker, delistingDate);
-                        detected++;
-                        log.info("[SEC EDGAR] 상장폐지 예정 감지: {} (신청일: {}) → 예정일: {}", ticker, dateStr, delistingDate);
-                        break;
-                    }
-                }
-                Thread.sleep(200);
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-                break;
-            } catch (Exception e) {
-                log.warn("[SEC EDGAR] {} 조회 실패: {}", ticker, e.getMessage());
-            }
+        if (gone.isEmpty()) {
+            log.info("[상장 동기화] 신규 상장폐지 없음 (체크: {}개)", activeTickers.size());
+            return;
         }
 
-        if (detected > 0) tickerService.invalidateCache();
-        log.info("[SEC EDGAR] CIK 기반 체크 완료 — {}개 상장폐지 예정 / {}개 체크", detected, activeTickers.size());
+        log.info("[상장 동기화] {}개 목록 이탈 감지 → Form 25 예정일 조회", gone.size());
+        Map<String, String> cikMap = getCikMap();
+        int processed = 0;
+
+        for (String ticker : gone) {
+            LocalDate delistingDate = fetchDelistingDateFromSec(ticker, cikMap);
+            if (delistingDate != null && delistingDate.isAfter(LocalDate.now())) {
+                setDelistingDate(ticker, delistingDate);
+                log.info("[상장폐지 예정] {} → {}", ticker, delistingDate);
+            } else {
+                markDelisted(ticker);
+            }
+            processed++;
+        }
+
+        if (processed > 0) tickerService.invalidateCache();
+        log.info("[상장 동기화] {}개 처리 완료", processed);
+    }
+
+    /** 나스닥+NYSE 현재 상장 종목 심볼 전체 반환 */
+    private Set<String> fetchListedTickers() {
+        Set<String> result = new HashSet<>();
+        for (String exchange : List.of("nasdaq", "nyse")) {
+            try {
+                String url = "https://api.nasdaq.com/api/screener/stocks?tableonly=true&exchange="
+                        + exchange + "&download=true";
+                String raw = secEdgarClient.get()
+                        .uri(URI.create(url))
+                        .header("User-Agent", "Mozilla/5.0")
+                        .retrieve()
+                        .body(String.class);
+                JsonNode root = objectMapper.readTree(raw);
+                root.path("data").path("rows").forEach(row -> {
+                    String sym = row.path("symbol").asText("").toUpperCase().trim();
+                    if (!sym.isEmpty()) result.add(sym);
+                });
+                log.info("[상장 목록] {} {}개", exchange.toUpperCase(), result.size());
+            } catch (Exception e) {
+                log.error("[상장 목록] {} 조회 실패: {}", exchange, e.getMessage());
+            }
+        }
+        return result;
+    }
+
+    /** 목록에서 사라진 종목의 Form 25 신청일 + 10일 = 상장폐지 예정일 반환. 없으면 null. */
+    private LocalDate fetchDelistingDateFromSec(String ticker, Map<String, String> cikMap) {
+        String cik = cikMap.get(ticker.toUpperCase());
+        if (cik == null) return null;
+        try {
+            String url = "https://data.sec.gov/submissions/CIK" + cik + ".json";
+            String raw = secEdgarClient.get().uri(URI.create(url)).retrieve().body(String.class);
+            JsonNode root = objectMapper.readTree(raw);
+            JsonNode forms = root.path("filings").path("recent").path("form");
+            JsonNode dates = root.path("filings").path("recent").path("filingDate");
+            for (int i = 0; i < forms.size(); i++) {
+                String form = forms.get(i).asText();
+                if ("25".equals(form) || "25-NSE".equals(form)) {
+                    String dateStr = dates.get(i).asText(null);
+                    if (dateStr != null) return LocalDate.parse(dateStr).plusDays(10);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[Form 25] {} 예정일 조회 실패: {}", ticker, e.getMessage());
+        }
+        return null;
     }
 
     /** 티커→CIK 맵 (앱 수명 동안 캐시, 첫 호출 시 SEC에서 다운로드) */
@@ -205,6 +246,11 @@ public class TickerDiscoveryService {
             tickerService.invalidateCache();
             log.info("[상장폐지 확정] {}개 종목 캐시에서 제거", updated);
         }
+    }
+
+    private void markDelisted(String ticker) {
+        jdbc.update("UPDATE ticker_names SET delisted_at = NOW() WHERE ticker = ? AND delisted_at IS NULL", ticker);
+        log.info("[상장폐지] {} → delisted_at 기록", ticker);
     }
 
     private void setDelistingDate(String ticker, LocalDate date) {

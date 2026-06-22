@@ -225,7 +225,7 @@ public class AdminController {
     public ResponseEntity<Map<String, String>> triggerDelistingCheck(
             @RequestHeader("X-Admin-Key") String adminKey) {
         requireAdmin(adminKey);
-        Thread.ofVirtual().start(tickerDiscoveryService::detectDelistedTickersFromSec);
+        Thread.ofVirtual().start(tickerDiscoveryService::syncListingStatus);
         return ResponseEntity.accepted().body(Map.of("status", "started"));
     }
 
