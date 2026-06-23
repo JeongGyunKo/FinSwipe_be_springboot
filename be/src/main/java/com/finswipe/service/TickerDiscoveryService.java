@@ -156,29 +156,59 @@ public class TickerDiscoveryService {
         log.info("[상장 동기화] {}개 처리 완료", processed);
     }
 
-    /** 나스닥+NYSE 현재 상장 종목 심볼 전체 반환 */
+    // NASDAQ Trader 공식 심볼 디렉터리 — 봇차단 없는 plain text, 매 영업일 갱신
+    private static final String NASDAQ_LISTED_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt";
+    private static final String OTHER_LISTED_URL  = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt";
+    // 정상 합계는 ~1만 개 — 포맷 변경/부분 다운로드로 인한 대량 오탐 폐지를 막는 하한선
+    private static final int LISTED_MIN_SANITY = 3000;
+
+    /**
+     * 나스닥+NYSE/기타 현재 상장 종목 심볼 전체 반환.
+     * NASDAQ Trader SymDir 파일 사용 — 이전 api.nasdaq.com 스크리너는 클라우드(AWS) IP를 403으로 차단해
+     * EC2에서 매일 조용히 실패(listed 비어 스킵)하던 문제를 해결.
+     * 한쪽 파일이라도 실패하면 불완전 목록으로 보고 빈 set 반환 → 호출부가 동기화를 스킵(대량 오탐 폐지 방지).
+     */
     private Set<String> fetchListedTickers() {
-        Set<String> result = new HashSet<>();
-        for (String exchange : List.of("nasdaq", "nyse")) {
-            try {
-                String url = "https://api.nasdaq.com/api/screener/stocks?tableonly=true&exchange="
-                        + exchange + "&download=true";
-                String raw = secEdgarClient.get()
-                        .uri(URI.create(url))
-                        .header("User-Agent", "Mozilla/5.0")
-                        .retrieve()
-                        .body(String.class);
-                JsonNode root = objectMapper.readTree(raw);
-                root.path("data").path("rows").forEach(row -> {
-                    String sym = row.path("symbol").asText("").toUpperCase().trim();
-                    if (!sym.isEmpty()) result.add(sym);
-                });
-                log.info("[상장 목록] {} {}개", exchange.toUpperCase(), result.size());
-            } catch (Exception e) {
-                log.error("[상장 목록] {} 조회 실패: {}", exchange, e.getMessage());
-            }
+        Set<String> nasdaq = fetchSymDir(NASDAQ_LISTED_URL, 0, 3); // Symbol(0), Test Issue(3)
+        Set<String> other  = fetchSymDir(OTHER_LISTED_URL, 0, 6);  // ACT Symbol(0), Test Issue(6)
+        if (nasdaq.isEmpty() || other.isEmpty()) {
+            log.error("[상장 목록] 불완전 (nasdaq={}, other={}) — 안전상 스킵", nasdaq.size(), other.size());
+            return Set.of();
         }
+        Set<String> result = new HashSet<>(nasdaq);
+        result.addAll(other);
+        if (result.size() < LISTED_MIN_SANITY) {
+            log.error("[상장 목록] 합계 {}개 < 하한 {} — 포맷 이상 의심, 스킵", result.size(), LISTED_MIN_SANITY);
+            return Set.of();
+        }
+        log.info("[상장 목록] SymDir 총 {}개 (nasdaq {}, other {})", result.size(), nasdaq.size(), other.size());
         return result;
+    }
+
+    /** SymDir 파이프 구분 파일 파싱 — 헤더/푸터·테스트이슈(Y) 제외하고 심볼 집합 반환. 실패 시 빈 set. */
+    private Set<String> fetchSymDir(String url, int symbolCol, int testIssueCol) {
+        Set<String> symbols = new HashSet<>();
+        try {
+            String raw = secEdgarClient.get()
+                    .uri(URI.create(url))
+                    .header("User-Agent", "Mozilla/5.0")
+                    .retrieve()
+                    .body(String.class);
+            if (raw == null || raw.isBlank()) return symbols;
+            for (String line : raw.split("\\R")) {
+                if (line.isBlank()
+                        || line.startsWith("Symbol|") || line.startsWith("ACT Symbol|")
+                        || line.startsWith("File Creation Time")) continue;
+                String[] cols = line.split("\\|", -1);
+                if (cols.length <= Math.max(symbolCol, testIssueCol)) continue;
+                if ("Y".equalsIgnoreCase(cols[testIssueCol].trim())) continue; // 테스트 이슈 제외
+                String sym = cols[symbolCol].trim().toUpperCase();
+                if (!sym.isEmpty()) symbols.add(sym);
+            }
+        } catch (Exception e) {
+            log.error("[상장 목록] {} 조회 실패: {}", url, e.getMessage());
+        }
+        return symbols;
     }
 
     /** 목록에서 사라진 종목의 Form 25 신청일 + 10일 = 상장폐지 예정일 반환. 없으면 null. */
