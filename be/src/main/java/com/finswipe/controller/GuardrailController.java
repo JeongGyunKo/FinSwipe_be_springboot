@@ -37,14 +37,15 @@ public class GuardrailController {
 
         // ── 안전장치 목록 ──────────────────────────────────────────────
         result.put("guardrails", List.of(
-            Map.of("name", "뉴스 중복 탐지",      "type", "input_filter",   "detail", "제목 70% + 본문 200자 60% Jaccard 유사도"),
+            Map.of("name", "뉴스 중복 탐지",      "type", "input_filter",   "detail", "제목 75% + 본문 앞 300자 65% Jaccard 유사도 (동일 티커 기사 한정)"),
             Map.of("name", "최소 본문 길이",        "type", "input_filter",   "detail", "300자 미만 기사 제외 (3줄 요약 품질 보장)"),
             Map.of("name", "Transcript 필터",       "type", "input_filter",   "detail", "conference call / earnings transcript 제외"),
-            Map.of("name", "암호화폐 티커 제외",   "type", "input_filter",   "detail", "BTC/ETH 등 50+ 코인 티커 필터"),
+            Map.of("name", "암호화폐 티커 제외",   "type", "input_filter",   "detail", "BTC/ETH 등 61종 코인 티커 필터"),
             Map.of("name", "3회 재시도 제한",       "type", "retry_guard",    "detail", "분석 실패 기사 최대 3회 재시도 후 제외"),
             Map.of("name", "Gemini 503 재시도",     "type", "api_guard",      "detail", "서버 오류 시 3초 후 1회 자동 재시도"),
             Map.of("name", "JWT 인증",               "type", "auth_guard",     "detail", "사용자 API 접근 시 JWT 필수 검증"),
-            Map.of("name", "Rate Limiting",          "type", "auth_guard",     "detail", "공개 API 30 RPM / 어드민 300 RPM"),
+            Map.of("name", "Rate Limiting",          "type", "auth_guard",     "detail", String.format("공개 %d RPM / 어드민 %d RPM / 퀴즈 %d RPM",
+                    props.getRateLimit().getPublicRpm(), props.getRateLimit().getAdminRpm(), props.getRateLimit().getQuizRpm())),
             Map.of("name", "퀴즈 정답 위치 셔플",  "type", "bias_guard",     "detail", "LLM의 A번 편향 방지 — 매 문제 랜덤 셔플"),
             Map.of("name", "Gemini 금지 문제 유형","type", "quality_guard",  "detail", "성향형/주관형 문제 생성 명시적 차단")
         ));

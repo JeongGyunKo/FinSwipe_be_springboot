@@ -4,7 +4,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -15,8 +14,7 @@ import org.springframework.web.client.RestClient;
 
 import java.nio.charset.StandardCharsets;
 
-@Tag(name = "Quiz", description = "금융 지식 퀴즈 — 레벨 측정(7문제) + 투자 성향 분석(3문제)")
-@SecurityRequirement(name = "bearerAuth")
+@Tag(name = "Quiz", description = "금융 지식 퀴즈 — 10문제(5영역×2)로 레벨·투자성향 측정. 온보딩용으로 비로그인 허용(POST는 퀴즈 전용 레이트리밋 적용).")
 @RestController
 @RequestMapping("/quiz")
 @Slf4j

@@ -86,6 +86,7 @@ app:
   rate-limit:
     public-rpm: 120
     admin-rpm: 300
+    quiz-rpm: 20
   fcm:
     service-account-json: ${FCM_SERVICE_ACCOUNT_JSON:}
     project-id: ${FCM_PROJECT_ID:}

@@ -84,6 +84,8 @@ public class AppProperties {
         private int publicRpm = 30;
         @Min(1)
         private int adminRpm = 300;
+        @Min(1)
+        private int quizRpm = 20;   // 비인증 퀴즈(POST /quiz) LLM 비용 어뷰즈 방지용 별도 한도
     }
 
     @Getter
