@@ -161,11 +161,13 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Map.of("error", "아이디는 2~20자여야 합니다"));
         }
         try {
+            // 대소문자 무시 — register/updateProfile과 동일하게 소문자로 비교·반환
+            String normalized = loginId.strip().toLowerCase();
             Integer count = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM user_profiles WHERE login_id = ?",
-                    Integer.class, loginId.strip());
+                    Integer.class, normalized);
             boolean available = count == null || count == 0;
-            return ResponseEntity.ok(Map.of("available", available, "loginId", loginId.strip()));
+            return ResponseEntity.ok(Map.of("available", available, "loginId", normalized));
         } catch (Exception e) {
             log.error("[아이디 중복확인] 오류: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -217,13 +219,13 @@ public class AuthController {
         try {
             List<String> rows = jdbc.queryForList(
                     "SELECT email FROM user_profiles WHERE login_id = ?",
-                    String.class, body.loginId().strip());
+                    String.class, body.loginId().strip().toLowerCase());
             String email = rows.isEmpty() ? null : rows.get(0);
             // 계정 존재 여부를 노출하지 않고 항상 동일한 응답 반환 (열거 공격 방지)
             return ResponseEntity.ok(Map.of(
                     "masked_email", (email != null && !email.isBlank()) ? maskEmail(email) : ""));
         } catch (Exception e) {
-            log.error("[이메일 찾기] 오류");
+            log.error("[이메일 찾기] 오류: {}", e.getMessage(), e);
             return ResponseEntity.ok(Map.of("masked_email", ""));
         }
     }

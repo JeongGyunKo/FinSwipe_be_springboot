@@ -123,14 +123,16 @@ public class UserProfileController {
                         displayName.strip(), uid);
             }
             if (loginId != null && !loginId.isBlank()) {
+                // 대소문자 무시 — register와 동일하게 소문자로 정규화 (대소문자 변형 중복 방지)
+                String normalizedLoginId = loginId.strip().toLowerCase();
                 Integer exists = jdbc.queryForObject(
                         "SELECT COUNT(*) FROM user_profiles WHERE login_id = ? AND id != CAST(? AS UUID)",
-                        Integer.class, loginId.strip(), uid);
+                        Integer.class, normalizedLoginId, uid);
                 if (exists != null && exists > 0) {
                     return ResponseEntity.badRequest().body(Map.of("error", "이미 사용 중인 아이디입니다"));
                 }
                 jdbc.update("UPDATE user_profiles SET login_id = ?, updated_at = NOW() WHERE id = CAST(? AS UUID)",
-                        loginId.strip(), uid);
+                        normalizedLoginId, uid);
             }
             if (password != null && !password.isBlank()) {
                 String provider = jdbc.queryForObject(
