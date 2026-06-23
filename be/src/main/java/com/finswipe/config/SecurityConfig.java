@@ -36,8 +36,7 @@ public class SecurityConfig {
                 // 공개 엔드포인트
                 .requestMatchers("/", "/health", "/health/detail").permitAll()
                 .requestMatchers("/auth/**").permitAll()
-                .requestMatchers(HttpMethod.GET, "/news/tickers", "/news/search",
-                        "/news/tickers/*/sentiment-trend", "/news/genai/health").permitAll()
+                .requestMatchers(HttpMethod.GET, "/news/genai/health").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers("/preview.html", "/admin.html", "/digest.html", "/card-preview.html").permitAll()
                 // 어드민 (X-Admin-Key 별도 검증)
@@ -49,7 +48,8 @@ public class SecurityConfig {
                 .requestMatchers("/quiz/**").permitAll()
                 .requestMatchers("/analysis/**").authenticated()
                 .requestMatchers("/chat/**").authenticated()
-                .requestMatchers(HttpMethod.GET, "/news/latest").authenticated()
+                .requestMatchers(HttpMethod.GET, "/news/latest", "/news/search", "/news/tickers",
+                        "/news/tickers/*/sentiment-trend").authenticated()
                 .requestMatchers(HttpMethod.POST, "/news/*/read").authenticated()
                 .requestMatchers(HttpMethod.POST, "/news/device-token").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/news/device-token").authenticated()
