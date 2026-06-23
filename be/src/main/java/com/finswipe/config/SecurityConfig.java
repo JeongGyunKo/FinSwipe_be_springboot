@@ -75,7 +75,7 @@ public class SecurityConfig {
                 })
             )
             // 어드민 도구(admin.html 등)가 X-Admin-Key로 뉴스 조회 read에 접근 — 뉴스 read 경로 전용, 일반 뉴스만
-            .addFilterBefore(new AdminKeyAuthFilter(props), JwtAuthFilter.class)
+            .addFilterBefore(new AdminKeyAuthFilter(props), UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
