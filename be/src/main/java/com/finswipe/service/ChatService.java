@@ -116,9 +116,11 @@ public class ChatService {
         // 상장폐지 예정 종목 언급 시 즉시 안내 (인사이트 여부 무관)
         String delistingNotice = buildDelistingNotice(userContent);
 
-        // 캐시 인사이트 우선 — 종목 인사이트 질문은 LLM 토큰 없이 분석된 DB 데이터로 응답
-        String aiContent = tryCachedInsight(userContent, tickers)
-                .map(insight -> delistingNotice != null ? delistingNotice + "\n\n" + insight : insight)
+        // 워치리스트 질문("내 관심종목 뭐야") → DB 워치리스트 직접 응답 (LLM 토큰 0)
+        // 그 외 종목 인사이트 질문 → 분석된 DB 데이터로 응답 (LLM 토큰 0)
+        String aiContent = tryWatchlistAnswer(userContent, tickers)
+                .or(() -> tryCachedInsight(userContent, tickers)
+                        .map(insight -> delistingNotice != null ? delistingNotice + "\n\n" + insight : insight))
                 .orElseGet(() -> {
                     // 가격 질문인데 언급 종목이 전부 조회 불가(상장폐지 등)인 경우 LLM 차단
                     // — Gemini가 학습 데이터 가격을 할루시네이션하는 것을 사전에 막기 위함
@@ -285,6 +287,39 @@ public class ChatService {
 
     private static boolean isInsightIntent(String msg) {
         return INSIGHT_INTENT.stream().anyMatch(msg::contains);
+    }
+
+    private static final List<String> WATCHLIST_INTENT = List.of(
+            "관심종목", "관심 종목", "관심목록", "관심 목록", "내 종목",
+            "내가 선택한", "내가 고른", "워치리스트", "watchlist");
+
+    /**
+     * "내 관심종목 뭐야" 류 질문에 워치리스트를 직접 응답 (LLM 토큰 0).
+     * 특정 티커가 언급된 질문(예: "관심종목 AAPL 어때")은 그 종목 인사이트 의도이므로 제외하고,
+     * 처리 불가하면 empty 반환 → 호출부에서 인사이트/LLM 폴백.
+     */
+    private Optional<String> tryWatchlistAnswer(String message, List<String> watchlist) {
+        try {
+            if (WATCHLIST_INTENT.stream().noneMatch(message::contains)) return Optional.empty();
+            // 특정 티커가 언급된 질문은 그 종목에 대한 인사이트 의도 → 목록 응답에서 제외
+            if (!tickerService.findMentionedTickers(message).isEmpty()) return Optional.empty();
+
+            List<String> clean = watchlist == null ? List.of()
+                    : watchlist.stream()
+                        .map(t -> t.replace("\"", "").strip().toUpperCase())
+                        .filter(s -> !s.isEmpty())
+                        .distinct()
+                        .toList();
+            if (clean.isEmpty()) {
+                return Optional.of("아직 관심 종목으로 등록한 티커가 없어요. "
+                        + "뉴스 카드에서 오른쪽으로 스와이프하면 관심 종목에 추가할 수 있어요!");
+            }
+            return Optional.of("⭐ 현재 관심 종목 " + clean.size() + "개: " + String.join(", ", clean)
+                    + "\n\n특정 종목이 궁금하면 \"" + clean.get(0) + " 어때?\"처럼 물어보세요.");
+        } catch (Exception e) {
+            log.warn("[챗봇] 워치리스트 응답 분기 실패 — 폴백: {}", e.getMessage());
+            return Optional.empty();
+        }
     }
 
     /**
