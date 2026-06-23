@@ -33,11 +33,12 @@ public class ChatRateLimiter {
             .maximumSize(50_000)
             .build(k -> newBucket(RPM, true));
 
-    // GET: greedy 리필 — 조회는 비용이 작아 연속 리필 허용
+    // GET: interval 리필 — POST와 동일하게 1분 경계 일괄 충전으로 결정적 동작 보장.
+    //      (greedy는 초당 1토큰 트리클이라 빠른 동시 버스트가 테스트 소요시간에 따라 60/61 경계에서 갈려 flaky)
     private final LoadingCache<UUID, Bucket> historyBuckets = Caffeine.newBuilder()
             .expireAfterAccess(5, TimeUnit.MINUTES)
             .maximumSize(50_000)
-            .build(k -> newBucket(HISTORY_RPM, false));
+            .build(k -> newBucket(HISTORY_RPM, true));
 
     /** POST /chat/message — 토큰 소비 */
     public ProbeResult probe(UUID userId) {
