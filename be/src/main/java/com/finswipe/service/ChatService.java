@@ -96,6 +96,7 @@ public class ChatService {
         userMsg.setUserId(userId);
         userMsg.setRole("user");
         userMsg.setContent(userContent);
+        userMsg.setRead(true);
         chatRepo.save(userMsg);
 
         // 직전 10개 대화 (알림 제외) — 오래된 순으로 뒤집어 GenAI에 전달
@@ -135,17 +136,21 @@ public class ChatService {
         assistantMsg.setUserId(userId);
         assistantMsg.setRole("assistant");
         assistantMsg.setContent(aiContent);
+        assistantMsg.setRead(false);
         chatRepo.save(assistantMsg);
 
         return toDto(assistantMsg);
     }
 
-    /** 채팅 히스토리 최근 limit개 — 최신순 반환 */
+    /** 채팅 히스토리 최근 limit개 — 최신순 반환, 조회 시 미읽음 메시지 읽음 처리 */
+    @org.springframework.transaction.annotation.Transactional
     public List<ChatMessageDto> getHistory(UUID userId, int limit) {
-        return chatRepo.findRecentByUserId(userId, PageRequest.of(0, Math.min(limit, 100)))
+        List<ChatMessageDto> messages = chatRepo.findRecentByUserId(userId, PageRequest.of(0, Math.min(limit, 100)))
                 .stream()
                 .map(this::toDto)
                 .toList();
+        chatRepo.markAllReadByUserId(userId);
+        return messages;
     }
 
     /**
@@ -177,6 +182,7 @@ public class ChatService {
             alert.setContent(content);
             alert.setTicker(tickerStr);
             alert.setArticleId(article.getId());
+            alert.setRead(false);
             return alert;
         }).toList();
 
@@ -400,6 +406,6 @@ public class ChatService {
     private ChatMessageDto toDto(ChatMessage m) {
         return new ChatMessageDto(
                 m.getId(), m.getRole(), m.getContent(),
-                m.getTicker(), m.getArticleId(), m.getCreatedAt());
+                m.getTicker(), m.getArticleId(), m.getCreatedAt(), m.isRead());
     }
 }

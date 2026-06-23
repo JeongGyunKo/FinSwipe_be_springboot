@@ -36,4 +36,7 @@ public class ChatMessage {
 
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    @Column(name = "is_read", nullable = false)
+    private boolean isRead = true;
 }

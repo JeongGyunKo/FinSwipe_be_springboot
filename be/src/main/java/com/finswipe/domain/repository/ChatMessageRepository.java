@@ -3,6 +3,7 @@ package com.finswipe.domain.repository;
 import com.finswipe.domain.entity.ChatMessage;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -13,4 +14,8 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, UUID> 
 
     @Query("SELECT m FROM ChatMessage m WHERE m.userId = :userId ORDER BY m.createdAt DESC")
     List<ChatMessage> findRecentByUserId(@Param("userId") UUID userId, Pageable pageable);
+
+    @Modifying
+    @Query("UPDATE ChatMessage m SET m.isRead = true WHERE m.userId = :userId AND m.isRead = false")
+    void markAllReadByUserId(@Param("userId") UUID userId);
 }
