@@ -26,15 +26,18 @@ public class ChatRateLimiter {
     public static final int HISTORY_RPM = 60;
     public static final int MSG_MAX_CHARS = 500;
 
+    // POST: interval 리필 — 1분 경계에서 한꺼번에 충전(중간 트리클 없음) → 분당 정확히 20회 하드캡.
+    //       (greedy는 3초마다 1개씩 리필돼 느린 버스트가 한도를 넘겨 통과되는 문제가 있어 LLM 비용 경로엔 부적합)
     private final LoadingCache<UUID, Bucket> buckets = Caffeine.newBuilder()
             .expireAfterAccess(5, TimeUnit.MINUTES)
             .maximumSize(50_000)
-            .build(k -> newBucket(RPM));
+            .build(k -> newBucket(RPM, true));
 
+    // GET: greedy 리필 — 조회는 비용이 작아 연속 리필 허용
     private final LoadingCache<UUID, Bucket> historyBuckets = Caffeine.newBuilder()
             .expireAfterAccess(5, TimeUnit.MINUTES)
             .maximumSize(50_000)
-            .build(k -> newBucket(HISTORY_RPM));
+            .build(k -> newBucket(HISTORY_RPM, false));
 
     /** POST /chat/message — 토큰 소비 */
     public ProbeResult probe(UUID userId) {
@@ -57,13 +60,13 @@ public class ChatRateLimiter {
         return new ProbeResult(true, available, 0, RPM);
     }
 
-    private Bucket newBucket(int capacity) {
+    private Bucket newBucket(int capacity, boolean intervally) {
+        var stage = Bandwidth.builder().capacity(capacity);
+        var refilled = intervally
+                ? stage.refillIntervally(capacity, Duration.ofMinutes(1))
+                : stage.refillGreedy(capacity, Duration.ofMinutes(1));
         return Bucket.builder()
-                .addLimit(Bandwidth.builder()
-                        .capacity(capacity)
-                        .refillGreedy(capacity, Duration.ofMinutes(1))
-                        .initialTokens(capacity)
-                        .build())
+                .addLimit(refilled.initialTokens(capacity).build())
                 .build();
     }
 
