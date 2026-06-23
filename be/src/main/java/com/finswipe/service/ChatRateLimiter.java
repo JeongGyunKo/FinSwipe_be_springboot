@@ -12,13 +12,15 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 사용자별 LLM 챗봇 레이트리밋.
- * 분당 20회, greedy 리필 (3초마다 1토큰).
+ * 사용자별 챗봇 레이트리밋.
+ * - POST /chat/message: 분당 20회 (LLM 호출 비용 제한)
+ * - GET  /chat/messages: 분당 60회 (히스토리 조회)
  */
 @Component
 public class ChatRateLimiter {
 
     public static final int RPM = 20;
+    public static final int HISTORY_RPM = 60;
     public static final int MSG_MAX_CHARS = 500;
 
     private final Cache<UUID, Bucket> buckets = Caffeine.newBuilder()
@@ -26,30 +28,42 @@ public class ChatRateLimiter {
             .maximumSize(50_000)
             .build();
 
+    private final Cache<UUID, Bucket> historyBuckets = Caffeine.newBuilder()
+            .expireAfterAccess(5, TimeUnit.MINUTES)
+            .maximumSize(50_000)
+            .build();
+
+    /** POST /chat/message — 토큰 소비 */
     public ProbeResult probe(UUID userId) {
-        Bucket bucket = buckets.get(userId, k -> newBucket());
-        ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
-        return new ProbeResult(probe.isConsumed(), probe.getRemainingTokens(),
-                probe.getNanosToWaitForRefill());
+        Bucket bucket = buckets.get(userId, k -> newBucket(RPM));
+        ConsumptionProbe cp = bucket.tryConsumeAndReturnRemaining(1);
+        return new ProbeResult(cp.isConsumed(), cp.getRemainingTokens(), cp.getNanosToWaitForRefill(), RPM);
     }
 
-    /** 토큰을 소비하지 않고 현재 남은 횟수만 조회 (GET 엔드포인트용) */
+    /** GET /chat/messages — 토큰 소비 */
+    public ProbeResult probeHistory(UUID userId) {
+        Bucket bucket = historyBuckets.get(userId, k -> newBucket(HISTORY_RPM));
+        ConsumptionProbe cp = bucket.tryConsumeAndReturnRemaining(1);
+        return new ProbeResult(cp.isConsumed(), cp.getRemainingTokens(), cp.getNanosToWaitForRefill(), HISTORY_RPM);
+    }
+
+    /** 토큰 소비 없이 POST 버킷 상태만 조회 (내용 검증 실패 시 헤더용) */
     public ProbeResult peek(UUID userId) {
-        Bucket bucket = buckets.get(userId, k -> newBucket());
+        Bucket bucket = buckets.get(userId, k -> newBucket(RPM));
         long available = bucket.getAvailableTokens();
-        return new ProbeResult(true, available, 0);
+        return new ProbeResult(true, available, 0, RPM);
     }
 
-    private Bucket newBucket() {
+    private Bucket newBucket(int capacity) {
         return Bucket.builder()
                 .addLimit(Bandwidth.builder()
-                        .capacity(RPM)
-                        .refillGreedy(RPM, Duration.ofMinutes(1))
+                        .capacity(capacity)
+                        .refillGreedy(capacity, Duration.ofMinutes(1))
                         .build())
                 .build();
     }
 
-    public record ProbeResult(boolean allowed, long remaining, long nanosToWait) {
+    public record ProbeResult(boolean allowed, long remaining, long nanosToWait, int limit) {
         public long retryAfterSeconds() {
             return TimeUnit.NANOSECONDS.toSeconds(nanosToWait) + 1;
         }

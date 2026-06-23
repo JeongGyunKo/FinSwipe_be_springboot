@@ -129,7 +129,16 @@ public class ChatController {
         UUID userId = extractUserId(auth);
         if (userId == null) return ResponseEntity.status(401).body(Map.of("error", "인증이 필요합니다"));
 
-        ChatRateLimiter.ProbeResult probe = rateLimiter.peek(userId);
+        ChatRateLimiter.ProbeResult probe = rateLimiter.probeHistory(userId);
+        if (!probe.allowed()) {
+            return ResponseEntity.status(429)
+                    .header("Retry-After", String.valueOf(probe.retryAfterSeconds()))
+                    .header("X-RateLimit-Limit", String.valueOf(probe.limit()))
+                    .header("X-RateLimit-Remaining", "0")
+                    .header("X-RateLimit-Reset", String.valueOf(probe.resetEpochSeconds()))
+                    .body(Map.of("error", "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."));
+        }
+
         List<ChatMessageDto> messages = chatService.getHistory(userId, limit);
         return rateLimitHeaders(ResponseEntity.ok(), probe).body(Map.of("messages", messages));
     }
@@ -137,7 +146,7 @@ public class ChatController {
     private ResponseEntity.BodyBuilder rateLimitHeaders(ResponseEntity.BodyBuilder builder,
                                                          ChatRateLimiter.ProbeResult probe) {
         return builder
-                .header("X-RateLimit-Limit", String.valueOf(ChatRateLimiter.RPM))
+                .header("X-RateLimit-Limit", String.valueOf(probe.limit()))
                 .header("X-RateLimit-Remaining", String.valueOf(probe.remaining()))
                 .header("X-RateLimit-Reset", String.valueOf(probe.resetEpochSeconds()));
     }
