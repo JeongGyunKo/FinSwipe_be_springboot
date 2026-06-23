@@ -132,12 +132,12 @@ public class NewsController {
         final String resolvedUserId = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
                 ? auth.getPrincipal().toString() : null;
 
-        // ET 장 사이클 계산 — 기본 3일치 (오래된 뉴스 유입 방지)
+        // ET 장 사이클 계산 — 기본 1일치 (직전 마감장 16:00 ET 이후 뉴스만, all일 때만 전체)
         java.time.ZoneId et = java.time.ZoneId.of("America/New_York");
         java.time.ZonedDateTime nowET = java.time.ZonedDateTime.now(et);
         java.time.ZonedDateTime closeToday = nowET.toLocalDate().atTime(16, 0).atZone(et);
         java.time.ZonedDateTime lastClose = nowET.isBefore(closeToday) ? closeToday.minusDays(1) : closeToday;
-        int days = "today".equals(period) ? 1 : "all".equals(period) ? 0 : 3;
+        int days = "all".equals(period) ? 0 : 1;
         final java.time.OffsetDateTime since = (days == 0) ? null
                 : lastClose.minusDays(days - 1).toOffsetDateTime();
 
