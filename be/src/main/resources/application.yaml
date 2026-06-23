@@ -78,6 +78,9 @@ app:
     concurrent-requests: 8
   admin:
     api-key: ${ADMIN_API_KEY}
+  swagger:
+    user: ${SWAGGER_USER:finswipe}
+    password: ${SWAGGER_PASSWORD:}
   cors:
     origins: ${CORS_ORIGINS:https://www.finswipe.co.kr}
   cache:

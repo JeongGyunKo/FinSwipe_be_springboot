@@ -28,6 +28,8 @@ public class AppProperties {
     @Valid
     private Admin admin = new Admin();
 
+    private Swagger swagger = new Swagger();
+
     private Cors cors = new Cors();
     private Cache cache = new Cache();
     @Valid
@@ -62,6 +64,15 @@ public class AppProperties {
         @NotBlank
         @Size(min = 16, message = "Admin API key must be at least 16 characters")
         private String apiKey;
+    }
+
+    @Getter
+    @Setter
+    public static class Swagger {
+        /** 스웨거 문서 Basic 인증 사용자명 (기본값 finswipe) */
+        private String user = "finswipe";
+        /** 스웨거 문서 Basic 인증 비밀번호 — SWAGGER_PASSWORD 환경변수로만 주입. 비어 있으면 문서 접근 전면 차단. */
+        private String password = "";
     }
 
     @Getter

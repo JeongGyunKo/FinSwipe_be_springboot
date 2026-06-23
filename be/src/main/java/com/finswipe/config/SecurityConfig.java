@@ -2,6 +2,7 @@ package com.finswipe.config;
 
 import com.finswipe.filter.AdminKeyAuthFilter;
 import com.finswipe.filter.JwtAuthFilter;
+import com.finswipe.filter.SwaggerBasicAuthFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -74,6 +75,8 @@ public class SecurityConfig {
                     res.getWriter().write("{\"error\":\"접근 권한이 없습니다.\"}");
                 })
             )
+            // 스웨거 문서(/swagger-ui, /v3/api-docs)는 Basic 인증(비번 환경변수)으로 보호 — 미설정 시 전면 차단
+            .addFilterBefore(new SwaggerBasicAuthFilter(props), UsernamePasswordAuthenticationFilter.class)
             // 어드민 도구(admin.html 등)가 X-Admin-Key로 뉴스 조회 read에 접근 — 뉴스 read 경로 전용, 일반 뉴스만
             .addFilterBefore(new AdminKeyAuthFilter(props), UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
