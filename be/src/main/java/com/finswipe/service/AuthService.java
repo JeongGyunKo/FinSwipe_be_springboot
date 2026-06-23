@@ -26,7 +26,8 @@ public class AuthService {
     // ── 이메일/비밀번호 회원가입 ──────────────────────────────────────────────
     public Map<String, Object> register(String email, String password, String displayName, String loginId) {
         String normalized = email.strip().toLowerCase();
-        String normalizedLoginId = loginId.strip().toLowerCase();
+        // 아이디는 대소문자 구분 — 원본 케이스 보존 (이메일만 소문자 정규화)
+        String loginIdValue = loginId.strip();
 
         var existingProviders = jdbc.queryForList(
                 "SELECT auth_provider FROM user_profiles WHERE email = ?", String.class, normalized);
@@ -38,7 +39,7 @@ public class AuthService {
         }
 
         Integer loginIdCount = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM user_profiles WHERE login_id = ?", Integer.class, normalizedLoginId);
+                "SELECT COUNT(*) FROM user_profiles WHERE login_id = ?", Integer.class, loginIdValue);
         if (loginIdCount != null && loginIdCount > 0) {
             throw new IllegalArgumentException("이미 사용 중인 아이디입니다.");
         }
@@ -52,7 +53,7 @@ public class AuthService {
                     (id, email, display_name, password_hash, auth_provider, email_verified,
                      email_verify_token, login_id, created_at, updated_at)
                 VALUES (?, ?, ?, ?, 'email', false, ?, ?, NOW(), NOW())
-                """, userId, normalized, displayName, hash, verifyToken, normalizedLoginId);
+                """, userId, normalized, displayName, hash, verifyToken, loginIdValue);
 
         emailService.sendVerificationEmail(normalized, verifyToken);
         log.info("[Auth] 회원가입 완료");
