@@ -132,12 +132,12 @@ public class NewsController {
         final String resolvedUserId = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
                 ? auth.getPrincipal().toString() : null;
 
-        // ET 장 사이클 계산 — 기본 5일치
+        // ET 장 사이클 계산 — 기본 3일치 (오래된 뉴스 유입 방지)
         java.time.ZoneId et = java.time.ZoneId.of("America/New_York");
         java.time.ZonedDateTime nowET = java.time.ZonedDateTime.now(et);
         java.time.ZonedDateTime closeToday = nowET.toLocalDate().atTime(16, 0).atZone(et);
         java.time.ZonedDateTime lastClose = nowET.isBefore(closeToday) ? closeToday.minusDays(1) : closeToday;
-        int days = "today".equals(period) ? 1 : "all".equals(period) ? 0 : 5;
+        int days = "today".equals(period) ? 1 : "all".equals(period) ? 0 : 3;
         final java.time.OffsetDateTime since = (days == 0) ? null
                 : lastClose.minusDays(days - 1).toOffsetDateTime();
 
@@ -186,7 +186,8 @@ public class NewsController {
                 if (a.getTickers() != null) coveredTickers.addAll(a.getTickers());
             }
 
-            // 안 읽은 기사가 없는 티커는 최신 공개 기사 5개로 fallback
+            // 안 읽은 기사가 없는 티커는 최신 공개 기사로 fallback — 단, 조회 기간(since) 내 기사만
+            // (since를 무시하면 13일 전 같은 오래된 기사가 유입됨)
             List<NewsArticle> fallbackArticles = new java.util.ArrayList<>();
             if (tickerFilter == null) {
                 for (String t : userTickers) {
@@ -195,7 +196,13 @@ public class NewsController {
                             List<java.util.UUID> ids = newsRepo.findIdsByTickersOverlap(
                                     "{" + t + "}", 5, 0);
                             if (!ids.isEmpty()) {
-                                fallbackArticles.addAll(newsRepo.findByIdIn(ids));
+                                List<NewsArticle> found = newsRepo.findByIdIn(ids);
+                                if (since != null) {
+                                    found = found.stream()
+                                            .filter(a -> a.getPublishedAt() != null && !a.getPublishedAt().isBefore(since))
+                                            .toList();
+                                }
+                                fallbackArticles.addAll(found);
                             }
                         } catch (Exception ignored) {}
                     }
@@ -331,6 +338,24 @@ public class NewsController {
                 "query", cleaned,
                 "matched_tickers", matchingTickers,
                 "data", data));
+    }
+
+    @Operation(summary = "단일 기사 조회", description = "기사 ID로 단건 조회. 챗 알림·딥링크에서 해당 뉴스로 이동할 때 사용.")
+    @SecurityRequirement(name = "bearerAuth")
+    @GetMapping("/article/{id}")
+    public ResponseEntity<?> getArticle(@PathVariable java.util.UUID id) {
+        return newsRepo.findById(id)
+                .map(a -> {
+                    TechnicalsService.TechnicalsData td = buildTechnicalsMap(List.of(a)).get(repTicker(a));
+                    NewsArticleResponse body = new NewsArticleResponse(
+                            a, tickerService.enrichTickers(a.getTickers()), false,
+                            td != null ? td.indicators() : null,
+                            price(a, td),
+                            td != null ? td.changePct1d() : null,
+                            td != null ? td.sparkline() : null);
+                    return ResponseEntity.ok((Object) body);
+                })
+                .orElseGet(() -> ResponseEntity.status(404).body(Map.of("error", "기사를 찾을 수 없습니다")));
     }
 
     @Operation(summary = "전체 티커 목록", description = "5,500개 미국 주식 티커 + 한국어 회사명. 자동완성에 활용.")

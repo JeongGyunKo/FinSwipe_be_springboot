@@ -18,4 +18,8 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, UUID> 
     @Modifying
     @Query("UPDATE ChatMessage m SET m.isRead = true WHERE m.userId = :userId AND m.isRead = false")
     void markAllReadByUserId(@Param("userId") UUID userId);
+
+    // 미읽음 감성 알림 개수 — "N개의 주요한 뉴스가 있어요" 안내·뱃지용
+    @Query("SELECT COUNT(m) FROM ChatMessage m WHERE m.userId = :userId AND m.role = 'alert' AND m.isRead = false")
+    long countUnreadAlerts(@Param("userId") UUID userId);
 }

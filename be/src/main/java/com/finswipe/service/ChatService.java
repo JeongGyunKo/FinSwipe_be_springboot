@@ -144,6 +144,11 @@ public class ChatService {
         return toDto(assistantMsg);
     }
 
+    /** 미읽음 감성 알림 개수 — "N개의 주요한 뉴스가 있어요" 안내·뱃지용 */
+    public long countUnreadAlerts(UUID userId) {
+        return chatRepo.countUnreadAlerts(userId);
+    }
+
     /** 채팅 히스토리 최근 limit개 — 최신순 반환, 조회 시 미읽음 메시지 읽음 처리 */
     @org.springframework.transaction.annotation.Transactional
     public List<ChatMessageDto> getHistory(UUID userId, int limit) {

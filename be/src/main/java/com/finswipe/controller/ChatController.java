@@ -143,6 +143,17 @@ public class ChatController {
         return rateLimitHeaders(ResponseEntity.ok(), probe).body(Map.of("messages", messages));
     }
 
+    @Operation(summary = "미읽음 알림 개수", description = "읽지 않은 감성 알림(role=alert) 개수. \"N개의 주요한 뉴스가 있어요\" 안내·뱃지용. 챗 히스토리 조회 시 자동 읽음 처리됨.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            { "count": 3 }
+            """)))
+    @GetMapping("/alerts/unread")
+    public ResponseEntity<?> unreadAlertCount(Authentication auth) {
+        UUID userId = extractUserId(auth);
+        if (userId == null) return ResponseEntity.status(401).body(Map.of("error", "인증이 필요합니다"));
+        return ResponseEntity.ok(Map.of("count", chatService.countUnreadAlerts(userId)));
+    }
+
     private ResponseEntity.BodyBuilder rateLimitHeaders(ResponseEntity.BodyBuilder builder,
                                                          ChatRateLimiter.ProbeResult probe) {
         return builder
