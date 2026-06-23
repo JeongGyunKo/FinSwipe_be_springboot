@@ -127,9 +127,10 @@ public class NewsController {
             @RequestParam(defaultValue = "week") String period,
             @RequestParam(required = false) String ticker) {
 
-        // JWT가 있으면 JWT의 userId를 우선 사용 (파라미터 조작 방지)
+        // 보안(IDOR/BOLA 방지): 개인화 userId는 JWT에서만 유도한다.
+        // 쿼리 파라미터 userId는 신뢰하지 않으며(비인증 시 무시), 인증이 없으면 개인화 없이 공개 피드를 반환한다.
         final String resolvedUserId = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
-                ? auth.getPrincipal().toString() : userId;
+                ? auth.getPrincipal().toString() : null;
 
         // ET 장 사이클 계산 — 기본 5일치
         java.time.ZoneId et = java.time.ZoneId.of("America/New_York");
