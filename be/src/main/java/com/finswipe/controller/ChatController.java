@@ -53,6 +53,28 @@ public class ChatController {
         UUID userId = extractUserId(auth);
         if (userId == null) return ResponseEntity.status(401).body(Map.of("error", "인증이 필요합니다"));
 
+        // 내용 검증 먼저 — 빈 본문으로 rate limit 토큰을 소진하는 것을 방지
+        String content = null;
+        try {
+            byte[] bytes = servletRequest.getInputStream().readAllBytes();
+            if (bytes.length > 0) {
+                ChatMessageRequest req = objectMapper.readValue(bytes, ChatMessageRequest.class);
+                content = req != null ? req.content() : null;
+            }
+        } catch (Exception ignored) {}
+
+        if (content == null || content.isBlank()) {
+            ChatRateLimiter.ProbeResult peek = rateLimiter.peek(userId);
+            return rateLimitHeaders(ResponseEntity.badRequest(), peek)
+                    .body(Map.of("error", "메시지를 입력하세요"));
+        }
+        if (content.length() > ChatRateLimiter.MSG_MAX_CHARS) {
+            ChatRateLimiter.ProbeResult peek = rateLimiter.peek(userId);
+            return rateLimitHeaders(ResponseEntity.badRequest(), peek)
+                    .body(Map.of("error", "메시지는 " + ChatRateLimiter.MSG_MAX_CHARS + "자 이하로 입력해주세요"));
+        }
+
+        // 유효한 메시지일 때만 토큰 소비
         ChatRateLimiter.ProbeResult probe = rateLimiter.probe(userId);
         log.debug("[챗봇 레이트리밋] userId={} remaining={} allowed={}", userId, probe.remaining(), probe.allowed());
         if (!probe.allowed()) {
@@ -63,22 +85,6 @@ public class ChatController {
                     .header("X-RateLimit-Reset", String.valueOf(probe.resetEpochSeconds()))
                     .body(Map.of("error", "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."));
         }
-
-        String content = null;
-        try {
-            byte[] bytes = servletRequest.getInputStream().readAllBytes();
-            if (bytes.length > 0) {
-                ChatMessageRequest req = objectMapper.readValue(bytes, ChatMessageRequest.class);
-                content = req != null ? req.content() : null;
-            }
-        } catch (Exception ignored) {}
-
-        if (content == null || content.isBlank())
-            return rateLimitHeaders(ResponseEntity.badRequest(), probe)
-                    .body(Map.of("error", "메시지를 입력하세요"));
-        if (content.length() > ChatRateLimiter.MSG_MAX_CHARS)
-            return rateLimitHeaders(ResponseEntity.badRequest(), probe)
-                    .body(Map.of("error", "메시지는 " + ChatRateLimiter.MSG_MAX_CHARS + "자 이하로 입력해주세요"));
 
         UserContext ctx = loadUserContext(userId);
         ChatMessageDto response = chatService.sendUserMessage(
