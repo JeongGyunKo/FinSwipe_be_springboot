@@ -19,6 +19,7 @@ jobs:
           FINLIGHT_API_KEY: ${{ secrets.FINLIGHT_API_KEY }}
           ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
           GENAI_POSTGRES_DSN: ${{ secrets.GENAI_POSTGRES_DSN }}
+          SWAGGER_PASSWORD: ${{ secrets.SWAGGER_PASSWORD }}
         run: |
           # Spring Boot .env 업데이트
           sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD}|" ~/finswipe/.env
@@ -30,6 +31,16 @@ jobs:
           else
             echo "CORS_ORIGINS=https://www.finswipe.co.kr,http://localhost:5173" >> ~/finswipe/.env
           fi
+          # 스웨거 문서 Basic 인증 (FE 문서 열람용) — 비번은 Secret으로만 주입, 특수문자 안전하게 교체
+          upsert_env() {
+            local key="$1"; shift; local val="$*"
+            grep -v "^${key}=" ~/finswipe/.env > ~/finswipe/.env.tmp 2>/dev/null || true
+            mv ~/finswipe/.env.tmp ~/finswipe/.env
+            echo "${key}=${val}" >> ~/finswipe/.env
+          }
+          upsert_env ENABLE_SWAGGER true
+          upsert_env SWAGGER_USER finswipe
+          upsert_env SWAGGER_PASSWORD "${SWAGGER_PASSWORD}"
           # GenAI .env 업데이트
           sed -i "s|^GENAI_POSTGRES_DSN=.*|GENAI_POSTGRES_DSN=${GENAI_POSTGRES_DSN}|" ~/finswipe/genai/.env
 
