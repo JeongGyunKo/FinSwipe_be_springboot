@@ -704,7 +704,7 @@ function app() {
 
     async loadNews() {
       try {
-        const r = await fetch(`${API}/news/latest?limit=50`);
+        const r = await fetch(`${API}/news/latest?limit=50`, this.h());
         if (r.ok) { const d = await r.json(); this.newsArticles = d.data || []; }
       } catch {}
     },
@@ -785,7 +785,7 @@ function app() {
     async loadTrend() {
       if (!this.trendTicker) return;
       try {
-        const r = await fetch(`${API}/news/tickers/${this.trendTicker}/sentiment-trend`);
+        const r = await fetch(`${API}/news/tickers/${this.trendTicker}/sentiment-trend`, this.h());
         const d = await r.json();
         this.trendData = d.trend || [];
         this.$nextTick(() => this.drawChart());

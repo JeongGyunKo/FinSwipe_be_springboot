@@ -1,5 +1,6 @@
 package com.finswipe.config;
 
+import com.finswipe.filter.AdminKeyAuthFilter;
 import com.finswipe.filter.JwtAuthFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final AppProperties props;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -72,6 +74,8 @@ public class SecurityConfig {
                     res.getWriter().write("{\"error\":\"접근 권한이 없습니다.\"}");
                 })
             )
+            // 어드민 도구(admin.html 등)가 X-Admin-Key로 뉴스 조회 read에 접근 — 뉴스 read 경로 전용, 일반 뉴스만
+            .addFilterBefore(new AdminKeyAuthFilter(props), JwtAuthFilter.class)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
