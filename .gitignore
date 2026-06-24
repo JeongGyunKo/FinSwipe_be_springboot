@@ -41,6 +41,14 @@ src/main/resources/application-local.yaml
 be/src/main/resources/application-local.yaml
 **/application-local.yaml
 .env
+**/.env
+
+### Claude Code (절대 커밋 금지) ###
+.claude/
+.claude/**
+CLAUDE.local.md
+*.pem
+*.key
 
 ### Python (genai/) ###
 __pycache__/
