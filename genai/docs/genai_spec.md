@@ -119,8 +119,10 @@
 
 현재 파이프라인 구성:
 
-- 감성 분석: FinBERT 기반
-- 설명 가능성(XAI): LIME 기반 sentence-level explanation
+- 감성 분석: FinBERT (`ProsusAI/finbert`) 로컬 모델 — Positive / Negative / Neutral 분류 + 혼합(mixed) 신호 감지
+- 설명 가능성(XAI): FinBERT 어텐션 기반 sentence-level explanation — 마지막 레이어 [CLS] 어텐션을 토큰→문장 단위로 집계해 근거 문장 하이라이트 (explanation_method: `attention_sentence`)
+- 요약 · 번역 · 개인화 · 챗봇 · 퀴즈 코치: Gemini (`gemini-2.5-flash-lite`)
+- 기술 지표: yfinance 기반 RSI(14) · MACD(12/26/9) · 거래량 비율
 
 ## 10. 제약 및 해석 주의사항
 

@@ -1832,7 +1832,7 @@ components:
         weight:
           type: number
           title: Weight
-          description: Signed LIME contribution weight for the explained label.
+          description: Relative model salience score for the explained sentence highlight.
         importance_score:
           type: number
           minimum: 0.0
