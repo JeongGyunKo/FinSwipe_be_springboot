@@ -435,7 +435,7 @@ public class ChatService {
             sb.append("\n");
         }
 
-        if (score != null) sb.append("감성 점수: ").append(String.format("%.2f", score));
+        if (score != null) sb.append("감성 점수: ").append(String.format("%.0f", score * 100));
 
         if (isPositive) sb.append("\n→ 포트폴리오 편입을 고려해볼 시점일 수 있습니다.");
         else if (isNegative) sb.append("\n→ 단기 리스크 관리가 필요할 수 있습니다.");
