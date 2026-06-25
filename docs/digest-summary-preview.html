@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinSwipe 다이제스트 요약 — 새 디자인 미리보기</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #e8edf2; font-family: -apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; min-height:100vh; padding:24px; display:flex; gap:24px; justify-content:center; align-items:flex-start; flex-wrap:wrap; }
+
+.phone-wrap { display:flex; flex-direction:column; align-items:center; }
+.phone-lbl { font-size:11px; color:#8a9ab0; font-weight:700; letter-spacing:.06em; margin-bottom:6px; text-transform:uppercase; }
+.phone { width:300px; background:#dde3ea; border-radius:30px; padding:7px; box-shadow:0 8px 28px rgba(0,0,0,.14); }
+.app { background:#fff; border-radius:24px; overflow:hidden; display:flex; flex-direction:column; height:620px; }
+.status-bar { padding:9px 15px 2px; font-size:10px; color:#9aa5b4; display:flex; justify-content:space-between; }
+.app-header { padding:5px 14px 9px; border-bottom:1px solid #f0f2f5; }
+.app-logo { font-size:16px; font-weight:800; color:#1a1a2e; display:flex; align-items:center; gap:4px; }
+.app-logo em { color:#2563eb; font-style:normal; }
+.app-ticker { font-size:19px; font-weight:800; color:#1a1a2e; margin-top:5px; }
+.app-price  { font-size:12px; color:#6b7a90; margin-top:1px; }
+.tab-bar { display:flex; border-bottom:1.5px solid #f0f2f5; padding:0 14px; flex-shrink:0; }
+.tab { padding:8px 13px; font-size:12px; font-weight:600; color:#9aa5b4; border-bottom:2.5px solid transparent; margin-bottom:-1.5px; }
+.tab.active { color:#2563eb; border-bottom-color:#2563eb; }
+.content { flex:1; overflow-y:auto; padding:12px 13px 10px; display:flex; flex-direction:column; gap:11px; }
+.content::-webkit-scrollbar { width:3px; } .content::-webkit-scrollbar-thumb { background:#dce2ea; border-radius:2px; }
+
+.card { background:#f8f9fc; border-radius:12px; padding:11px 13px; border:1.5px solid #eff1f5; }
+.lbl { font-size:10px; font-weight:700; color:#9aa5b4; letter-spacing:.07em; text-transform:uppercase; margin-bottom:7px; }
+.flow-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+.fc { background:#f8f9fc; border-radius:10px; padding:9px 10px; border-left:3px solid #e2e8f0; }
+.fc.pos { border-left-color:#22c55e; } .fc.neg { border-left-color:#ef4444; } .fc.neu { border-left-color:#9aa5b4; }
+.fc-date { font-size:9px; color:#9aa5b4; margin-bottom:2px; }
+.fc-title { font-size:11px; font-weight:700; color:#1a1a2e; line-height:1.3; }
+.fc-sub { font-size:10px; color:#9aa5b4; margin-top:2px; line-height:1.3; }
+.badge { font-size:10px; font-weight:700; padding:3px 8px; border-radius:20px; }
+.b-pos { background:#f0fdf4; color:#16a34a; } .b-neg { background:#fef2f2; color:#ef4444; }
+.b-neu { background:#f1f5f9; color:#6b7a90; } .b-blue { background:#eff6ff; color:#2563eb; }
+
+.sig-card { background:#fff; border:1.5px solid #eef1f5; border-radius:12px; padding:12px 13px; }
+.verdict-head { font-size:12px; font-weight:800; color:#1a1a2e; line-height:1.45; margin-bottom:10px; }
+.sig-chips { display:flex; gap:4px; }
+.chip { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; padding:7px 2px; border-radius:9px; border:1px solid #e2e8f0; background:#f8f9fc; }
+.chip-ico { font-size:13px; line-height:1; }
+.chip-lbl { font-size:8px; color:#9aa5b4; margin-top:3px; letter-spacing:.01em; }
+.chip-val { font-size:9.5px; font-weight:800; margin-top:1px; color:#6b7a90; font-variant-numeric:tabular-nums; }
+.chip.g { background:#f0fdf4; border-color:#bbf7d0; } .chip.g .chip-val { color:#16a34a; }
+.chip.r { background:#fef2f2; border-color:#fecaca; } .chip.r .chip-val { color:#ef4444; }
+.chip.a { background:#fff7ed; border-color:#fed7aa; } .chip.a .chip-val { color:#ea580c; }
+.chip.b { background:#eff6ff; border-color:#bfdbfe; } .chip.b .chip-val { color:#2563eb; }
+.verdict-body { margin-top:10px; padding-top:9px; border-top:1px solid #f0f2f5; }
+.vb-line { font-size:11px; color:#475569; line-height:1.6; display:flex; gap:6px; margin-bottom:5px; }
+.vb-line:last-child { margin-bottom:0; }
+.vb-line b { color:#2563eb; flex-shrink:0; font-weight:800; }
+
+.grp-lbl { font-size:9.5px; font-weight:700; color:#8a9ab0; margin:9px 0 5px; letter-spacing:.03em; }
+.grp-lbl:first-child { margin-top:0; }
+.bc { background:#fff; border:1.5px solid #eef1f5; border-left-width:3px; border-radius:11px; padding:10px 12px; margin-bottom:6px; }
+.bc.g { border-left-color:#22c55e; } .bc.r { border-left-color:#ef4444; } .bc.n { border-left-color:#9aa5b4; }
+.bc-top { display:flex; align-items:center; gap:5px; margin-bottom:4px; }
+.bc-pill { font-size:9px; font-weight:700; padding:2px 7px; border-radius:20px; }
+.bc-date { font-size:9px; color:#b0bbc9; margin-left:auto; }
+.bc-hl { font-size:11.5px; font-weight:700; color:#1a1a2e; line-height:1.4; margin-bottom:3px; }
+.bc-body { font-size:10.5px; color:#6b7a90; line-height:1.55; }
+.tflow { position:relative; }
+.tstep { position:relative; padding:0 0 13px 21px; }
+.tstep:last-child { padding-bottom:0; }
+.tstep::after { content:''; position:absolute; left:4px; top:6px; bottom:0; width:2px; background:#eef1f5; }
+.tstep:last-child::after { display:none; }
+.tdot { position:absolute; left:0; top:3px; width:10px; height:10px; border-radius:50%; background:#fff; border:2px solid currentColor; z-index:1; }
+.tstep.s1 { color:#94a3b8; } .tstep.s2 { color:#2563eb; } .tstep.s3 { color:#16a34a; } .tstep.tneg { color:#ef4444; }
+.tstep-lbl { font-size:9.5px; font-weight:700; letter-spacing:.02em; margin-bottom:3px; }
+.tstep-txt { font-size:11px; color:#475569; line-height:1.6; }
+.flow-note { font-size:9.5px; color:#9aa5b4; margin-top:9px; padding-top:7px; border-top:1px solid #f0f2f5; }
+
+.note { width:100%; max-width:640px; font-size:13px; color:#475569; line-height:1.6; background:#fff; border-radius:12px; padding:14px 16px; box-shadow:0 2px 8px rgba(0,0,0,.06); }
+.note b { color:#2563eb; }
+</style>
+</head>
+<body>
+
+<div class="note">
+  <b>FinSwipe 다이제스트 — 요약 탭 새 디자인 (샘플 데이터)</b><br>
+  실제 <code>digest.html</code>과 동일한 CSS·렌더 로직입니다. 종합 신호 평결 카드 → 신호 칩 5종 → 불릿 요약 → 어제·오늘 흐름 → 감성별 색상 뉴스 카드 순으로 하루 인사이트를 종합합니다.
+</div>
+
+<div class="phone-wrap">
+  <div class="phone-lbl">요약 (NEW)</div>
+  <div class="phone"><div class="app">
+    <div class="status-bar"><span>메인(홈)</span><span>오후 01:21</span></div>
+    <div class="app-header">
+      <div class="app-logo"><em>↗</em> FinSwipe</div>
+      <div class="app-ticker">NVDA</div>
+      <div class="app-price" id="s-price"></div>
+    </div>
+    <div class="tab-bar"><div class="tab">뉴스</div><div class="tab active">요약</div><div class="tab">보조지표</div></div>
+    <div class="content" id="summary-content"></div>
+  </div></div>
+</div>
+
+<script>
+const d = {
+  summary: "엔비디아는 분기 매출 $81.6B로 전년 대비 85% 성장하며 역대 최고 실적을 기록했어요. $80B 규모 자사주 매입과 배당 25배 인상으로 주주 환원 의지를 분명히 했어요. 다만 중국 데이터센터 매출이 사실상 제로로 떨어졌고, SMCI 서버 밀수 스캔들로 수출 규제 강화 우려가 커졌어요. RSI는 62로 과열에서 내려왔지만 아직 중립선 위에 있어요. 종합적으로 펀더멘털은 견고하나 단기 불확실성이 공존하는 국면이에요.",
+  articles_count: 7,
+  sentiment_overview: { avg_score: 0.22, positive: 4, negative: 2, neutral: 1 },
+  sections: {
+    "어제의_핵심": "어제 장 마감 이후 엔비디아는 분기 매출 $81.6B(전년比 +85%)로 역대 최고 실적을 발표했고, $80B 자사주 매입과 배당 25배 인상까지 내놨어요. 다만 SMCI 서버 밀수 스캔들이 터지며 중국 수출 규제 우려가 부각됐어요.",
+    "주가_반응": "역대급 실적에도 주가는 -1.9% 하락했어요. 기대가 이미 가격에 반영된 'sell the news' 흐름이고, RSI도 과열(78)에서 62로 식는 중이라 단기 차익실현 압력이 컸어요.",
+    "오늘_전망": "펀더멘털은 견고하지만 중국 리스크와 규제 불확실성이 단기 변수예요. $215 지지 여부와 거래량 동반 반등이 나오는지가 오늘의 핵심 체크포인트예요."
+  },
+  technical_indicators: { current_price: 215.33, change_pct_1d: -1.90, change_pct_1m: 8.4, volume_ratio: 0.82, RSI: 62, RSI_signal: '중립 과열', MACD: { trend: '약세 전환', histogram: -0.3 } },
+  news_articles: [
+    { sentiment_label:'positive', sentiment_score:0.78, headline_ko:'엔비디아, 역대 최고 분기 실적… 매출 85% 급증', summary_ko:'데이터센터 수요 폭발로 매출이 $81.6B를 기록했어요.', published_at:'2026-05-21' },
+    { sentiment_label:'positive', sentiment_score:0.65, headline_ko:'$80B 자사주 매입 + 배당 25배 인상 발표', summary_ko:'경영진이 저평가를 인식하고 대규모 주주 환원에 나섰어요.', published_at:'2026-05-23' },
+    { sentiment_label:'negative', sentiment_score:-0.58, headline_ko:'SMCI 서버 밀수 스캔들… 수출 규제 강화 우려', summary_ko:'대만에서 엔비디아 칩 서버 밀수로 3명이 구금됐어요.', published_at:'2026-05-26' },
+    { sentiment_label:'negative', sentiment_score:-0.40, headline_ko:'젠슨 황 "중국 AI 시장 화웨이에 사실상 양보"', summary_ko:'중국 데이터센터 매출이 제로로 떨어졌어요.', published_at:'2026-05-25' },
+    { sentiment_label:'neutral', sentiment_score:0.05, headline_ko:'애널리스트, 목표주가 $500으로 상향', summary_ko:'일부 증권사가 신고가 목표가를 제시했어요.', published_at:'2026-05-22' }
+  ],
+  user_tendency: '성장 추구형'
+};
+const digestData = d;
+
+function renderPriceHeader(d) {
+  const ti = d.technical_indicators || {};
+  const p = ti.current_price ? `$${Number(ti.current_price).toFixed(2)}` : '';
+  const c = ti.change_pct_1d != null ? (ti.change_pct_1d>=0?`+${ti.change_pct_1d.toFixed(2)}%`:`${ti.change_pct_1d.toFixed(2)}%`) : '';
+  const col = ti.change_pct_1d > 0 ? '#16a34a' : ti.change_pct_1d < 0 ? '#ef4444' : '#6b7a90';
+  document.getElementById('s-price').innerHTML = p ? `${p} <span style="color:${col};font-weight:700;">${c}</span>` : '';
+}
+
+function renderSummary(d) {
+  const ti = d.technical_indicators || {};
+  const ov = d.sentiment_overview || {};
+  const c1d = ti.change_pct_1d ?? 0;
+  const c1m = ti.change_pct_1m ?? 0;
+  const vr  = ti.volume_ratio ?? 1;
+  const vp  = ((vr-1)*100).toFixed(0);
+  const rsi = ti.RSI ?? 50;
+  const trend = (ti.MACD && ti.MACD.trend) || '중립';
+  const avg = ov.avg_score ?? 0;
+
+  const sCls = avg>0.15?'g':avg<-0.15?'r':'n';
+  const sVal = avg>0.15?'긍정':avg<-0.15?'부정':'중립';
+  const sIco = avg>0.15?'🟢':avg<-0.15?'🔴':'⚪';
+  const rCls = rsi>=70?'a':rsi<=30?'g':'n';
+  const vCls = vr>1.2?'b':'n';
+  const tShort = trend.includes('상승')?'강세':trend.includes('하락')?'약세':'중립';
+  const tCls = trend.includes('상승')?'g':trend.includes('하락')?'r':'n';
+  const cCls = c1d>0?'g':c1d<0?'r':'n';
+  const chip = (ico,lbl,val,cls)=>`<div class="chip ${cls}"><div class="chip-ico">${ico}</div><div class="chip-lbl">${lbl}</div><div class="chip-val">${val}</div></div>`;
+
+  document.getElementById('summary-content').innerHTML = `
+    <div>
+      <div class="lbl">오늘 한마디</div>
+      <div class="sig-card">
+        <div class="verdict-head">${deriveVerdict(avg, c1d, rsi)}</div>
+        <div class="sig-chips">
+          ${chip(sIco,'감성',sVal,sCls)}
+          ${chip('📊','RSI',rsi.toFixed(0),rCls)}
+          ${chip('🔊','거래량',(vp>0?'+':'')+vp+'%',vCls)}
+          ${chip('⚡','추세',tShort,tCls)}
+          ${chip(c1d>=0?'▲':'▼','1일',(c1d>=0?'+':'')+c1d.toFixed(1)+'%',cCls)}
+        </div>
+      </div>
+    </div>
+    <div id="multiday-timeline"></div>
+    ${renderFlow(d, c1m)}
+    ${renderNewsSection(d)}
+  `;
+  renderMockTimeline();
+}
+
+const MOCK_SESSIONS = [
+  { label:'5/21', sentiment:'positive', count:3, articles:[{headlineKo:'엔비디아, 역대 최고 분기 실적… 매출 85% 급증'}] },
+  { label:'5/22', sentiment:'neutral',  count:1, articles:[{headlineKo:'애널리스트, 목표주가 $500으로 상향'}] },
+  { label:'5/23', sentiment:'positive', count:2, articles:[{headlineKo:'$80B 자사주 매입 + 배당 25배 인상 발표'}] },
+  { label:'5/26', sentiment:'negative', count:2, articles:[{headlineKo:'SMCI 서버 밀수 스캔들… 수출 규제 강화 우려'}] }
+];
+function sentKoShort(s) { return s==='positive'?'긍정':s==='negative'?'부정':'중립'; }
+function renderMockTimeline() {
+  const el = document.getElementById('multiday-timeline'); if (!el) return;
+  const sessions = MOCK_SESSIONS, last = sessions.length - 1;
+  el.innerHTML = `
+    <div class="lbl">거래일별 흐름 <span style="color:#b0bbc9;font-weight:400;letter-spacing:0;">· 미국장 마감 기준</span></div>
+    <div class="card" style="background:#fff;"><div class="tflow">
+    ${sessions.map((s, idx) => {
+      const cls = s.sentiment==='positive'?'s3':s.sentiment==='negative'?'tneg':'s1';
+      const hl = (s.articles && s.articles[0] && s.articles[0].headlineKo) || '주요 뉴스';
+      const more = s.count > 1 ? ` <span style="color:#b0bbc9;">+${s.count-1}건</span>` : '';
+      return `<div class="tstep ${cls}"><span class="tdot"></span>
+        <div class="tstep-lbl">${s.label} 장${idx===last?' · 오늘자':''} <span style="color:#b0bbc9;font-weight:400;">${sentKoShort(s.sentiment)}</span></div>
+        <div class="tstep-txt">${hl}${more}</div></div>`;
+    }).join('')}
+    </div></div>`;
+}
+
+function renderFlow(d, c1m) {
+  const s = d.sections || {};
+  const y = (s['어제의_핵심'] || '').trim();
+  const r = (s['주가_반응']   || '').trim();
+  const t = (s['오늘_전망']   || '').trim();
+  const step = (cls,lbl,txt) => txt
+    ? `<div class="tstep ${cls}"><span class="tdot"></span><div class="tstep-lbl">${lbl}</div><div class="tstep-txt">${txt}</div></div>`
+    : '';
+  let inner;
+  if (y || r || t) {
+    inner = `<div class="tflow">
+      ${step('s1','어제 마감 이후 무슨 일이', y)}
+      ${step('s2','주가는 이렇게 반응', r)}
+      ${step('s3','그래서 오늘 볼 것은', t)}
+    </div>`;
+  } else {
+    inner = formatSummary(d.summary);
+  }
+  const note = (c1m != null) ? `<div class="flow-note">최근 1개월 ${c1m>=0?'+':''}${c1m.toFixed(1)}%</div>` : '';
+  return `<div>
+    <div class="lbl">어제 → 오늘 흐름</div>
+    <div class="card" style="background:#fff;">${inner}${note}</div>
+  </div>`;
+}
+
+function deriveVerdict(avg, c1d, rsi) {
+  const sent = avg>0.15?'pos':avg<-0.15?'neg':'neu';
+  let s;
+  if (sent==='pos' && c1d>=0)      s='긍정적인 뉴스 흐름 속에 주가도 상승했어요. 우호적인 하루였어요.';
+  else if (sent==='pos' && c1d<0)  s='뉴스는 긍정적이지만 주가는 하락했어요. 차익실현 움직임일 수 있어요.';
+  else if (sent==='neg' && c1d<0)  s='부정적인 뉴스와 함께 주가도 약세였어요. 주의가 필요한 흐름이에요.';
+  else if (sent==='neg' && c1d>=0) s='악재에도 주가는 버텼어요. 저가 매수세가 들어온 모습이에요.';
+  else                              s='오늘 뉴스 흐름은 중립적이에요. 아직 뚜렷한 방향성은 없어요.';
+  if (rsi>=70)      s+=' RSI가 과열 구간이라 단기 변동성에 유의하세요.';
+  else if (rsi<=30) s+=' RSI는 과매도 구간으로 기술적 반등 가능성이 있어요.';
+  return s;
+}
+
+function formatSummary(txt) {
+  if (!txt || !txt.trim()) return '<div class="vb-line"><span>아직 종합 분석 데이터가 없어요.</span></div>';
+  let parts = txt.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  if (parts.length <= 1) {
+    try { parts = txt.split(/(?<=[다요까죠]\.)\s+|(?<=[.!?])\s+/); }
+    catch(e) { parts = txt.split(/(?:다\.|[.!?])\s+/); }
+    parts = parts.map(s=>s.trim()).filter(Boolean);
+  }
+  if (parts.length > 7) parts = parts.slice(0,7);
+  return parts.map(p=>`<div class="vb-line"><b>•</b><span>${p}</span></div>`).join('');
+}
+
+function renderNewsSection(d) {
+  const arts = d.news_articles || d.articles || [];
+  if (!arts.length) return '';
+  const grp = { pos:[], neg:[], neu:[] };
+  arts.forEach(a => {
+    const k = a.sentiment_label==='positive'?'pos':a.sentiment_label==='negative'?'neg':'neu';
+    grp[k].push(a);
+  });
+  const groups = [
+    ['pos','🟢 호재 · 긍정','g','b-pos','긍정'],
+    ['neg','🔴 악재 · 주의','r','b-neg','부정'],
+    ['neu','⚪ 주목할 뉴스','n','b-neu','중립']
+  ];
+  let html = '<div><div class="lbl">오늘의 뉴스</div>';
+  let any = false;
+  groups.forEach(([k,label,bc,pill,sk]) => {
+    const list = grp[k].slice(0,3);
+    if (!list.length) return;
+    any = true;
+    html += `<div class="grp-lbl">${label} ${grp[k].length}건</div>`;
+    list.forEach(a => {
+      const dt = a.published_at ? new Date(a.published_at).toLocaleDateString('ko-KR',{month:'numeric',day:'numeric'}) : '';
+      let sc = '';
+      if (a.sentiment_score != null) {
+        const raw = a.sentiment_score;
+        const v = Math.abs(raw) <= 1 ? Math.round(raw*100) : Math.round(raw);
+        sc = ` ${v>=0?'+':''}${v}`;
+      }
+      html += `<div class="bc ${bc}">
+        <div class="bc-top"><span class="bc-pill ${pill}">${sk}${sc}</span><span class="bc-date">${dt}</span></div>
+        <div class="bc-hl">${a.headline_ko||a.headline||''}</div>
+        ${a.summary_ko?`<div class="bc-body">${a.summary_ko}</div>`:''}
+      </div>`;
+    });
+  });
+  html += '</div>';
+  return any ? html : '';
+}
+
+renderPriceHeader(d);
+renderSummary(d);
+</script>
+</body>
+</html>

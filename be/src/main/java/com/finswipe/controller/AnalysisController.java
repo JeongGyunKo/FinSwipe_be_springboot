@@ -24,9 +24,26 @@ import java.nio.charset.StandardCharsets;
 public class AnalysisController {
 
     private final RestClient genaiClient;
+    private final com.finswipe.service.TickerTimelineService timelineService;
 
-    public AnalysisController(@Qualifier("genaiRestClient") RestClient genaiClient) {
+    public AnalysisController(@Qualifier("genaiRestClient") RestClient genaiClient,
+                              com.finswipe.service.TickerTimelineService timelineService) {
         this.genaiClient = genaiClient;
+        this.timelineService = timelineService;
+    }
+
+    /** 종목 멀티데이 이벤트 타임라인 — 미국 거래 세션(16:00 ET 마감) 단위. 사용자 앱(JWT). */
+    @Operation(summary = "거래일별 이벤트 타임라인",
+            description = "최근 N개 미국 거래 세션(16:00 ET 마감 기준)별 대표 뉴스·감성. 다이제스트 멀티데이 흐름용. ticker 필수, sessions 기본 5(1~10).")
+    @GetMapping("/ticker-timeline")
+    public ResponseEntity<java.util.Map<String, Object>> tickerTimeline(
+            @RequestParam String ticker,
+            @RequestParam(defaultValue = "5") int sessions) {
+        try {
+            return ResponseEntity.ok(timelineService.getTimeline(ticker, sessions));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));
+        }
     }
 
     /**
