@@ -231,8 +231,18 @@ body { background: #e8edf2; font-family: -apple-system,'Pretendard','Apple SD Go
 <script>
 const API = 'https://api.finswipe.co.kr';
 const params = new URLSearchParams(location.search);
-const adminKey = params.get('adminKey') || '';
 const userId   = params.get('userId')   || '';
+
+// 어드민 키는 URL에 노출하지 않음(브라우저 히스토리·서버 액세스 로그·리퍼러 유출 방지).
+// sessionStorage 우선, 레거시 URL 키(?adminKey=)는 흡수 후 즉시 주소에서 제거.
+let adminKey = sessionStorage.getItem('adminKey') || '';
+const urlKey = params.get('adminKey');
+if (urlKey) {
+  adminKey = urlKey;
+  sessionStorage.setItem('adminKey', urlKey);
+  params.delete('adminKey');
+  history.replaceState(null, '', location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash);
+}
 
 let digestData = null, currentTicker = '', currentUser = null;
 
@@ -245,8 +255,12 @@ tick(); setInterval(tick, 30000);
 
 // 초기 로드
 window.addEventListener('load', async () => {
+  if (!adminKey) {
+    adminKey = (prompt('어드민 키를 입력하세요') || '').trim();
+    if (adminKey) sessionStorage.setItem('adminKey', adminKey);
+  }
   if (!adminKey || !userId) {
-    showInitError('잘못된 URL입니다. 어드민 페이지에서 다이제스트 버튼을 눌러주세요.');
+    showInitError('잘못된 접근입니다. 어드민 페이지에서 다이제스트 버튼을 눌러주세요.');
     return;
   }
   try {

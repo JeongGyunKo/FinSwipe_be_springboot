@@ -768,8 +768,9 @@ function app() {
     },
 
     openDigest(u) {
-      const url = `/digest.html?adminKey=${encodeURIComponent(this.key)}&userId=${encodeURIComponent(u.userId)}`;
-      window.open(url, '_blank');
+      // 어드민 키는 URL에 노출하지 않음 — sessionStorage로 전달(window.open 시 새 탭에 복사됨)
+      sessionStorage.setItem('adminKey', this.key);
+      window.open(`/digest.html?userId=${encodeURIComponent(u.userId)}`, '_blank');
     },
 
     confirmDelete(u) { this.closeAllModals(); this.deleteTarget = u; this.deleteModal = true; },

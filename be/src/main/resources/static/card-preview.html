@@ -391,7 +391,7 @@ async function init() {
     root.innerHTML =
       `<div style="padding:80px;text-align:center;color:#64748b;font-size:14px;">📡 ${ticker} 데이터 로딩 중...</div>`;
     try {
-      const adminKey = new URLSearchParams(location.search).get('adminKey') || '';
+      const adminKey = sessionStorage.getItem('adminKey') || new URLSearchParams(location.search).get('adminKey') || '';
       const r = await fetch(`/news/latest?ticker=${encodeURIComponent(ticker)}&limit=3`,
         adminKey ? { headers: { 'X-Admin-Key': adminKey } } : {});
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
