@@ -34,7 +34,19 @@ public class AnalysisController {
 
     /** 종목 멀티데이 이벤트 타임라인 — 미국 거래 세션(16:00 ET 마감) 단위. 사용자 앱(JWT). */
     @Operation(summary = "거래일별 이벤트 타임라인",
-            description = "최근 N개 미국 거래 세션(16:00 ET 마감 기준)별 대표 뉴스·감성. 다이제스트 멀티데이 흐름용. ticker 필수, sessions 기본 5(1~10).")
+            description = "최근 N개 미국 거래 세션(16:00 ET 마감 기준)별 대표 뉴스·감성. 다이제스트 멀티데이 흐름용. ticker 필수, sessions 기본 5(1~10). "
+                    + "응답 sessions는 과거→오늘 오름차순(마지막이 오늘자).")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            {
+              "ticker": "NVDA",
+              "sessions": [
+                { "date": "2026-06-24", "label": "6/24", "count": 73, "sentiment": "neutral", "avgScore": -0.05,
+                  "articles": [ { "headlineKo": "엔비디아 데이터센터 수요 둔화 우려", "sentimentLabel": "neutral", "sentimentScore": 0.12 } ] },
+                { "date": "2026-06-25", "label": "6/25", "count": 11, "sentiment": "positive", "avgScore": 0.31,
+                  "articles": [ { "headlineKo": "엔비디아 신규 칩 공개", "sentimentLabel": "positive", "sentimentScore": 0.64 } ] }
+              ]
+            }
+            """)))
     @GetMapping("/ticker-timeline")
     public ResponseEntity<java.util.Map<String, Object>> tickerTimeline(
             @RequestParam String ticker,
@@ -112,7 +124,9 @@ public class AnalysisController {
         return proxy("/api/v1/analysis/curate", "{\"user_id\":\"" + uid + "\"}");
     }
 
-    @Operation(summary = "티커별 일일 다이제스트", description = "관심 티커 각각에 대해 어제 장 마감 이후 기사 전체를 종합 분석 — 성향·레벨 맞춤 요약 + RSI/MACD 보조지표 반환")
+    @Operation(summary = "티커별 일일 다이제스트",
+            description = "관심 티커 각각에 대해 어제 장 마감 이후 기사 전체를 종합 분석. 성향·레벨 맞춤 3단 요약(`sections`: 어제의_핵심/주가_반응/오늘_전망) + 대표 기사(`news_articles`, 최대 5건) + RSI/MACD 보조지표. "
+                    + "`sections`는 뉴스 없음·생성 실패 시 null이며, 이 경우 한 덩어리 `summary`로 폴백한다.")
     @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
             {
               "digests": [
@@ -120,7 +134,16 @@ public class AnalysisController {
                   "ticker": "AAPL",
                   "articles_count": 5,
                   "sentiment_overview": { "positive": 3, "negative": 1, "neutral": 1, "avg_score": 0.42 },
-                  "summary": "오늘 AAPL은 어닝서프라이즈를 기록하며 긍정적인 흐름을 보였습니다...",
+                  "summary": "어제 마감 이후 애플은 어닝서프라이즈를 기록했고, 시간외에서 +2% 반응했으며, 오늘은 가이던스 코멘트에 주목할 필요가 있습니다.",
+                  "sections": {
+                    "어제의_핵심": "어제 장 마감 후 애플이 시장 예상을 웃도는 분기 실적을 발표했습니다.",
+                    "주가_반응": "실적 발표 직후 시간외에서 +2% 반응했고, RSI는 68로 과열 직전 구간입니다.",
+                    "오늘_전망": "가치투자형 관점에서 오늘은 서비스 매출 가이던스 코멘트를 확인할 필요가 있습니다."
+                  },
+                  "news_articles": [
+                    { "headline_ko": "애플, 분기 실적 어닝서프라이즈", "headline": "Apple beats Q3 estimates",
+                      "sentiment_label": "positive", "sentiment_score": 0.78, "published_at": "2026-06-24T20:15:00Z" }
+                  ],
                   "technical_indicators": {
                     "current_price": 194.5,
                     "change_pct_1d": 2.1,
@@ -134,7 +157,7 @@ public class AnalysisController {
               ],
               "user_level": 3,
               "user_tendency": "모멘텀형 투자자",
-              "generated_at": "2024-07-26T15:30:00Z"
+              "generated_at": "2026-06-25T15:30:00Z"
             }
             """)))
     @PostMapping("/digest")
