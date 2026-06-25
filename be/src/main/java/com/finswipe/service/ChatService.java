@@ -116,9 +116,11 @@ public class ChatService {
         // 상장폐지 예정 종목 언급 시 즉시 안내 (인사이트 여부 무관)
         String delistingNotice = buildDelistingNotice(userContent);
 
+        // 관심 종목 뉴스 목록 질문("관심종목 뉴스 보여줘") → 관심종목 전체 최신 기사 목록 (LLM 토큰 0)
         // 워치리스트 질문("내 관심종목 뭐야") → DB 워치리스트 직접 응답 (LLM 토큰 0)
         // 그 외 종목 인사이트 질문 → 분석된 DB 데이터로 응답 (LLM 토큰 0)
-        String aiContent = tryWatchlistAnswer(userContent, tickers)
+        String aiContent = tryWatchlistNews(userContent, tickers)
+                .or(() -> tryWatchlistAnswer(userContent, tickers))
                 .or(() -> tryCachedInsight(userContent, tickers)
                         .map(insight -> delistingNotice != null ? delistingNotice + "\n\n" + insight : insight))
                 .orElseGet(() -> {
@@ -323,6 +325,70 @@ public class ChatService {
                     + "\n\n특정 종목이 궁금하면 \"" + clean.get(0) + " 어때?\"처럼 물어보세요.");
         } catch (Exception e) {
             log.warn("[챗봇] 워치리스트 응답 분기 실패 — 폴백: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    private static final List<String> NEWS_INTENT = List.of("뉴스", "소식", "기사");
+
+    /**
+     * "관심 종목 뉴스 목록 보여줘" 류 질문 → 관심종목 전체의 최신 분석 기사 목록을 직접 응답 (LLM 토큰 0).
+     * 특정 티커가 언급된 질문(예: "AAPL 뉴스")은 그 종목 인사이트 의도이므로 제외 → tryCachedInsight가 처리.
+     */
+    private Optional<String> tryWatchlistNews(String message, List<String> watchlist) {
+        try {
+            boolean newsIntent = NEWS_INTENT.stream().anyMatch(message::contains);
+            boolean watchlistCtx = message.contains("관심")
+                    || WATCHLIST_INTENT.stream().anyMatch(message::contains);
+            if (!newsIntent || !watchlistCtx) return Optional.empty();
+            // 특정 티커가 언급된 질문은 그 종목 인사이트 의도 → 제외
+            if (!tickerService.findMentionedTickers(message).isEmpty()) return Optional.empty();
+
+            List<String> clean = watchlist == null ? List.of()
+                    : watchlist.stream()
+                        .map(t -> t.replace("\"", "").strip().toUpperCase())
+                        .filter(s -> !s.isEmpty())
+                        .distinct()
+                        .toList();
+            if (clean.isEmpty()) {
+                return Optional.of("아직 관심 종목으로 등록한 티커가 없어요. "
+                        + "뉴스 카드에서 오른쪽으로 스와이프하면 관심 종목에 추가할 수 있어요!");
+            }
+
+            String arr = "{" + String.join(",", clean) + "}";
+            List<UUID> ids = newsRepo.findIdsByTickersOverlap(arr, 6, 0);
+            if (ids == null || ids.isEmpty()) {
+                return Optional.of("관심 종목(" + String.join(", ", clean) + ")에 대해 분석된 최신 뉴스가 아직 없어요. "
+                        + "새 기사가 분석되면 여기서 바로 보여드릴게요!");
+            }
+            List<NewsArticle> articles = newsRepo.findByIdIn(ids);
+            Set<String> wl = new java.util.HashSet<>(clean);
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("⭐ 관심 종목 최신 뉴스 ").append(articles.size()).append("건\n");
+            for (NewsArticle a : articles) {
+                String hl = a.getHeadlineKo() != null ? a.getHeadlineKo() : a.getHeadline();
+                if (hl == null) continue;
+                String sym = a.getTickers() == null ? null
+                        : a.getTickers().stream()
+                            .map(t -> t.replace("\"", "").strip().toUpperCase())
+                            .filter(wl::contains)
+                            .findFirst().orElse(null);
+                sb.append("\n");
+                if (sym != null) sb.append("[").append(sym).append("] ");
+                sb.append(hl);
+                String label = a.getSentimentLabel();
+                Double sc = a.getSentimentScore();
+                if (label != null) {
+                    sb.append("\n   ").append(sentimentKo(label));
+                    if (sc != null) sb.append(String.format(" (%.0f)", sc * 100));
+                }
+                sb.append("\n");
+            }
+            sb.append("\n특정 종목이 자세히 궁금하면 \"").append(clean.get(0)).append(" 어때?\"처럼 물어보세요.");
+            return Optional.of(sb.toString().strip());
+        } catch (Exception e) {
+            log.warn("[챗봇] 관심종목 뉴스 목록 분기 실패 — 폴백: {}", e.getMessage());
             return Optional.empty();
         }
     }
