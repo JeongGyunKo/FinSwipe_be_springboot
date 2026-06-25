@@ -232,18 +232,57 @@ public class AdminController {
     // ── 미국 거래 세션(16:00 ET 마감) 계산 ──────────────────────────────
     private static final java.time.ZoneId MARKET_ZONE = java.time.ZoneId.of("America/New_York");
     private static final java.time.LocalTime MARKET_CLOSE = java.time.LocalTime.of(16, 0);
-    // 2026 미국 증시 휴장일(NYSE/Nasdaq). 연 1회 갱신 필요.
-    private static final java.util.Set<java.time.LocalDate> US_MARKET_HOLIDAYS = java.util.Set.of(
-            java.time.LocalDate.of(2026, 1, 1),  java.time.LocalDate.of(2026, 1, 19),
-            java.time.LocalDate.of(2026, 2, 16), java.time.LocalDate.of(2026, 4, 3),
-            java.time.LocalDate.of(2026, 5, 25), java.time.LocalDate.of(2026, 6, 19),
-            java.time.LocalDate.of(2026, 7, 3),  java.time.LocalDate.of(2026, 9, 7),
-            java.time.LocalDate.of(2026, 11, 26), java.time.LocalDate.of(2026, 12, 25));
+    // 미국 증시 정기 휴장일은 규칙으로 계산(연도별 캐시) — 매년 수동 갱신 불필요.
+    private static final java.util.Map<Integer, java.util.Set<java.time.LocalDate>> HOLIDAY_CACHE =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    // 예고 없는 임시 휴장(대통령 국장일, 9/11·허리케인 등 비정기) — 발표되면 여기에만 추가.
+    private static final java.util.Set<java.time.LocalDate> AD_HOC_CLOSURES = java.util.Set.of(
+            java.time.LocalDate.of(2025, 1, 9));   // 카터 전 대통령 국장
 
+    /** 토·일·정기휴장·임시휴장 여부. 연도 무관 자동 계산. */
     private static boolean marketClosed(java.time.LocalDate d) {
         java.time.DayOfWeek w = d.getDayOfWeek();
-        return w == java.time.DayOfWeek.SATURDAY || w == java.time.DayOfWeek.SUNDAY
-                || US_MARKET_HOLIDAYS.contains(d);
+        if (w == java.time.DayOfWeek.SATURDAY || w == java.time.DayOfWeek.SUNDAY) return true;
+        if (AD_HOC_CLOSURES.contains(d)) return true;
+        return HOLIDAY_CACHE.computeIfAbsent(d.getYear(), AdminController::usMarketHolidays).contains(d);
+    }
+
+    /** 해당 연도 미국 증시 정기 휴장일 10종 계산(고정일·N번째 요일·Good Friday). */
+    private static java.util.Set<java.time.LocalDate> usMarketHolidays(int year) {
+        java.util.Set<java.time.LocalDate> h = new java.util.HashSet<>();
+        java.util.function.UnaryOperator<java.time.LocalDate> obs = d -> switch (d.getDayOfWeek()) {
+            case SATURDAY -> d.minusDays(1);   // 토 → 전날 금
+            case SUNDAY   -> d.plusDays(1);    // 일 → 다음 월
+            default       -> d;
+        };
+        // 고정일(주말 대체 관측 적용)
+        h.add(obs.apply(java.time.LocalDate.of(year, 1, 1)));     // 신정
+        if (year >= 2022) h.add(obs.apply(java.time.LocalDate.of(year, 6, 19)));  // 준틴스(2022~)
+        h.add(obs.apply(java.time.LocalDate.of(year, 7, 4)));     // 독립기념일
+        h.add(obs.apply(java.time.LocalDate.of(year, 12, 25)));   // 크리스마스
+        // N번째 요일
+        var w = java.time.temporal.TemporalAdjusters.dayOfWeekInMonth(3, java.time.DayOfWeek.MONDAY);
+        h.add(java.time.LocalDate.of(year, 1, 1).with(w));   // MLK(1월 3째 월)
+        h.add(java.time.LocalDate.of(year, 2, 1).with(w));   // 워싱턴 탄생일(2월 3째 월)
+        h.add(java.time.LocalDate.of(year, 5, 1).with(java.time.temporal.TemporalAdjusters.lastInMonth(java.time.DayOfWeek.MONDAY)));            // 메모리얼(5월 마지막 월)
+        h.add(java.time.LocalDate.of(year, 9, 1).with(java.time.temporal.TemporalAdjusters.dayOfWeekInMonth(1, java.time.DayOfWeek.MONDAY)));    // 노동절(9월 1째 월)
+        h.add(java.time.LocalDate.of(year, 11, 1).with(java.time.temporal.TemporalAdjusters.dayOfWeekInMonth(4, java.time.DayOfWeek.THURSDAY))); // 추수감사절(11월 4째 목)
+        // Good Friday = 부활절 2일 전
+        h.add(easterSunday(year).minusDays(2));
+        return h;
+    }
+
+    /** 그레고리력 부활절(Meeus/Jones/Butcher 알고리즘). */
+    private static java.time.LocalDate easterSunday(int year) {
+        int a = year % 19, b = year / 100, c = year % 100;
+        int dd = b / 4, e = b % 4, f = (b + 8) / 25, g = (b - f + 1) / 3;
+        int hh = (19 * a + b - dd - g + 15) % 30;
+        int i = c / 4, k = c % 4;
+        int l = (32 + 2 * e + 2 * i - hh - k) % 7;
+        int m = (a + 11 * hh + 22 * l) / 451;
+        int month = (hh + l - 7 * m + 114) / 31;
+        int day = ((hh + l - 7 * m + 114) % 31) + 1;
+        return java.time.LocalDate.of(year, month, day);
     }
 
     /** 기사 발행 시각이 속하는 미국 거래 세션(마감일).
