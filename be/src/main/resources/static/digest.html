@@ -144,7 +144,7 @@ body { background: #e8edf2; font-family: -apple-system,'Pretendard','Apple SD Go
 .tstep::after { content:''; position:absolute; left:4px; top:6px; bottom:0; width:2px; background:#eef1f5; }
 .tstep:last-child::after { display:none; }
 .tdot { position:absolute; left:0; top:3px; width:10px; height:10px; border-radius:50%; background:#fff; border:2px solid currentColor; z-index:1; }
-.tstep.s1 { color:#94a3b8; } .tstep.s2 { color:#2563eb; } .tstep.s3 { color:#16a34a; }
+.tstep.s1 { color:#94a3b8; } .tstep.s2 { color:#2563eb; } .tstep.s3 { color:#16a34a; } .tstep.tneg { color:#ef4444; }
 .tstep-lbl { font-size:9.5px; font-weight:700; letter-spacing:.02em; margin-bottom:3px; }
 .tstep-txt { font-size:11px; color:#475569; line-height:1.6; }
 .flow-note { font-size:9.5px; color:#9aa5b4; margin-top:9px; padding-top:7px; border-top:1px solid #f0f2f5; }
@@ -442,10 +442,47 @@ function renderSummary(d) {
       </div>
     </div>
 
+    <div id="multiday-timeline"></div>
+
     ${renderFlow(d, c1m)}
 
     ${renderNewsSection(d)}
   `;
+  loadMultidayTimeline(d.ticker);
+}
+
+// 멀티데이 이벤트 타임라인 — 미국 거래 세션(16:00 ET 마감) 단위. BE가 정확히 버킷팅.
+const _tlCache = {};
+function sentKoShort(s) { return s==='positive'?'긍정':s==='negative'?'부정':'중립'; }
+async function loadMultidayTimeline(ticker) {
+  const el = document.getElementById('multiday-timeline');
+  if (!el || !ticker) return;
+  try {
+    let data = _tlCache[ticker];
+    if (!data) {
+      const r = await fetch(`${API}/admin/ticker-timeline?ticker=${encodeURIComponent(ticker)}&sessions=5`, { headers: { 'X-Admin-Key': adminKey } });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      data = await r.json();
+      _tlCache[ticker] = data;
+    }
+    const sessions = data.sessions || [];
+    if (sessions.length < 2) { el.innerHTML = ''; return; }   // 세션 1개뿐이면 아래 '어제→오늘 흐름'이 커버
+    const last = sessions.length - 1;
+    el.innerHTML = `
+      <div class="lbl">거래일별 흐름 <span style="color:#b0bbc9;font-weight:400;letter-spacing:0;">· 미국장 마감 기준</span></div>
+      <div class="card" style="background:#fff;"><div class="tflow">
+      ${sessions.map((s, idx) => {
+        const cls = s.sentiment==='positive'?'s3':s.sentiment==='negative'?'tneg':'s1';
+        const hl = (s.articles && s.articles[0] && s.articles[0].headlineKo) || '주요 뉴스';
+        const more = s.count > 1 ? ` <span style="color:#b0bbc9;">+${s.count-1}건</span>` : '';
+        return `<div class="tstep ${cls}"><span class="tdot"></span>
+          <div class="tstep-lbl">${s.label} 장${idx===last?' · 오늘자':''} <span style="color:#b0bbc9;font-weight:400;">${sentKoShort(s.sentiment)}</span></div>
+          <div class="tstep-txt">${hl}${more}</div></div>`;
+      }).join('')}
+      </div></div>`;
+  } catch (e) {
+    el.innerHTML = '';   // 실패 시 조용히 생략
+  }
 }
 
 // 어제 장 마감 이후 → 오늘 전망까지 연결되는 이벤트 흐름.
