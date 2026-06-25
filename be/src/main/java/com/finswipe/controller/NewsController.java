@@ -140,6 +140,9 @@ public class NewsController {
         int days = "all".equals(period) ? 0 : 1;
         final java.time.OffsetDateTime since = (days == 0) ? null
                 : lastClose.minusDays(days - 1).toOffsetDateTime();
+        // 미읽음·읽음·폴백 모두 동일 윈도우(직전 ET 마감 이후)로 제한. period=all이면 사실상 무제한.
+        final java.time.OffsetDateTime effectiveSince = since != null ? since
+                : java.time.OffsetDateTime.now().minusYears(10);
 
         if (resolvedUserId != null && isValidUuid(resolvedUserId)) {
             final int pageNum = offset / limit;
@@ -150,8 +153,6 @@ public class NewsController {
             final String tickerFilter = (ticker != null && !ticker.isBlank()) ? ticker.strip().toUpperCase() : null;
             Thread.ofVirtual().start(() -> {
                 try {
-                    java.time.OffsetDateTime effectiveSince = since != null ? since
-                            : java.time.OffsetDateTime.now().minusYears(10);
                     Page<NewsArticle> result;
                     if (tickerFilter != null) {
                         result = newsRepo.findUnreadByUserAndTicker(resolvedUserId, effectiveSince, tickerFilter, PageRequest.of(pageNum, limit));
@@ -166,7 +167,7 @@ public class NewsController {
                 catch (Exception e) { pageFuture.completeExceptionally(e); }
             });
             Thread.ofVirtual().start(() -> {
-                try { readFuture.complete(newsRepo.findRecentReadArticles(resolvedUserId, 10)); }
+                try { readFuture.complete(newsRepo.findRecentReadArticles(resolvedUserId, effectiveSince, 10)); }
                 catch (Exception e) { readFuture.completeExceptionally(e); }
             });
             Thread.ofVirtual().start(() -> {

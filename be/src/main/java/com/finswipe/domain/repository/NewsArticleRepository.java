@@ -284,13 +284,16 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
               AND na.headline_ko IS NOT NULL
 
               AND na.sentiment_reason IS NOT NULL
+              AND na.published_at >= :since
               AND na.tickers && (
                 SELECT COALESCE(tickers, '{}') FROM user_profiles WHERE id = CAST(:userId AS uuid)
               )
             ORDER BY ura.read_at DESC
             LIMIT :limit
             """, nativeQuery = true)
-    List<NewsArticle> findRecentReadArticles(@Param("userId") String userId, @Param("limit") int limit);
+    List<NewsArticle> findRecentReadArticles(@Param("userId") String userId,
+                                             @Param("since") java.time.OffsetDateTime since,
+                                             @Param("limit") int limit);
 
     @Query("SELECT a.sourceUrl FROM NewsArticle a WHERE a.sourceUrl IN :urls")
     List<String> findExistingUrls(@Param("urls") List<String> urls);
