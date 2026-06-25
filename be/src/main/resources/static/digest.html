@@ -109,6 +109,34 @@ body { background: #e8edf2; font-family: -apple-system,'Pretendard','Apple SD Go
 .n-hl { font-size:12px; font-weight:700; color:#1a1a2e; line-height:1.4; margin-bottom:3px; }
 .n-body { font-size:11px; color:#6b7a90; line-height:1.5; }
 
+/* 종합 신호 카드 */
+.sig-card { background:#fff; border:1.5px solid #eef1f5; border-radius:12px; padding:12px 13px; }
+.verdict-head { font-size:12px; font-weight:800; color:#1a1a2e; line-height:1.45; margin-bottom:10px; }
+.sig-chips { display:flex; gap:4px; }
+.chip { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; padding:7px 2px; border-radius:9px; border:1px solid #e2e8f0; background:#f8f9fc; }
+.chip-ico { font-size:13px; line-height:1; }
+.chip-lbl { font-size:8px; color:#9aa5b4; margin-top:3px; letter-spacing:.01em; }
+.chip-val { font-size:9.5px; font-weight:800; margin-top:1px; color:#6b7a90; font-variant-numeric:tabular-nums; }
+.chip.g { background:#f0fdf4; border-color:#bbf7d0; } .chip.g .chip-val { color:#16a34a; }
+.chip.r { background:#fef2f2; border-color:#fecaca; } .chip.r .chip-val { color:#ef4444; }
+.chip.a { background:#fff7ed; border-color:#fed7aa; } .chip.a .chip-val { color:#ea580c; }
+.chip.b { background:#eff6ff; border-color:#bfdbfe; } .chip.b .chip-val { color:#2563eb; }
+.verdict-body { margin-top:10px; padding-top:9px; border-top:1px solid #f0f2f5; }
+.vb-line { font-size:11px; color:#475569; line-height:1.6; display:flex; gap:6px; margin-bottom:5px; }
+.vb-line:last-child { margin-bottom:0; }
+.vb-line b { color:#2563eb; flex-shrink:0; font-weight:800; }
+
+/* 브리핑 카드 (감성별 색상 보더) */
+.grp-lbl { font-size:9.5px; font-weight:700; color:#8a9ab0; margin:9px 0 5px; letter-spacing:.03em; }
+.grp-lbl:first-child { margin-top:0; }
+.bc { background:#fff; border:1.5px solid #eef1f5; border-left-width:3px; border-radius:11px; padding:10px 12px; margin-bottom:6px; }
+.bc.g { border-left-color:#22c55e; } .bc.r { border-left-color:#ef4444; } .bc.n { border-left-color:#9aa5b4; }
+.bc-top { display:flex; align-items:center; gap:5px; margin-bottom:4px; }
+.bc-pill { font-size:9px; font-weight:700; padding:2px 7px; border-radius:20px; }
+.bc-date { font-size:9px; color:#b0bbc9; margin-left:auto; }
+.bc-hl { font-size:11.5px; font-weight:700; color:#1a1a2e; line-height:1.4; margin-bottom:3px; }
+.bc-body { font-size:10.5px; color:#6b7a90; line-height:1.55; }
+
 /* 보조지표 */
 .ind-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:5px; }
 .ind-lbl  { font-size:11px; font-weight:700; color:#9aa5b4; }
@@ -370,14 +398,43 @@ function renderSummary(d) {
   const ov = d.sentiment_overview || {};
   const c1d = ti.change_pct_1d ?? 0;
   const c1m = ti.change_pct_1m ?? 0;
-  const vr = ti.volume_ratio ?? 1;
-  const vp = ((vr-1)*100).toFixed(0);
+  const vr  = ti.volume_ratio ?? 1;
+  const vp  = ((vr-1)*100).toFixed(0);
+  const rsi = ti.RSI ?? 50;
+  const trend = (ti.MACD && ti.MACD.trend) || '중립';
+  const avg = ov.avg_score ?? 0;
   const today = new Date(), yday = new Date(today); yday.setDate(today.getDate()-1);
   const fmt = dt => `${(dt.getMonth()+1).toString().padStart(2,'0')}.${dt.getDate().toString().padStart(2,'0')}`;
   const fc1 = c1d>=0?'pos':'neg', fc2 = vr>1.1?'pos':vr<0.9?'neg':'neu';
-  const sentKo = ov.avg_score>0.3?'긍정':ov.avg_score<-0.3?'부정':'중립';
+  const artCount = d.articles_count || (d.news_articles||d.articles||[]).length || 0;
+
+  // 신호 칩
+  const sCls = avg>0.15?'g':avg<-0.15?'r':'n';
+  const sVal = avg>0.15?'긍정':avg<-0.15?'부정':'중립';
+  const sIco = avg>0.15?'🟢':avg<-0.15?'🔴':'⚪';
+  const rCls = rsi>=70?'a':rsi<=30?'g':'n';
+  const vCls = vr>1.2?'b':'n';
+  const tShort = trend.includes('상승')?'강세':trend.includes('하락')?'약세':'중립';
+  const tCls = trend.includes('상승')?'g':trend.includes('하락')?'r':'n';
+  const cCls = c1d>0?'g':c1d<0?'r':'n';
+  const chip = (ico,lbl,val,cls)=>`<div class="chip ${cls}"><div class="chip-ico">${ico}</div><div class="chip-lbl">${lbl}</div><div class="chip-val">${val}</div></div>`;
 
   document.getElementById('summary-content').innerHTML = `
+    <div>
+      <div class="lbl">오늘 한마디</div>
+      <div class="sig-card">
+        <div class="verdict-head">${deriveVerdict(avg, c1d, rsi)}</div>
+        <div class="sig-chips">
+          ${chip(sIco,'감성',sVal,sCls)}
+          ${chip('📊','RSI',rsi.toFixed(0),rCls)}
+          ${chip('🔊','거래량',(vp>0?'+':'')+vp+'%',vCls)}
+          ${chip('⚡','추세',tShort,tCls)}
+          ${chip(c1d>=0?'▲':'▼','1일',(c1d>=0?'+':'')+c1d.toFixed(1)+'%',cCls)}
+        </div>
+        <div class="verdict-body">${formatSummary(d.summary)}</div>
+      </div>
+    </div>
+
     <div>
       <div class="lbl">어제 → 오늘 흐름</div>
       <div class="flow-grid">
@@ -389,21 +446,7 @@ function renderSummary(d) {
         <div class="fc ${fc2}">
           <div class="fc-date">${fmt(today)} 오늘</div>
           <div class="fc-title">거래량 ${vp>0?'+':''}${vp}%</div>
-          <div class="fc-sub">기사 ${d.articles_count||0}건 · ${sentKo}</div>
-        </div>
-      </div>
-    </div>
-
-    <div>
-      <div class="lbl">오늘의 종합 요약</div>
-      <div class="card">
-        <div class="summary-text">${d.summary || '분석 데이터가 없습니다.'}</div>
-        <div class="badges">
-          ${ov.positive ? `<span class="badge b-pos">긍정 ${ov.positive}건</span>` : ''}
-          ${ov.negative ? `<span class="badge b-neg">부정 ${ov.negative}건</span>` : ''}
-          ${ov.neutral  ? `<span class="badge b-neu">중립 ${ov.neutral}건</span>` : ''}
-          ${ti.RSI_signal ? `<span class="badge b-blue">RSI ${ti.RSI_signal}</span>` : ''}
-          ${digestData.user_tendency ? `<span class="badge b-blue">${digestData.user_tendency}</span>` : ''}
+          <div class="fc-sub">분석 기사 ${artCount}건</div>
         </div>
       </div>
     </div>
@@ -412,22 +455,68 @@ function renderSummary(d) {
   `;
 }
 
+function deriveVerdict(avg, c1d, rsi) {
+  const sent = avg>0.15?'pos':avg<-0.15?'neg':'neu';
+  let s;
+  if (sent==='pos' && c1d>=0)      s='긍정적인 뉴스 흐름 속에 주가도 상승했어요. 우호적인 하루였어요.';
+  else if (sent==='pos' && c1d<0)  s='뉴스는 긍정적이지만 주가는 하락했어요. 차익실현 움직임일 수 있어요.';
+  else if (sent==='neg' && c1d<0)  s='부정적인 뉴스와 함께 주가도 약세였어요. 주의가 필요한 흐름이에요.';
+  else if (sent==='neg' && c1d>=0) s='악재에도 주가는 버텼어요. 저가 매수세가 들어온 모습이에요.';
+  else                              s='오늘 뉴스 흐름은 중립적이에요. 아직 뚜렷한 방향성은 없어요.';
+  if (rsi>=70)      s+=' RSI가 과열 구간이라 단기 변동성에 유의하세요.';
+  else if (rsi<=30) s+=' RSI는 과매도 구간으로 기술적 반등 가능성이 있어요.';
+  return s;
+}
+
+function formatSummary(txt) {
+  if (!txt || !txt.trim()) return '<div class="vb-line"><span>아직 종합 분석 데이터가 없어요.</span></div>';
+  let parts = txt.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  if (parts.length <= 1) {
+    try { parts = txt.split(/(?<=[다요까죠]\.)\s+|(?<=[.!?])\s+/); }
+    catch(e) { parts = txt.split(/(?:다\.|[.!?])\s+/); }
+    parts = parts.map(s=>s.trim()).filter(Boolean);
+  }
+  if (parts.length > 7) parts = parts.slice(0,7);
+  return parts.map(p=>`<div class="vb-line"><b>•</b><span>${p}</span></div>`).join('');
+}
+
 function renderNewsSection(d) {
-  const articles = d.news_articles || d.articles || [];
-  if (!articles.length) return '';
-  return `<div>
-    <div class="lbl">주요 뉴스</div>
-    ${articles.slice(0,3).map(a => {
-      const sc = a.sentiment_label==='positive'?'b-pos':a.sentiment_label==='negative'?'b-neg':'b-neu';
-      const sk = a.sentiment_label==='positive'?'긍정':a.sentiment_label==='negative'?'부정':'중립';
+  const arts = d.news_articles || d.articles || [];
+  if (!arts.length) return '';
+  const grp = { pos:[], neg:[], neu:[] };
+  arts.forEach(a => {
+    const k = a.sentiment_label==='positive'?'pos':a.sentiment_label==='negative'?'neg':'neu';
+    grp[k].push(a);
+  });
+  const groups = [
+    ['pos','🟢 호재 · 긍정','g','b-pos','긍정'],
+    ['neg','🔴 악재 · 주의','r','b-neg','부정'],
+    ['neu','⚪ 주목할 뉴스','n','b-neu','중립'],
+  ];
+  let html = '<div><div class="lbl">오늘의 뉴스</div>';
+  let any = false;
+  groups.forEach(([k,label,bc,pill,sk]) => {
+    const list = grp[k].slice(0,3);
+    if (!list.length) return;
+    any = true;
+    html += `<div class="grp-lbl">${label} ${grp[k].length}건</div>`;
+    list.forEach(a => {
       const dt = a.published_at ? new Date(a.published_at).toLocaleDateString('ko-KR',{month:'numeric',day:'numeric'}) : '';
-      return `<div class="card" style="margin-bottom:6px;">
-        <div class="n-head"><span class="n-tag">${sk}</span><span class="n-time">${dt}</span></div>
-        <div class="n-hl">${a.headline_ko||a.headline||''}</div>
-        ${a.summary_ko?`<div class="n-body">${a.summary_ko}</div>`:''}
+      let sc = '';
+      if (a.sentiment_score != null) {
+        const raw = a.sentiment_score;
+        const v = Math.abs(raw) <= 1 ? Math.round(raw*100) : Math.round(raw);
+        sc = ` ${v>=0?'+':''}${v}`;
+      }
+      html += `<div class="bc ${bc}">
+        <div class="bc-top"><span class="bc-pill ${pill}">${sk}${sc}</span><span class="bc-date">${dt}</span></div>
+        <div class="bc-hl">${a.headline_ko||a.headline||''}</div>
+        ${a.summary_ko?`<div class="bc-body">${a.summary_ko}</div>`:''}
       </div>`;
-    }).join('')}
-  </div>`;
+    });
+  });
+  html += '</div>';
+  return any ? html : '';
 }
 
 function renderIndicator(d) {
