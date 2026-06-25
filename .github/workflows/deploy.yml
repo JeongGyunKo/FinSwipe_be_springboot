@@ -27,9 +27,9 @@ jobs:
           sed -i "s|^ADMIN_API_KEY=.*|ADMIN_API_KEY=${ADMIN_API_KEY}|" ~/finswipe/.env
           # CORS 허용 도메인 업데이트
           if grep -q "^CORS_ORIGINS=" ~/finswipe/.env; then
-            sed -i "s|^CORS_ORIGINS=.*|CORS_ORIGINS=https://www.finswipe.co.kr,http://localhost:5173|" ~/finswipe/.env
+            sed -i "s|^CORS_ORIGINS=.*|CORS_ORIGINS=https://www.finswipe.co.kr,https://api.finswipe.co.kr,http://localhost:5173|" ~/finswipe/.env
           else
-            echo "CORS_ORIGINS=https://www.finswipe.co.kr,http://localhost:5173" >> ~/finswipe/.env
+            echo "CORS_ORIGINS=https://www.finswipe.co.kr,https://api.finswipe.co.kr,http://localhost:5173" >> ~/finswipe/.env
           fi
           # 스웨거 문서 Basic 인증 (FE 문서 열람용) — 비번은 Secret으로만 주입, 특수문자 안전하게 교체
           upsert_env() {
