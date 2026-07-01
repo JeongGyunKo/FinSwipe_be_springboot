@@ -798,6 +798,44 @@ public class NewsController {
                         "content_length", article.get().getContent() != null ? article.get().getContent().length() : 0)));
     }
 
+    @Operation(summary = "추천 성과 지표",
+            description = "source(personal/explore/cold)별 서빙 대비 좋아요·읽음·싫어요 비율. 개인화가 순수 파워(explore/cold) 대비 관여도를 올리는지 검증용. X-Admin-Key 필요.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            {
+              "since_days": 7,
+              "by_source": [
+                { "source": "personal", "served": 1200, "liked": 180, "read_cnt": 640, "disliked": 40,
+                  "like_rate_pct": 15.00, "read_rate_pct": 53.33, "dislike_rate_pct": 3.33 },
+                { "source": "explore", "served": 300, "liked": 21, "read_cnt": 120, "disliked": 18,
+                  "like_rate_pct": 7.00, "read_rate_pct": 40.00, "dislike_rate_pct": 6.00 }
+              ]
+            }
+            """)))
+    @GetMapping("/reco-metrics")
+    public ResponseEntity<Map<String, Object>> recoMetrics(
+            @RequestHeader("X-Admin-Key") String adminKey,
+            @RequestParam(defaultValue = "7") @Min(1) @Max(90) int days) {
+        requireAdmin(adminKey);
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT rl.source,
+                       COUNT(*)                                          AS served,
+                       COUNT(l.article_id)                               AS liked,
+                       COUNT(r.article_id)                               AS read_cnt,
+                       COUNT(d.article_id)                               AS disliked,
+                       ROUND(100.0 * COUNT(l.article_id) / NULLIF(COUNT(*), 0), 2) AS like_rate_pct,
+                       ROUND(100.0 * COUNT(r.article_id) / NULLIF(COUNT(*), 0), 2) AS read_rate_pct,
+                       ROUND(100.0 * COUNT(d.article_id) / NULLIF(COUNT(*), 0), 2) AS dislike_rate_pct
+                FROM recommendation_log rl
+                LEFT JOIN user_liked_articles    l ON l.user_id = rl.user_id AND l.article_id = rl.article_id
+                LEFT JOIN user_read_articles     r ON r.user_id = rl.user_id AND r.article_id = rl.article_id
+                LEFT JOIN user_disliked_articles d ON d.user_id = rl.user_id AND d.article_id = rl.article_id
+                WHERE rl.served_at > now() - make_interval(days => ?)
+                GROUP BY rl.source
+                ORDER BY rl.source
+                """, days);
+        return ResponseEntity.ok(Map.of("since_days", days, "by_source", rows));
+    }
+
     // ===================== 내부 유틸 =====================
 
     private String repTicker(NewsArticle a) {

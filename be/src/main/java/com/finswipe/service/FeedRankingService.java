@@ -4,9 +4,13 @@ import com.finswipe.domain.entity.NewsArticle;
 import com.finswipe.domain.repository.NewsArticleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.Types;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -66,32 +70,70 @@ public class FeedRankingService {
             GROUP BY ticker
             """;
 
-    /** 개인화 재정렬된 피드 size개 반환. */
+    /** 개인화 재정렬된 피드 size개 반환. 서빙 내역은 recommendation_log에 비동기 기록(성과 측정용). */
     public List<NewsArticle> rankFeed(String userId, OffsetDateTime since, int size) {
         List<NewsArticle> pool = newsRepo.findTopPowerUnreadForUser(userId, since, POOL_CAP);
-        if (pool.size() <= size) return pool;   // 후보가 적으면 있는 대로
+        if (pool.isEmpty()) return pool;
 
-        Map<String, Double> affinity = tickerAffinity(userId);
-        if (affinity.isEmpty()) return new ArrayList<>(pool.subList(0, size));  // 콜드스타트 = 순수 파워
+        List<Ranked> ranked = new ArrayList<>();
+        // 후보가 적으면(≤size) 재정렬 의미 없음 → 순수 파워순. 신호 없으면 콜드스타트도 순수 파워순.
+        Map<String, Double> affinity = pool.size() <= size ? Map.of() : tickerAffinity(userId);
 
-        // 점수 = 파워(0~1) + W_AFF × 종목친밀도(clamp). pool은 이미 파워순.
-        Map<UUID, Double> score = new HashMap<>();
-        for (NewsArticle a : pool) score.put(a.getId(), scoreOf(a, affinity));
+        if (affinity.isEmpty()) {
+            int n = Math.min(size, pool.size());
+            for (int i = 0; i < n; i++) ranked.add(new Ranked(pool.get(i), "cold", i, null));
+        } else {
+            // 점수 = 파워(0~1) + W_AFF × 종목친밀도(clamp). pool은 이미 파워순.
+            Map<UUID, Double> score = new HashMap<>();
+            for (NewsArticle a : pool) score.put(a.getId(), scoreOf(a, affinity));
 
-        List<NewsArticle> byScore = new ArrayList<>(pool);
-        byScore.sort((x, y) -> Double.compare(score.get(y.getId()), score.get(x.getId())));
+            List<NewsArticle> byScore = new ArrayList<>(pool);
+            byScore.sort((x, y) -> Double.compare(score.get(y.getId()), score.get(x.getId())));
 
-        int personalN = Math.max(0, size - EXPLORE);
-        List<NewsArticle> result = new ArrayList<>(byScore.subList(0, Math.min(personalN, byScore.size())));
-        Set<UUID> chosen = new HashSet<>();
-        for (NewsArticle a : result) chosen.add(a.getId());
-
-        // 탐색 쿼터: pool(순수 파워순)에서 아직 안 뽑힌 최고 파워 기사로 나머지 채움
-        for (NewsArticle a : pool) {
-            if (result.size() >= size) break;
-            if (chosen.add(a.getId())) result.add(a);
+            int personalN = Math.max(0, size - EXPLORE);
+            Set<UUID> chosen = new HashSet<>();
+            for (int i = 0; i < Math.min(personalN, byScore.size()); i++) {
+                NewsArticle a = byScore.get(i);
+                chosen.add(a.getId());
+                ranked.add(new Ranked(a, "personal", ranked.size(), score.get(a.getId())));
+            }
+            // 탐색 쿼터: pool(순수 파워순)에서 아직 안 뽑힌 최고 파워 기사로 나머지 채움
+            for (NewsArticle a : pool) {
+                if (ranked.size() >= size) break;
+                if (chosen.add(a.getId())) ranked.add(new Ranked(a, "explore", ranked.size(), score.get(a.getId())));
+            }
         }
-        return result;
+
+        logServes(userId, ranked);
+        return ranked.stream().map(Ranked::article).toList();
+    }
+
+    private record Ranked(NewsArticle article, String source, int rank, Double score) {}
+
+    /** 서빙 내역을 recommendation_log에 비동기 기록 — (user,article,날짜) 유니크로 하루 중복은 무시. */
+    private void logServes(String userId, List<Ranked> ranked) {
+        if (ranked.isEmpty()) return;
+        Thread.ofVirtual().start(() -> {
+            try {
+                jdbc.batchUpdate("""
+                        INSERT INTO recommendation_log (user_id, article_id, rank, source, score)
+                        VALUES (?, ?, ?, ?, ?)
+                        ON CONFLICT (user_id, article_id, served_date) DO NOTHING
+                        """, new BatchPreparedStatementSetter() {
+                    @Override public void setValues(PreparedStatement ps, int i) throws SQLException {
+                        Ranked r = ranked.get(i);
+                        ps.setObject(1, UUID.fromString(userId));
+                        ps.setObject(2, r.article().getId());
+                        ps.setInt(3, r.rank());
+                        ps.setString(4, r.source());
+                        if (r.score() != null) ps.setDouble(5, r.score()); else ps.setNull(5, Types.DOUBLE);
+                    }
+                    @Override public int getBatchSize() { return ranked.size(); }
+                });
+            } catch (Exception e) {
+                log.warn("[랭킹] 추천 로그 저장 실패: {}", e.getMessage());
+            }
+        });
     }
 
     private double scoreOf(NewsArticle a, Map<String, Double> affinity) {

@@ -44,7 +44,8 @@ public class SecurityConfig {
                 .requestMatchers("/preview.html", "/admin.html", "/digest.html", "/card-preview.html").permitAll()
                 // 어드민 (X-Admin-Key 별도 검증)
                 .requestMatchers("/news/collect", "/news/reanalyze", "/news/reset-insights",
-                        "/news/analyze/**", "/news/diagnose", "/news/test", "/news/jobs/**").permitAll()
+                        "/news/analyze/**", "/news/diagnose", "/news/test", "/news/jobs/**",
+                        "/news/reco-metrics").permitAll()
                 .requestMatchers("/admin/**").permitAll()
                 // 인증 필요
                 .requestMatchers("/user/**").authenticated()
