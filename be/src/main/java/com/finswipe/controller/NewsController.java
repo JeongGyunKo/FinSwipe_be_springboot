@@ -64,7 +64,7 @@ public class NewsController {
     @Operation(summary = "뉴스 피드", description = "분석 완료된 기사 목록. 로그인 시 관심종목과 무관하게 오늘(직전 ET 마감 이후) 기사 중 절대값 파워(감성강도, ±무관) 상위 30개를 고정 유니버스로 잡고, 이미 읽음/싫어요한 기사는 제외해 반환. 30개를 다 소진하면 피드는 비어 종료됨(31위 이하로 밀려나지 않음). ticker 파라미터로 특정 티커만 필터도 가능. indicators는 대표 티커의 기술적 지표 4종(RSI·MACD·볼린저밴드·거래량) 배열 — null이면 지표 없이 렌더. currentPrice/changePct1d는 전일 종가 기준, sparkline은 최근 30일 종가 배열.")
     @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
             {
-              "total": 1200,
+              "total": 30,
               "offset": 0,
               "data": [
                 {
