@@ -22,7 +22,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-@Tag(name = "Quiz", description = "금융 지식 퀴즈 — 10문제(5영역×2)로 레벨·투자성향 측정. 온보딩용으로 비로그인 허용(POST는 퀴즈 전용 레이트리밋 적용).")
+@Tag(name = "Quiz", description = "금융 지식 퀴즈. ① 온보딩 세션(/quiz/sessions/**): 10문제(5영역×2)로 레벨·투자성향 측정, 비로그인 허용. "
+        + "② 피드 삽입형 단일 문제(/quiz/single, /quiz/single/check): 로그인 유저의 적응형 레벨에 맞춘 무상태 1문제 — 카드 피드 사이 노출용, 중복 출제 방지. "
+        + "POST는 퀴즈 전용 레이트리밋 적용.")
 @RestController
 @RequestMapping("/quiz")
 @Slf4j
