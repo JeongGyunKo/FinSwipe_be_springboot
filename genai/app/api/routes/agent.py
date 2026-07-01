@@ -135,15 +135,15 @@ async def coach(body: UserIdRequest) -> dict:
         raise HTTPException(status_code=502, detail="학습 코치 분석 중 오류가 발생했습니다.") from exc
 
 
-# ── 티커별 일일 다이제스트 ────────────────────────────────────────────────────────
-# 캐시 우선 조회 → 캐시 미스 시 온디맨드 생성으로 폴백
-# digest_worker가 백그라운드에서 새 기사 감지 즉시 캐시를 갱신함
+# ── 오늘의 top30 통합 브리핑 ──────────────────────────────────────────────────────
+# 카드 피드(관심종목 무관, 오늘 절대값 파워 상위 30개)를 다 읽으면 보여주는 요약.
+# 캐시 우선(레벨·성향별) → 미스/신규 기사 시 온디맨드 생성. digest_worker가 백그라운드 프리워밍.
 
 @router.post("/digest")
 async def daily_digest(body: UserIdRequest) -> dict:
     try:
-        from app.services.digest.agent import generate_digest_from_cache
-        return await asyncio.to_thread(generate_digest_from_cache, body.user_id)
+        from app.services.digest.agent import generate_feed_digest
+        return await asyncio.to_thread(generate_feed_digest, body.user_id)
     except Exception as exc:
         logger.error("[다이제스트] 실패: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail="일일 다이제스트 생성 중 오류가 발생했습니다.") from exc

@@ -3,15 +3,17 @@ from __future__ import annotations
 import argparse
 import logging
 import time
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from app.core import get_settings
 from app.core.logging import configure_logging, get_logger, log_event
 from app.db.postgres import connect_postgres
 from app.services.digest.agent import (
-    _fetch_technicals,
-    _generate_single_ticker_digest,
+    _FEED_SENTINEL,
+    _build_feed_digest,
+    _compute_top_tickers_indicators,
+    _fetch_top30_articles,
+    _get_feed_cache,
     save_ticker_digest_cache,
 )
 
@@ -20,123 +22,80 @@ logger = get_logger(__name__)
 _DEFAULT_POLL_INTERVAL = 60.0   # 초
 _DEFAULT_MAX_WORKERS = 3        # Gemini 세마포어(5) 내에서 병렬 처리
 
+# 프로필이 없거나 레벨/성향이 비어있는 유저의 온디맨드 기본값 — 항상 프리워밍 대상에 포함
+_DEFAULT_COMBO = (3, "탐색형 투자자")
 
-def _fetch_stale_combos(settings) -> list[dict]:
-    """어제 장마감 이후 새 기사가 있지만 캐시가 없거나 오래된 (ticker, level, tendency) 조합을 반환한다.
 
-    조건:
-    - user_profiles에 존재하는 실제 (level, tendency) 조합만 대상으로 한다.
-    - news_articles에 최근 24시간 이내 기사가 있는 ticker만 대상으로 한다.
-    - digest_cache가 없거나, 캐시 생성 이후 새 기사가 존재하는 경우에만 반환한다.
+def _fetch_distinct_combos(settings) -> list[tuple[int, str]]:
+    """user_profiles에 존재하는 (level, tendency) 조합 + 기본 조합을 반환한다.
+
+    피드 브리핑은 관심종목과 무관하게 '오늘 top30' 전체를 요약하므로,
+    캐시 키는 티커가 아니라 (레벨, 성향)뿐이다.
     """
     with connect_postgres(settings.postgres_dsn) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT DISTINCT
-                    t.ticker,
-                    up.level::int   AS level,
-                    up.tendency
+                SELECT DISTINCT up.level::int AS level, up.tendency
                 FROM user_profiles up
-                CROSS JOIN LATERAL unnest(up.tickers) AS t(ticker)
-                WHERE up.level    IS NOT NULL
-                  AND up.tendency IS NOT NULL
-                  AND array_length(up.tickers, 1) > 0
-                  AND EXISTS (
-                      SELECT 1 FROM news_articles na
-                      WHERE t.ticker = ANY(na.tickers)
-                        AND na.published_at >= NOW() - INTERVAL '24 hours'
-                  )
-                  AND (
-                      NOT EXISTS (
-                          SELECT 1 FROM digest_cache dc
-                          WHERE dc.ticker   = t.ticker
-                            AND dc.level    = up.level::int
-                            AND dc.tendency = up.tendency
-                      )
-                      OR (
-                          SELECT MAX(na2.published_at)
-                          FROM news_articles na2
-                          WHERE t.ticker = ANY(na2.tickers)
-                            AND na2.published_at >= NOW() - INTERVAL '24 hours'
-                      ) > (
-                          SELECT dc2.generated_at
-                          FROM digest_cache dc2
-                          WHERE dc2.ticker   = t.ticker
-                            AND dc2.level    = up.level::int
-                            AND dc2.tendency = up.tendency
-                      )
-                  )
-                LIMIT 30
+                WHERE up.level IS NOT NULL AND up.tendency IS NOT NULL
                 """
             )
-            return [dict(row) for row in cur.fetchall()]
-
-
-def _process_combo(combo: dict, technicals, settings) -> None:
-    """(ticker, level, tendency) 조합 1개를 생성하고 캐시에 저장한다."""
-    ticker = combo["ticker"]
-    level = int(combo["level"])
-    tendency = combo["tendency"]
-
-    result = _generate_single_ticker_digest(ticker, level, tendency, settings, technicals=technicals)
-    save_ticker_digest_cache(ticker, level, tendency, result, settings)
+            combos = {(int(r["level"]), r["tendency"]) for r in cur.fetchall()}
+    combos.add(_DEFAULT_COMBO)
+    return sorted(combos)
 
 
 def _run_one_cycle(settings, max_workers: int) -> int:
-    """스테일 조합을 조회하고 병렬로 재생성한다. 처리된 조합 수를 반환한다."""
-    combos = _fetch_stale_combos(settings)
-    if not combos:
+    """오늘 top30을 한 번 조회하고, 스테일한 (레벨,성향) 브리핑을 병렬 재생성한다."""
+    articles = _fetch_top30_articles(settings)
+    if not articles:
         return 0
 
-    # 티커별로 그룹핑 후 yfinance를 티커당 1번만 호출
-    ticker_set: set[str] = {c["ticker"] for c in combos}
-    ticker_technicals = {ticker: _fetch_technicals(ticker) for ticker in ticker_set}
+    newest = max((a["published_at"] for a in articles if a.get("published_at")), default=None)
+
+    # 캐시가 없거나 top30 최신 기사보다 오래된 조합만 재생성 대상
+    stale: list[tuple[int, str]] = []
+    for level, tendency in _fetch_distinct_combos(settings):
+        _, cached_ts = _get_feed_cache(level, tendency, settings)
+        if cached_ts is None or newest is None or cached_ts < newest:
+            stale.append((level, tendency))
+
+    if not stale:
+        return 0
+
+    # 보조지표는 (레벨,성향) 무관하게 동일 — 한 번만 계산
+    indicators = _compute_top_tickers_indicators(articles)
 
     log_event(logger, logging.INFO, "digest_worker_regen_start",
-              combo_count=len(combos), ticker_count=len(ticker_set))
+              combo_count=len(stale), article_count=len(articles))
+
+    def _process(combo: tuple[int, str]) -> None:
+        level, tendency = combo
+        result = _build_feed_digest(articles, indicators, level, tendency, settings)
+        save_ticker_digest_cache(_FEED_SENTINEL, level, tendency, result, settings)
 
     processed = 0
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = {
-            pool.submit(
-                _process_combo,
-                combo,
-                ticker_technicals[combo["ticker"]],
-                settings,
-            ): combo
-            for combo in combos
-        }
+        futures = {pool.submit(_process, combo): combo for combo in stale}
         for future in as_completed(futures):
-            combo = futures[future]
+            level, tendency = futures[future]
             try:
                 future.result()
                 processed += 1
-                log_event(
-                    logger, logging.INFO, "digest_worker_combo_done",
-                    ticker=combo["ticker"],
-                    level=combo["level"],
-                    tendency=combo["tendency"],
-                )
+                log_event(logger, logging.INFO, "digest_worker_combo_done",
+                          level=level, tendency=tendency)
             except Exception as exc:
-                log_event(
-                    logger, logging.ERROR, "digest_worker_combo_failed",
-                    ticker=combo["ticker"],
-                    level=combo["level"],
-                    tendency=combo["tendency"],
-                    error=str(exc),
-                )
+                log_event(logger, logging.ERROR, "digest_worker_combo_failed",
+                          level=level, tendency=tendency, error=str(exc))
 
-    log_event(
-        logger, logging.INFO, "digest_worker_regen_done",
-        processed=processed,
-        total=len(combos),
-    )
+    log_event(logger, logging.INFO, "digest_worker_regen_done",
+              processed=processed, total=len(stale))
     return processed
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Digest cache refresh worker")
+    parser = argparse.ArgumentParser(description="Feed digest cache refresh worker")
     parser.add_argument("--once", action="store_true", help="한 사이클만 실행 후 종료")
     parser.add_argument(
         "--poll-interval",

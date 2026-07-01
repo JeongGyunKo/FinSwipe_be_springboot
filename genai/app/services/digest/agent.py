@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections import defaultdict
 from datetime import datetime, timezone
 
 from app.core import get_settings
@@ -460,6 +461,230 @@ def generate_digest_from_cache(user_id: str) -> dict:
         "user_tendency": tendency,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+# ── 피드 삽입형 "오늘의 top30" 통합 브리핑 ─────────────────────────────────────────
+# 카드 피드(관심종목 무관, 오늘 절대값 파워 상위 30개)를 다 읽었을 때 보여주는 요약.
+# 종목별 카드가 아니라 하루치 시장을 한 편으로 종합한 브리핑 + 대표 종목 보조지표.
+
+_FEED_SENTINEL = "__FEED_TOP30__"  # digest_cache를 (레벨,성향)별 피드 브리핑 캐시로 재사용하기 위한 티커 자리표시
+
+_FEED_SYSTEM_PROMPT = """당신은 개인화 금융 뉴스 분석 전문가입니다.
+오늘 시장에서 감성 강도(파워)가 가장 큰 뉴스들을 종합해 투자자 맞춤 '오늘의 시장 브리핑'을 작성합니다.
+
+반드시 아래 JSON 형식으로만 답변하세요 (코드블록 없이, 순수 JSON만):
+{
+  "오늘의_시장": "오늘 시장 전반의 분위기와 큰 흐름 — 2~3문장",
+  "핵심_이슈": "가장 파급력 큰 이슈·종목 2~3개를 묶어 설명 — 3~4문장",
+  "오늘_체크포인트": "이 투자자 성향에서 오늘 주목할 포인트 — 2~3문장"
+}
+
+규칙:
+- 반드시 한국어로 답변
+- 개별 종목을 나열하지 말고 시장 전체를 종합해 서술
+- 투자자의 레벨과 성향에 맞게 작성
+- JSON 외 다른 텍스트 출력 금지"""
+
+
+def _fetch_top30_articles(settings) -> list[dict]:
+    """오늘(직전 미국장 16:00 ET 마감 이후) 기사 중 감성 절대값 파워 상위 30건.
+
+    BE 카드 피드(findTopPowerUnreadForUser)의 '노출 유니버스'와 동일한 조건·정렬로,
+    사용자가 실제로 본 top30과 일치시킨다(읽음/싫어요 제외는 피드 표시 단계의 문제라 여기선 미적용).
+    """
+    with connect_postgres(settings.postgres_dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                WITH last_close AS (
+                  SELECT CASE
+                    WHEN (now() AT TIME ZONE 'America/New_York')::time < TIME '16:00'
+                      THEN (((now() AT TIME ZONE 'America/New_York')::date - 1) + TIME '16:00')
+                           AT TIME ZONE 'America/New_York'
+                    ELSE (((now() AT TIME ZONE 'America/New_York')::date) + TIME '16:00')
+                         AT TIME ZONE 'America/New_York'
+                  END AS since
+                )
+                SELECT headline_ko, headline, sentiment_label, sentiment_score,
+                       sentiment_reason, published_at, tickers
+                FROM news_articles, last_close
+                WHERE headline_ko IS NOT NULL
+                  AND sentiment_reason IS NOT NULL
+                  AND published_at >= last_close.since
+                ORDER BY ABS(sentiment_score) DESC NULLS LAST, published_at DESC
+                LIMIT 30
+                """
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+
+def _compute_top_tickers_indicators(articles: list[dict], cap: int = 8) -> list[dict]:
+    """top30에 등장한 티커를 |감성점수| 합 기준 상위 cap개 뽑아 보조지표를 수집한다."""
+    ticker_power: dict[str, float] = defaultdict(float)
+    for a in articles:
+        s = abs(float(a.get("sentiment_score") or 0.0))
+        for t in (a.get("tickers") or []):
+            ticker_power[t] += s
+    top_tickers = [t for t, _ in sorted(ticker_power.items(), key=lambda x: x[1], reverse=True)[:cap]]
+
+    indicators = []
+    for t in top_tickers:
+        ti = _fetch_technicals(t)
+        if ti is not None:
+            indicators.append({"ticker": t, **ti})
+    return indicators
+
+
+def _build_feed_digest_prompt(articles: list[dict], level: int, tendency: str) -> str:
+    lines = []
+    for i, a in enumerate(articles[:30], 1):
+        title = (a.get("headline_ko") or a.get("headline") or "").strip()
+        label = a.get("sentiment_label") or "neutral"
+        score = float(a.get("sentiment_score") or 0.0)
+        tks = ",".join(a.get("tickers") or [])
+        reason = (a.get("sentiment_reason") or "").strip()
+        head = f"{i}. [{label}|{score:+.2f}]"
+        if tks:
+            head += f" ({tks})"
+        lines.append(f"{head} {title}")
+        if reason:
+            lines.append(f"   → {reason[:80]}")
+
+    depth = _LEVEL_DEPTH.get(level, _LEVEL_DEPTH[3])
+    focus = _TENDENCY_FOCUS.get(tendency, _DEFAULT_TENDENCY_FOCUS)
+    label_str = _LEVEL_LABELS.get(level, "중급")
+
+    return (
+        f"[사용자 프로필] 레벨: {level}/5 ({label_str}) / 성향: {tendency}\n\n"
+        f"[오늘의 파워 상위 뉴스 {len(articles)}건]\n"
+        + "\n".join(lines)
+        + f"\n\n[분석 깊이] {depth}\n"
+        f"[성향 초점] {focus}\n\n"
+        f"위 {len(articles)}건을 종합해 오늘의 시장 브리핑 JSON을 작성하세요."
+    )
+
+
+def _build_feed_digest(articles: list[dict], indicators: list[dict],
+                       level: int, tendency: str, settings) -> dict:
+    """top30 기사 + 사전 계산된 보조지표로 통합 브리핑 결과를 만든다(Gemini 호출 포함)."""
+    overview = _sentiment_overview(articles)
+
+    briefing = None
+    summary = None
+    try:
+        prompt = _build_feed_digest_prompt(articles, level, tendency)
+        raw = gemini_generate_content(
+            system_prompt=_FEED_SYSTEM_PROMPT,
+            user_prompt=prompt,
+            model=settings.gemini_summary_model,
+            temperature=0.3,
+            request_label="feed_digest",
+        ).strip()
+
+        clean = raw
+        if clean.startswith("```"):
+            parts = clean.split("```")
+            clean = parts[1] if len(parts) > 1 else clean
+            if clean.startswith("json"):
+                clean = clean[4:]
+        clean = clean.strip()
+
+        try:
+            parsed = json.loads(clean)
+            briefing = {
+                "오늘의_시장": parsed.get("오늘의_시장", ""),
+                "핵심_이슈": parsed.get("핵심_이슈", ""),
+                "오늘_체크포인트": parsed.get("오늘_체크포인트", ""),
+            }
+            summary = " ".join(filter(None, briefing.values()))
+        except json.JSONDecodeError:
+            logger.warning("[피드 다이제스트] JSON 파싱 실패, 원문 사용")
+            summary = raw
+    except Exception as exc:
+        logger.error("[피드 다이제스트] 요약 생성 실패: %s", exc)
+
+    def _serialize(a: dict) -> dict:
+        pub = a.get("published_at")
+        return {
+            "headline_ko": a.get("headline_ko"),
+            "headline": a.get("headline"),
+            "sentiment_label": a.get("sentiment_label"),
+            "sentiment_score": float(a.get("sentiment_score") or 0),
+            "tickers": list(a.get("tickers") or []),
+            "published_at": pub.isoformat() if pub else None,
+        }
+
+    return {
+        "type": "feed_top30",
+        "articles_count": len(articles),
+        "sentiment_overview": overview,
+        "briefing": briefing,
+        "summary": summary,
+        "top_articles": [_serialize(a) for a in articles[:10]],
+        "indicators": indicators,
+        "user_level": level,
+        "user_tendency": tendency,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _get_feed_cache(level: int, tendency: str, settings):
+    """(레벨,성향)별 피드 브리핑 캐시를 반환한다. (digest dict, generated_at datetime) 또는 (None, None)."""
+    with connect_postgres(settings.postgres_dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT digest_json, generated_at FROM digest_cache
+                WHERE ticker = %s AND level = %s AND tendency = %s
+                """,
+                (_FEED_SENTINEL, level, tendency),
+            )
+            row = cur.fetchone()
+    if row is None:
+        return None, None
+    result = dict(row["digest_json"])
+    result["cached_at"] = row["generated_at"].isoformat()
+    return result, row["generated_at"]
+
+
+def generate_feed_digest(user_id: str) -> dict:
+    """카드 피드(오늘 top30)를 다 읽었을 때 보여줄 통합 브리핑.
+
+    캐시 우선(레벨·성향별) — top30에 더 최신 기사가 들어오면 무효화하고 온디맨드 재생성.
+    """
+    settings = get_settings()
+    profile = _fetch_user_profile(user_id, settings)
+    level = profile["level"] if profile else 3
+    tendency = profile["tendency"] if profile else "탐색형 투자자"
+
+    articles = _fetch_top30_articles(settings)
+    if not articles:
+        return {
+            "type": "feed_top30",
+            "articles_count": 0,
+            "message": "오늘 노출된 뉴스가 없습니다.",
+            "briefing": None,
+            "summary": None,
+            "sentiment_overview": None,
+            "top_articles": [],
+            "indicators": [],
+            "user_level": level,
+            "user_tendency": tendency,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    newest = max((a["published_at"] for a in articles if a.get("published_at")), default=None)
+    cached, cached_ts = _get_feed_cache(level, tendency, settings)
+    if cached is not None and cached_ts is not None and newest is not None and cached_ts >= newest:
+        return cached
+
+    indicators = _compute_top_tickers_indicators(articles)
+    result = _build_feed_digest(articles, indicators, level, tendency, settings)
+    try:
+        save_ticker_digest_cache(_FEED_SENTINEL, level, tendency, result, settings)
+    except Exception as exc:
+        logger.warning("[피드 다이제스트] 캐시 저장 실패: %s", exc)
+    return result
 
 
 def generate_digest(user_id: str) -> dict:

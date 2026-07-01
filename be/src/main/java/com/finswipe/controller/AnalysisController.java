@@ -124,40 +124,35 @@ public class AnalysisController {
         return proxy("/api/v1/analysis/curate", "{\"user_id\":\"" + uid + "\"}");
     }
 
-    @Operation(summary = "티커별 일일 다이제스트",
-            description = "관심 티커 각각에 대해 어제 장 마감 이후 기사 전체를 종합 분석. 성향·레벨 맞춤 3단 요약(`sections`: 어제의_핵심/주가_반응/오늘_전망) + 대표 기사(`news_articles`, 최대 5건) + RSI/MACD 보조지표. "
-                    + "`sections`는 뉴스 없음·생성 실패 시 null이며, 이 경우 한 덩어리 `summary`로 폴백한다.")
+    @Operation(summary = "오늘의 top30 통합 브리핑",
+            description = "카드 피드(관심종목 무관, 오늘 직전 미국장 마감 이후 절대값 파워 상위 30개)를 다 읽었을 때 보여주는 요약. "
+                    + "종목별 카드가 아니라 하루치 시장을 한 편으로 종합한 `briefing`(오늘의_시장/핵심_이슈/오늘_체크포인트) + "
+                    + "대표 종목 보조지표 `indicators`(|감성|합 상위 최대 8종목, RSI·MACD·볼린저·거래량·52주위치·sparkline) + "
+                    + "대표 기사 `top_articles`(최대 10건). 레벨·성향 맞춤이며 (레벨,성향)별 캐시. "
+                    + "`briefing`은 생성 실패 시 null이고 이때 한 덩어리 `summary`로 폴백. 오늘 뉴스가 없으면 articles_count=0 + message.")
     @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
             {
-              "digests": [
-                {
-                  "ticker": "AAPL",
-                  "articles_count": 5,
-                  "sentiment_overview": { "positive": 3, "negative": 1, "neutral": 1, "avg_score": 0.42 },
-                  "summary": "어제 마감 이후 애플은 어닝서프라이즈를 기록했고, 시간외에서 +2% 반응했으며, 오늘은 가이던스 코멘트에 주목할 필요가 있습니다.",
-                  "sections": {
-                    "어제의_핵심": "어제 장 마감 후 애플이 시장 예상을 웃도는 분기 실적을 발표했습니다.",
-                    "주가_반응": "실적 발표 직후 시간외에서 +2% 반응했고, RSI는 68로 과열 직전 구간입니다.",
-                    "오늘_전망": "가치투자형 관점에서 오늘은 서비스 매출 가이던스 코멘트를 확인할 필요가 있습니다."
-                  },
-                  "news_articles": [
-                    { "headline_ko": "애플, 분기 실적 어닝서프라이즈", "headline": "Apple beats Q3 estimates",
-                      "sentiment_label": "positive", "sentiment_score": 0.78, "published_at": "2026-06-24T20:15:00Z" }
-                  ],
-                  "technical_indicators": {
-                    "current_price": 194.5,
-                    "change_pct_1d": 2.1,
-                    "change_pct_1m": 8.2,
-                    "volume_ratio": 1.35,
-                    "RSI": 68.0,
-                    "RSI_signal": "중립",
-                    "MACD": { "macd": 0.42, "signal": 0.31, "histogram": 0.11, "trend": "상승" }
-                  }
-                }
+              "type": "feed_top30",
+              "articles_count": 30,
+              "sentiment_overview": { "positive": 14, "negative": 11, "neutral": 5, "avg_score": 0.12 },
+              "briefing": {
+                "오늘의_시장": "오늘은 반도체 강세와 금리 경계가 동시에 나타나며 시장이 혼조세를 보였어요.",
+                "핵심_이슈": "엔비디아의 실적 서프라이즈가 반도체 전반을 끌어올렸고, 연준 위원의 매파적 발언이 상승폭을 제한했습니다.",
+                "오늘_체크포인트": "모멘텀 관점에서 반도체 대형주의 거래량과 국채금리 흐름을 함께 보는 게 좋아요."
+              },
+              "summary": "오늘은 반도체 강세와 금리 경계가... / 엔비디아의 실적 서프라이즈가... / 모멘텀 관점에서...",
+              "top_articles": [
+                { "headline_ko": "엔비디아 실적 서프라이즈", "headline": "Nvidia beats estimates",
+                  "sentiment_label": "positive", "sentiment_score": 0.91, "tickers": ["NVDA"], "published_at": "2026-07-01T20:15:00Z" }
+              ],
+              "indicators": [
+                { "ticker": "NVDA", "current_price": 128.4, "change_pct_1d": 3.2, "change_pct_1m": 11.5,
+                  "volume_ratio": 1.8, "RSI": 68.0, "RSI_signal": "중립",
+                  "MACD": { "macd": 0.42, "signal": 0.31, "histogram": 0.11, "trend": "상승" } }
               ],
               "user_level": 3,
               "user_tendency": "모멘텀형 투자자",
-              "generated_at": "2026-06-25T15:30:00Z"
+              "generated_at": "2026-07-01T15:30:00Z"
             }
             """)))
     @PostMapping("/digest")
