@@ -138,6 +138,18 @@ def initialize_postgres_database(dsn: str | None = None) -> str:
                 ON digest_cache(ticker, generated_at)
                 """
             )
+            # 개인화 피드 추천 이유 캐시 — (기사, 성향)별 한 줄 이유. 유저 수와 무관하게 토큰 절약.
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS reco_reason_cache (
+                    article_id TEXT NOT NULL,
+                    tendency TEXT NOT NULL,
+                    reason TEXT NOT NULL,
+                    generated_at TIMESTAMPTZ NOT NULL,
+                    PRIMARY KEY (article_id, tendency)
+                )
+                """
+            )
 
     return resolved_dsn
 

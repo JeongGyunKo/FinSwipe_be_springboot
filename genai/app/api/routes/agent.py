@@ -147,3 +147,31 @@ async def daily_digest(body: UserIdRequest) -> dict:
     except Exception as exc:
         logger.error("[다이제스트] 실패: %s", exc, exc_info=True)
         raise HTTPException(status_code=502, detail="일일 다이제스트 생성 중 오류가 발생했습니다.") from exc
+
+
+# ── 개인화 피드 추천 이유 ──────────────────────────────────────────────────────────
+# (기사, 성향)별 한 줄 이유 — 캐시 우선, 누락분만 일괄 생성. FE가 피드 렌더 후 지연 호출.
+
+class RecoReasonRequest(BaseModel):
+    article_ids: list[str] = Field(default_factory=list, max_length=30)
+    user_id: str | None = None
+    tendency: str | None = Field(default=None, max_length=50)
+
+
+@router.post("/reco-reasons")
+async def reco_reasons(body: RecoReasonRequest) -> dict:
+    try:
+        from app.services.reco.reason import generate_reasons
+
+        tendency = body.tendency
+        if not tendency and body.user_id:
+            from app.core import get_settings
+            from app.services.digest.agent import _fetch_user_profile
+            profile = await asyncio.to_thread(_fetch_user_profile, body.user_id, get_settings())
+            tendency = profile["tendency"] if profile else None
+
+        reasons = await asyncio.to_thread(generate_reasons, body.article_ids, tendency)
+        return {"reasons": reasons}
+    except Exception as exc:
+        logger.error("[추천이유] 실패: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail="추천 이유 생성 중 오류가 발생했습니다.") from exc

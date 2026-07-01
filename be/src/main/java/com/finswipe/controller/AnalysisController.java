@@ -190,9 +190,51 @@ public class AnalysisController {
         return userId;
     }
 
+    @Operation(summary = "피드 추천 이유",
+            description = "개인화 피드 상위 기사들의 한 줄 추천 이유. (기사,성향)별 캐시라 유저 수와 무관하게 토큰 절약. "
+                    + "FE가 피드 렌더 후 화면에 보이는 기사 id를 모아 지연 호출하는 용도. article_ids 최대 30.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            { "reasons": { "uuid1": "관심 종목 흐름과 맞닿은 강세 신호", "uuid2": "리스크 관점에서 짚어볼 악재" } }
+            """)))
+    @PostMapping("/reco-reasons")
+    public ResponseEntity<String> recoReasons(Authentication auth, @RequestBody(required = false) RecoReasonsBody body) {
+        final String uid = resolveUserId(auth, null);
+        if (uid == null || !isValidUuid(uid)) return ResponseEntity.badRequest()
+                .contentType(MediaType.APPLICATION_JSON).body("{\"error\":\"userId 필요\"}");
+        java.util.List<String> ids = (body != null && body.articleIds() != null) ? body.articleIds() : java.util.List.of();
+        java.util.Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("article_ids", ids);
+        payload.put("user_id", uid);
+        return proxyJson("/api/v1/analysis/reco-reasons", payload);
+    }
+
+    record RecoReasonsBody(
+            @com.fasterxml.jackson.annotation.JsonProperty("article_ids") java.util.List<String> articleIds) {}
+
     private static boolean isValidUuid(String value) {
         try { java.util.UUID.fromString(value); return true; }
         catch (IllegalArgumentException e) { return false; }
+    }
+
+    private ResponseEntity<String> proxyJson(String path, Object body) {
+        try {
+            return genaiClient.post()
+                    .uri(path)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .exchange((req, res) -> {
+                        byte[] bytes = res.getBody().readAllBytes();
+                        String raw = bytes.length > 0 ? new String(bytes, StandardCharsets.UTF_8) : "{}";
+                        return ResponseEntity.status(res.getStatusCode())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body(raw);
+                    });
+        } catch (Exception e) {
+            log.error("[에이전트 프록시] 실패: {}", e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body("{\"error\":\"분석 서버에 연결할 수 없습니다\"}");
+        }
     }
 
     private ResponseEntity<String> proxy(String path, String body) {
