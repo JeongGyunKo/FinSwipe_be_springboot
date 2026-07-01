@@ -104,6 +104,10 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
                 SELECT 1 FROM user_read_articles
                 WHERE user_id = CAST(:userId AS uuid) AND article_id = na.id
               )
+              AND NOT EXISTS (
+                SELECT 1 FROM user_disliked_articles
+                WHERE user_id = CAST(:userId AS uuid) AND article_id = na.id
+              )
             ORDER BY na.published_at DESC
             """,
             countQuery = """
@@ -118,6 +122,10 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
               )
               AND NOT EXISTS (
                 SELECT 1 FROM user_read_articles
+                WHERE user_id = CAST(:userId AS uuid) AND article_id = na.id
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM user_disliked_articles
                 WHERE user_id = CAST(:userId AS uuid) AND article_id = na.id
               )
             """,
@@ -155,6 +163,10 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
                   SELECT 1 FROM user_read_articles
                   WHERE user_id = CAST(:userId AS uuid) AND article_id = na.id
                 )
+                AND NOT EXISTS (
+                  SELECT 1 FROM user_disliked_articles
+                  WHERE user_id = CAST(:userId AS uuid) AND article_id = na.id
+                )
             )
             SELECT *
             FROM ranked
@@ -172,6 +184,10 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
               )
               AND NOT EXISTS (
                 SELECT 1 FROM user_read_articles
+                WHERE user_id = CAST(:userId AS uuid) AND article_id = na.id
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM user_disliked_articles
                 WHERE user_id = CAST(:userId AS uuid) AND article_id = na.id
               )
             """,
@@ -288,12 +304,50 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
               AND na.tickers && (
                 SELECT COALESCE(tickers, '{}') FROM user_profiles WHERE id = CAST(:userId AS uuid)
               )
+              AND NOT EXISTS (
+                SELECT 1 FROM user_disliked_articles
+                WHERE user_id = CAST(:userId AS uuid) AND article_id = na.id
+              )
             ORDER BY ura.read_at DESC
             LIMIT :limit
             """, nativeQuery = true)
     List<NewsArticle> findRecentReadArticles(@Param("userId") String userId,
                                              @Param("since") java.time.OffsetDateTime since,
                                              @Param("limit") int limit);
+
+    // 좋아요(오른쪽 스와이프)한 기사 — 최신 좋아요순. 날짜 윈도우 무관(사용자가 명시적으로 저장한 목록).
+    @Query(value = """
+            SELECT na.* FROM news_articles na
+            INNER JOIN user_liked_articles ula ON ula.article_id = na.id
+            WHERE ula.user_id = CAST(:userId AS uuid)
+              AND na.headline_ko IS NOT NULL
+            ORDER BY ula.liked_at DESC
+            LIMIT :limit OFFSET :offset
+            """, nativeQuery = true)
+    List<NewsArticle> findLikedByUser(@Param("userId") String userId,
+                                      @Param("limit") int limit,
+                                      @Param("offset") int offset);
+
+    @Query(value = "SELECT COUNT(*) FROM user_liked_articles WHERE user_id = CAST(:userId AS uuid)",
+            nativeQuery = true)
+    long countLikedByUser(@Param("userId") String userId);
+
+    // 싫어요(왼쪽 스와이프)한 기사 — 최신 싫어요순. 날짜 윈도우 무관(사용자가 명시적으로 저장한 목록).
+    @Query(value = """
+            SELECT na.* FROM news_articles na
+            INNER JOIN user_disliked_articles uda ON uda.article_id = na.id
+            WHERE uda.user_id = CAST(:userId AS uuid)
+              AND na.headline_ko IS NOT NULL
+            ORDER BY uda.disliked_at DESC
+            LIMIT :limit OFFSET :offset
+            """, nativeQuery = true)
+    List<NewsArticle> findDislikedByUser(@Param("userId") String userId,
+                                         @Param("limit") int limit,
+                                         @Param("offset") int offset);
+
+    @Query(value = "SELECT COUNT(*) FROM user_disliked_articles WHERE user_id = CAST(:userId AS uuid)",
+            nativeQuery = true)
+    long countDislikedByUser(@Param("userId") String userId);
 
     @Query("SELECT a.sourceUrl FROM NewsArticle a WHERE a.sourceUrl IN :urls")
     List<String> findExistingUrls(@Param("urls") List<String> urls);

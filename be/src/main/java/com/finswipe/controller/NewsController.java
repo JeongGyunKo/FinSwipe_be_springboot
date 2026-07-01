@@ -298,6 +298,170 @@ public class NewsController {
         }
     }
 
+    @Operation(summary = "좋아요", description = "카드 오른쪽 스와이프(관심있음) = 좋아요한 기사로 저장. 멱등(중복 호출 무해).")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            { "ok": true }
+            """)))
+    @SecurityRequirement(name = "bearerAuth")
+    @PostMapping("/{articleId}/like")
+    public ResponseEntity<Map<String, Boolean>> likeArticle(
+            Authentication auth,
+            @PathVariable java.util.UUID articleId,
+            @RequestParam(required = false) String userId) {
+        final String uid = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
+                ? auth.getPrincipal().toString() : userId;
+        if (uid == null || !isValidUuid(uid)) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false));
+        }
+        try {
+            jdbc.update("""
+                    INSERT INTO user_liked_articles (user_id, article_id)
+                    VALUES (CAST(? AS UUID), ?)
+                    ON CONFLICT (user_id, article_id) DO NOTHING
+                    """, uid, articleId);
+            // 상호배타 — 같은 기사의 싫어요는 제거 (좋아요/싫어요 동시 성립 불가)
+            jdbc.update("DELETE FROM user_disliked_articles WHERE user_id = CAST(? AS UUID) AND article_id = ?",
+                    uid, articleId);
+            return ResponseEntity.ok(Map.of("ok", true));
+        } catch (Exception e) {
+            log.error("[좋아요] 저장 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("ok", false));
+        }
+    }
+
+    @Operation(summary = "좋아요 취소", description = "좋아요한 기사에서 제거. 멱등.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            { "ok": true }
+            """)))
+    @SecurityRequirement(name = "bearerAuth")
+    @DeleteMapping("/{articleId}/like")
+    public ResponseEntity<Map<String, Boolean>> unlikeArticle(
+            Authentication auth,
+            @PathVariable java.util.UUID articleId,
+            @RequestParam(required = false) String userId) {
+        final String uid = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
+                ? auth.getPrincipal().toString() : userId;
+        if (uid == null || !isValidUuid(uid)) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false));
+        }
+        try {
+            jdbc.update("DELETE FROM user_liked_articles WHERE user_id = CAST(? AS UUID) AND article_id = ?",
+                    uid, articleId);
+            return ResponseEntity.ok(Map.of("ok", true));
+        } catch (Exception e) {
+            log.error("[좋아요 취소] 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("ok", false));
+        }
+    }
+
+    @Operation(summary = "좋아요한 기사 목록", description = "오른쪽 스와이프로 좋아요한 기사를 최신순으로 반환. 카드 피드와 동일한 카드 형식. JWT 필요.")
+    @SecurityRequirement(name = "bearerAuth")
+    @GetMapping("/liked")
+    public ResponseEntity<NewsListResponse> getLiked(
+            Authentication auth,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit,
+            @RequestParam(defaultValue = "0") @Min(0) int offset) {
+        final String uid = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
+                ? auth.getPrincipal().toString() : null;
+        if (uid == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+
+        List<NewsArticle> liked = newsRepo.findLikedByUser(uid, limit, offset);
+        Map<String, TechnicalsService.TechnicalsData> technicalsMap = buildTechnicalsMap(liked);
+        List<NewsArticleResponse> data = liked.stream()
+                .map(a -> {
+                    TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
+                    return new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false,
+                            td != null ? td.indicators() : null,
+                            price(a, td),
+                            td != null ? td.changePct1d() : null,
+                            td != null ? td.sparkline() : null);
+                })
+                .toList();
+        return ResponseEntity.ok(new NewsListResponse(newsRepo.countLikedByUser(uid), offset, data));
+    }
+
+    @Operation(summary = "싫어요", description = "카드 왼쪽 스와이프(관심없음) = 싫어요한 기사로 저장. 멱등(중복 호출 무해). 같은 기사의 좋아요는 자동 해제.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            { "ok": true }
+            """)))
+    @SecurityRequirement(name = "bearerAuth")
+    @PostMapping("/{articleId}/dislike")
+    public ResponseEntity<Map<String, Boolean>> dislikeArticle(
+            Authentication auth,
+            @PathVariable java.util.UUID articleId,
+            @RequestParam(required = false) String userId) {
+        final String uid = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
+                ? auth.getPrincipal().toString() : userId;
+        if (uid == null || !isValidUuid(uid)) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false));
+        }
+        try {
+            jdbc.update("""
+                    INSERT INTO user_disliked_articles (user_id, article_id)
+                    VALUES (CAST(? AS UUID), ?)
+                    ON CONFLICT (user_id, article_id) DO NOTHING
+                    """, uid, articleId);
+            // 상호배타 — 같은 기사의 좋아요는 제거 (좋아요/싫어요 동시 성립 불가)
+            jdbc.update("DELETE FROM user_liked_articles WHERE user_id = CAST(? AS UUID) AND article_id = ?",
+                    uid, articleId);
+            return ResponseEntity.ok(Map.of("ok", true));
+        } catch (Exception e) {
+            log.error("[싫어요] 저장 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("ok", false));
+        }
+    }
+
+    @Operation(summary = "싫어요 취소", description = "싫어요한 기사에서 제거. 멱등.")
+    @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
+            { "ok": true }
+            """)))
+    @SecurityRequirement(name = "bearerAuth")
+    @DeleteMapping("/{articleId}/dislike")
+    public ResponseEntity<Map<String, Boolean>> undislikeArticle(
+            Authentication auth,
+            @PathVariable java.util.UUID articleId,
+            @RequestParam(required = false) String userId) {
+        final String uid = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
+                ? auth.getPrincipal().toString() : userId;
+        if (uid == null || !isValidUuid(uid)) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false));
+        }
+        try {
+            jdbc.update("DELETE FROM user_disliked_articles WHERE user_id = CAST(? AS UUID) AND article_id = ?",
+                    uid, articleId);
+            return ResponseEntity.ok(Map.of("ok", true));
+        } catch (Exception e) {
+            log.error("[싫어요 취소] 실패: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("ok", false));
+        }
+    }
+
+    @Operation(summary = "싫어요한 기사 목록", description = "왼쪽 스와이프로 싫어요한 기사를 최신순으로 반환. 카드 피드와 동일한 카드 형식. JWT 필요.")
+    @SecurityRequirement(name = "bearerAuth")
+    @GetMapping("/disliked")
+    public ResponseEntity<NewsListResponse> getDisliked(
+            Authentication auth,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit,
+            @RequestParam(defaultValue = "0") @Min(0) int offset) {
+        final String uid = (auth != null && auth.getPrincipal() instanceof java.util.UUID)
+                ? auth.getPrincipal().toString() : null;
+        if (uid == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+
+        List<NewsArticle> disliked = newsRepo.findDislikedByUser(uid, limit, offset);
+        Map<String, TechnicalsService.TechnicalsData> technicalsMap = buildTechnicalsMap(disliked);
+        List<NewsArticleResponse> data = disliked.stream()
+                .map(a -> {
+                    TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
+                    return new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false,
+                            td != null ? td.indicators() : null,
+                            price(a, td),
+                            td != null ? td.changePct1d() : null,
+                            td != null ? td.sparkline() : null);
+                })
+                .toList();
+        return ResponseEntity.ok(new NewsListResponse(newsRepo.countDislikedByUser(uid), offset, data));
+    }
+
     @Operation(summary = "뉴스 검색", description = "티커 심볼 또는 회사명으로 검색 (예: AAPL, Apple)")
     @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
             {
