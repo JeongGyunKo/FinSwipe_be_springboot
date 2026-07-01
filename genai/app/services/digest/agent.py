@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.core import get_settings
 from app.db.postgres import connect_postgres
@@ -469,6 +469,26 @@ def generate_digest_from_cache(user_id: str) -> dict:
 
 _FEED_SENTINEL = "__FEED_TOP30__"  # digest_cache를 (레벨,성향)별 피드 브리핑 캐시로 재사용하기 위한 티커 자리표시
 
+# 조합당 최소 재생성 간격 — 장중 새 고파워 기사가 top30에 자주 들어와도
+# 이 간격 내에는 재생성하지 않고 약간 오래된 캐시를 제공(토큰 폭주 방지 상한).
+_FEED_REFRESH_THROTTLE = timedelta(minutes=15)
+
+
+def _feed_cache_stale(cached_ts, newest, now=None) -> bool:
+    """(레벨,성향) 피드 브리핑을 재생성해야 하는가.
+
+    - 캐시 없음 → True
+    - top30에 새 기사 없음(cached_ts >= newest) → False (이미 최신)
+    - 새 기사 있으나 마지막 생성 후 throttle 미경과 → False (약간 오래된 캐시 제공)
+    - 새 기사 있고 throttle 경과 → True
+    """
+    if cached_ts is None:
+        return True
+    if newest is None or cached_ts >= newest:
+        return False
+    now = now or datetime.now(timezone.utc)
+    return (now - cached_ts) >= _FEED_REFRESH_THROTTLE
+
 _FEED_SYSTEM_PROMPT = """당신은 개인화 금융 뉴스 분석 전문가입니다.
 오늘 시장에서 감성 강도(파워)가 가장 큰 뉴스들을 종합해 투자자 맞춤 '오늘의 시장 브리핑'을 작성합니다.
 
@@ -675,7 +695,7 @@ def generate_feed_digest(user_id: str) -> dict:
 
     newest = max((a["published_at"] for a in articles if a.get("published_at")), default=None)
     cached, cached_ts = _get_feed_cache(level, tendency, settings)
-    if cached is not None and cached_ts is not None and newest is not None and cached_ts >= newest:
+    if cached is not None and not _feed_cache_stale(cached_ts, newest):
         return cached
 
     indicators = _compute_top_tickers_indicators(articles)

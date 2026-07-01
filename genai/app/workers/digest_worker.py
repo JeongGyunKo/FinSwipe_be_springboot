@@ -12,6 +12,7 @@ from app.services.digest.agent import (
     _FEED_SENTINEL,
     _build_feed_digest,
     _compute_top_tickers_indicators,
+    _feed_cache_stale,
     _fetch_top30_articles,
     _get_feed_cache,
     save_ticker_digest_cache,
@@ -54,11 +55,11 @@ def _run_one_cycle(settings, max_workers: int) -> int:
 
     newest = max((a["published_at"] for a in articles if a.get("published_at")), default=None)
 
-    # 캐시가 없거나 top30 최신 기사보다 오래된 조합만 재생성 대상
+    # 캐시 없음 or (새 top30 기사 있고 재생성 throttle 경과) 조합만 재생성 대상
     stale: list[tuple[int, str]] = []
     for level, tendency in _fetch_distinct_combos(settings):
         _, cached_ts = _get_feed_cache(level, tendency, settings)
-        if cached_ts is None or newest is None or cached_ts < newest:
+        if _feed_cache_stale(cached_ts, newest):
             stale.append((level, tendency))
 
     if not stale:
