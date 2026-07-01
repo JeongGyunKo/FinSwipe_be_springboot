@@ -16,6 +16,7 @@ import com.finswipe.dto.response.*;
 import com.finswipe.job.JobInfo;
 import com.finswipe.job.JobTrackingService;
 import com.finswipe.service.AnalyzerService;
+import com.finswipe.service.FeedRankingService;
 import com.finswipe.service.NewsCollectorService;
 import com.finswipe.service.TechnicalsService;
 import com.finswipe.service.TickerService;
@@ -53,6 +54,7 @@ public class NewsController {
     private final AnalyzerService analyzerService;
     private final NewsCollectorService collectorService;
     private final TechnicalsService technicalsService;
+    private final FeedRankingService rankingService;
     private final JobTrackingService jobTracking;
     private final AppProperties props;
     private final JdbcTemplate jdbc;
@@ -154,9 +156,9 @@ public class NewsController {
                 articles = newsRepo.findUnreadByUserAndTicker(
                         resolvedUserId, effectiveSince, tickerFilter, PageRequest.of(offset / limit, limit)).getContent();
             } else {
-                // 기본 피드 — 관심종목 무관, 오늘(직전 ET 마감 이후) 절대값 파워 상위 30개 고정 유니버스에서
-                // 읽음/싫어요 제외. 30개를 다 소진하면 피드 종료(추가 제공 없음).
-                articles = newsRepo.findTopPowerUnreadForUser(resolvedUserId, effectiveSince, 30);
+                // 기본 피드 — 관심종목 무관. 오늘 파워 상위 후보 풀을 유저 행동 신호로 개인화 재정렬(탐색 쿼터 포함).
+                // 신호가 없으면 순수 파워 상위 30개로 폴백. 읽음/싫어요는 후보 단계에서 제외.
+                articles = rankingService.rankFeed(resolvedUserId, effectiveSince, 30);
             }
 
             Map<String, TechnicalsService.TechnicalsData> technicalsMap = buildTechnicalsMap(articles);

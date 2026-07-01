@@ -57,6 +57,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/news/*/like", "/news/*/dislike").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/news/*/like", "/news/*/dislike").authenticated()
                 .requestMatchers(HttpMethod.GET, "/news/liked", "/news/disliked").authenticated()
+                .requestMatchers(HttpMethod.POST, "/events/batch").authenticated()
                 .requestMatchers(HttpMethod.POST, "/news/device-token").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/news/device-token").authenticated()
                 .requestMatchers(HttpMethod.GET, "/news/notification-settings").authenticated()
