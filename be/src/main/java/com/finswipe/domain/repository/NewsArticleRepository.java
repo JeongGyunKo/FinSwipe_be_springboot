@@ -89,6 +89,33 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, UUID> 
             nativeQuery = true)
     Page<NewsArticle> findByXaiKoIsNotNullOrderByPowerDesc(Pageable pageable);
 
+    // 관심종목 무관 — 기간 내 절대값 파워 상위 :cap개를 "고정 유니버스"로 잡고, 읽음/싫어요 제외해 반환.
+    // 유니버스를 먼저 30개로 고정하므로, 읽을수록 노출이 줄고 다 읽으면 비어 종료(31위 이하로 밀려나지 않음).
+    @Query(value = """
+            WITH top_power AS (
+              SELECT id FROM news_articles
+              WHERE headline_ko IS NOT NULL
+                AND sentiment_reason IS NOT NULL
+                AND published_at >= :since
+              ORDER BY ABS(sentiment_score) DESC NULLS LAST, published_at DESC
+              LIMIT :cap
+            )
+            SELECT na.* FROM news_articles na
+            JOIN top_power tp ON tp.id = na.id
+            WHERE NOT EXISTS (
+                SELECT 1 FROM user_read_articles
+                WHERE user_id = CAST(:userId AS uuid) AND article_id = na.id
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM user_disliked_articles
+                WHERE user_id = CAST(:userId AS uuid) AND article_id = na.id
+              )
+            ORDER BY ABS(na.sentiment_score) DESC NULLS LAST, na.published_at DESC
+            """, nativeQuery = true)
+    List<NewsArticle> findTopPowerUnreadForUser(@Param("userId") String userId,
+                                                @Param("since") java.time.OffsetDateTime since,
+                                                @Param("cap") int cap);
+
     // userId + 특정 티커 필터 읽지 않은 기사
     @Query(value = """
             SELECT * FROM news_articles na

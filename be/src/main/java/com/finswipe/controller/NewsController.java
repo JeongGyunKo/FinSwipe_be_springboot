@@ -59,7 +59,7 @@ public class NewsController {
 
     // ===================== Public Endpoints =====================
 
-    @Operation(summary = "뉴스 피드", description = "분석 완료된 기사 목록. sort=time(시간순,기본값) | sort=power(감성강도순). JWT 있으면 관심 티커 필터 + 미읽은 기사 우선 적용. 특정 티커에 미읽은 기사가 없으면 최신 공개 기사 5개로 자동 fallback(is_read=true). indicators는 대표 티커의 기술적 지표 4종(RSI·MACD·볼린저밴드·거래량) 배열 — null이면 지표 없이 렌더. currentPrice/changePct1d는 전일 종가 기준, sparkline은 최근 30일 종가 배열.")
+    @Operation(summary = "뉴스 피드", description = "분석 완료된 기사 목록. 로그인 시 관심종목과 무관하게 오늘(직전 ET 마감 이후) 기사 중 절대값 파워(감성강도, ±무관) 상위 30개를 고정 유니버스로 잡고, 이미 읽음/싫어요한 기사는 제외해 반환. 30개를 다 소진하면 피드는 비어 종료됨(31위 이하로 밀려나지 않음). ticker 파라미터로 특정 티커만 필터도 가능. indicators는 대표 티커의 기술적 지표 4종(RSI·MACD·볼린저밴드·거래량) 배열 — null이면 지표 없이 렌더. currentPrice/changePct1d는 전일 종가 기준, sparkline은 최근 30일 종가 배열.")
     @ApiResponse(responseCode = "200", content = @Content(examples = @ExampleObject(value = """
             {
               "total": 1200,
@@ -145,110 +145,32 @@ public class NewsController {
                 : java.time.OffsetDateTime.now().minusYears(10);
 
         if (resolvedUserId != null && isValidUuid(resolvedUserId)) {
-            final int pageNum = offset / limit;
-            var pageFuture = new java.util.concurrent.CompletableFuture<Page<NewsArticle>>();
-            var readFuture = new java.util.concurrent.CompletableFuture<List<NewsArticle>>();
-            var tickersFuture = new java.util.concurrent.CompletableFuture<List<String>>();
-
             final String tickerFilter = (ticker != null && !ticker.isBlank()) ? ticker.strip().toUpperCase() : null;
-            Thread.ofVirtual().start(() -> {
-                try {
-                    Page<NewsArticle> result;
-                    if (tickerFilter != null) {
-                        result = newsRepo.findUnreadByUserAndTicker(resolvedUserId, effectiveSince, tickerFilter, PageRequest.of(pageNum, limit));
-                    } else {
-                        List<String> tickers = getUserTickers(resolvedUserId);
-                        int tickerCount = Math.max(tickers.size(), 1);
-                        int perTicker = Math.max(limit / tickerCount, 10);
-                        result = newsRepo.findUnreadByUser(resolvedUserId, effectiveSince, perTicker, PageRequest.of(pageNum, limit));
-                    }
-                    pageFuture.complete(result);
-                }
-                catch (Exception e) { pageFuture.completeExceptionally(e); }
-            });
-            Thread.ofVirtual().start(() -> {
-                try { readFuture.complete(newsRepo.findRecentReadArticles(resolvedUserId, effectiveSince, 10)); }
-                catch (Exception e) { readFuture.completeExceptionally(e); }
-            });
-            Thread.ofVirtual().start(() -> {
-                try { tickersFuture.complete(getUserTickers(resolvedUserId)); }
-                catch (Exception e) { tickersFuture.completeExceptionally(e); }
-            });
+            List<String> userTickers = getUserTickers(resolvedUserId); // 피드 필터엔 미사용, FE 다른 UI 호환용으로 유지
 
-            java.util.concurrent.CompletableFuture.allOf(pageFuture, readFuture, tickersFuture).join();
-
-            Page<NewsArticle> page = pageFuture.join();
-            List<NewsArticle> readArticles = readFuture.join();
-            List<String> userTickers = tickersFuture.join();
-
-            // 안 읽은 기사에서 티커별 커버 여부 확인
-            java.util.Set<String> coveredTickers = new java.util.HashSet<>();
-            for (NewsArticle a : page.getContent()) {
-                if (a.getTickers() != null) coveredTickers.addAll(a.getTickers());
+            List<NewsArticle> articles;
+            if (tickerFilter != null) {
+                // 특정 티커 명시 필터 — 해당 티커의 안 읽은 기사(기존 동작 유지)
+                articles = newsRepo.findUnreadByUserAndTicker(
+                        resolvedUserId, effectiveSince, tickerFilter, PageRequest.of(offset / limit, limit)).getContent();
+            } else {
+                // 기본 피드 — 관심종목 무관, 오늘(직전 ET 마감 이후) 절대값 파워 상위 30개 고정 유니버스에서
+                // 읽음/싫어요 제외. 30개를 다 소진하면 피드 종료(추가 제공 없음).
+                articles = newsRepo.findTopPowerUnreadForUser(resolvedUserId, effectiveSince, 30);
             }
 
-            // 안 읽은 기사가 없는 티커는 최신 공개 기사로 fallback — 단, 조회 기간(since) 내 기사만
-            // (since를 무시하면 13일 전 같은 오래된 기사가 유입됨)
-            List<NewsArticle> fallbackArticles = new java.util.ArrayList<>();
-            if (tickerFilter == null) {
-                for (String t : userTickers) {
-                    if (!coveredTickers.contains(t)) {
-                        try {
-                            List<java.util.UUID> ids = newsRepo.findIdsByTickersOverlap(
-                                    "{" + t + "}", 5, 0);
-                            if (!ids.isEmpty()) {
-                                List<NewsArticle> found = newsRepo.findByIdIn(ids);
-                                if (since != null) {
-                                    found = found.stream()
-                                            .filter(a -> a.getPublishedAt() != null && !a.getPublishedAt().isBefore(since))
-                                            .toList();
-                                }
-                                fallbackArticles.addAll(found);
-                            }
-                        } catch (Exception ignored) {}
-                    }
-                }
-            }
-
-            List<NewsArticle> allArticles = new java.util.ArrayList<>(page.getContent());
-            allArticles.addAll(readArticles);
-            allArticles.addAll(fallbackArticles);
-            Map<String, TechnicalsService.TechnicalsData> technicalsMap = buildTechnicalsMap(allArticles);
-
-            // 중복 제거용 ID 세트
-            java.util.Set<java.util.UUID> addedIds = new java.util.HashSet<>();
-            List<NewsArticleResponse> data = new java.util.ArrayList<>();
-            page.getContent().forEach(a -> {
-                if (addedIds.add(a.getId())) {
-                    TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
-                    data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false,
-                            td != null ? td.indicators() : null,
-                            price(a, td),
-                            td != null ? td.changePct1d() : null,
-                            td != null ? td.sparkline() : null));
-                }
-            });
-            readArticles.forEach(a -> {
-                if (addedIds.add(a.getId())) {
-                    TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
-                    data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), true,
-                            td != null ? td.indicators() : null,
-                            price(a, td),
-                            td != null ? td.changePct1d() : null,
-                            td != null ? td.sparkline() : null));
-                }
-            });
-            fallbackArticles.forEach(a -> {
-                if (addedIds.add(a.getId())) {
-                    TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
-                    data.add(new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), true,
-                            td != null ? td.indicators() : null,
-                            price(a, td),
-                            td != null ? td.changePct1d() : null,
-                            td != null ? td.sparkline() : null));
-                }
-            });
-            return ResponseEntity.ok(new NewsListResponse(page.getTotalElements(), offset, data, userTickers));
+            Map<String, TechnicalsService.TechnicalsData> technicalsMap = buildTechnicalsMap(articles);
+            List<NewsArticleResponse> data = articles.stream()
+                    .map(a -> {
+                        TechnicalsService.TechnicalsData td = technicalsMap.get(repTicker(a));
+                        return new NewsArticleResponse(a, tickerService.enrichTickers(a.getTickers()), false,
+                                td != null ? td.indicators() : null,
+                                price(a, td),
+                                td != null ? td.changePct1d() : null,
+                                td != null ? td.sparkline() : null);
+                    })
+                    .toList();
+            return ResponseEntity.ok(new NewsListResponse(data.size(), offset, data, userTickers));
         }
 
         org.springframework.data.domain.PageRequest pageReq = PageRequest.of(offset / limit, limit);
