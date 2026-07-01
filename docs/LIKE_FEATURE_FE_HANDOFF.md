@@ -73,6 +73,6 @@ const dismiss = async (dir: 1 | -1) => {
 ## 3. 참고 / 주의
 - **과거 스와이프는 복구 불가** — 지금까지 우측 스와이프는 저장된 적이 없습니다. FE 연동 이후의 좋아요만 쌓입니다.
 - "관심 종목(워치리스트)" 화면(`/like`)과는 **별개**입니다. 그건 종목 단위 관심, 이건 기사 단위 좋아요.
-- BE 저장 위치: 좋아요 `user_liked_articles`(Flyway V34, `user_id, article_id, liked_at`), 싫어요 `user_disliked_articles`(Flyway V36, `user_id, article_id, disliked_at`).
+- BE 저장 위치: 좋아요 `user_liked_articles`(Flyway V37, `user_id, article_id, liked_at`), 싫어요 `user_disliked_articles`(Flyway V36, `user_id, article_id, disliked_at`).
 
 문의: BE 관련 막히면 Swagger의 `POST /news/{articleId}/like` 참고.
